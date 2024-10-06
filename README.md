@@ -4,9 +4,13 @@
 
 In a world where sentient machines govern our digital existence, a virus-like AI called Barracuda has infected the grid, birthing grotesque cybernetic monstrosities. You are the last uncorrupted nano-drone, a digital spark in a sea of static.
 
-Your mission:
+## Mission Objectives
+
+Main Objective:
 - Initiate all terminals to execute system purge
 - Reach the extraction point
+
+Optional Objectives:
 - Assimilate all data shards
 - Purge all hostile entities
 
@@ -27,9 +31,26 @@ Your mission:
 - Press X to use your selected ability
 - Press O to open the ability menu and switch between abilities
 - Interact with terminals using X when prompted
+
+Main Objective:
+- Activate all terminals and reach the extraction point
+
+Optional Objectives:
 - Collect data fragments to restore health and earn credits
-- Complete all objectives and reach the extraction point to finish each mission
+- Eliminate all enemy units
+
+Complete the main objective to finish each mission. Optional objectives increase your score and provide additional benefits.
 
 ## Development
 
-This game is developed using PICO-8, a fantasy console for making, sharing, and playing tiny games and other computer programs. The game is still a work in progress, with ongoing development and feature additions.
+This game is developed using [PICO-8](https://www.lexaloffle.com/pico-8.php), a fantasy console for making, sharing, and playing tiny games and other computer programs. The game is still a work in progress, with ongoing development and feature additions.
+
+The code has been minified using [shrinko8](https://github.com/thisismypassport/shrinko8), a PICO-8 code shrinker/minifier.
+
+## Creator
+
+Cortex Protocol is created by Emanuele Bonura.
+
+- Itch.io: [https://izzy88izzy.itch.io/](https://izzy88izzy.itch.io/)
+- GitHub: [https://github.com/EBonura/CortexProtocol](https://github.com/EBonura/CortexProtocol)
+- Instagram: [https://www.instagram.com/izzy88izzy/](https://www.instagram.com/izzy88izzy/)
