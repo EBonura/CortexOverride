@@ -2,10 +2,8 @@ pico-8 cartridge // http://www.pico-8.com
 version 41
 __lua__
 
-
-
--- strech goal: implement a flag for cables sprites, and do a pal swap vertically or horizontally periodically across the map
-
+-- MAP COMPRESSION
+----------------------
 -- function compress(data)
 --   local result = ""
 --   local i = 1
@@ -37,7 +35,7 @@ __lua__
 --   return result
 -- end
 
--- function test_and_save_map_compression(start_address, end_address, filename)
+-- function save_compressed_map(start_address, end_address, filename)
 --   -- Gather map data
 --   local map_data = ""
 --   for addr = start_address, end_address do
@@ -77,7 +75,18 @@ function decompress_to_memory(data, mem_index)
   end
 end
 
-
+function load_compressed_map()
+  if current_mission <= 2 then
+    compressed_map_lower="Gk`⬅️¹lbc☉▮kozz⬇️³░⁴⁴{`IG`⁴、、✽■✽³o0^0n^o`i⁷●¹q✽⁸KPPQ⬇️ᵇVvVTP✽¹s`░F웃cl⬇️Tm●E●⁵`Y[@@@FfD⬇️⁶✽³\\☉▮c░:zoo░⬇️⁴o░█웃|●░{⬇️うᵇ`Z♥z●♥Wl``RVS`p⌂カ░を⬅️¹⬇️█om⬇️サMN✽チ`j⬇️は░つQvQ●の☉⁶✽む☉メ⁴…█Mnn0ozᵇ+`I✽◝*✽³⬇️웃C☉l⁴●³0ᶜᶜ+ᶜ🅾️まmo]n./^]on⬇️¹`iG⬇️はˇ²░む웃▒…█⬇️れ░○☉█⁷‖◀⬇️◝,\r\r\r♥ふ⁴●⁵⁴0•+•、✽っᵇ♥♥M]⬇️ン>?░@⬇️'⬇️█`o•++、om●む♥⁷●ん✽J⬇️Ko⬆️█zz•⁴⁴`Y●█%&⬇️◝。⁷q\0⌂ふ●⬇️0⬇️~░Z⬇️てᶜ⬇️bMn^░y░?●█░ス░█●R♥Y😐░⁴⁴░▥✽█♥▮░■░なᵇ+⬇️█Z✽◝*⬇️³\r\r=⁷⁷S⌂8●;0ozxol`♥¹k^✽_⬇️✽✽◝zo`YH⬇️ス•、☉ンM^✽ロ●2p☉7``lIWkko○웃I⌂「✽◝☉⁵Xk…!kozyo`b@✽¹c⬇️lzz░d░fMnnn`iHa⬇️⌂⬇️u]N♥◝░▒░2fD●5●;\\qFao⬇️IAFFE@@F░。Ef@D@\\⁷⁷\0⌂¹[⬇️hFFDEB☉<c`~yz○`Y⁷⁷。⬇️たG✽█●j●l`Z░⁘✽ル⬇️{●⁵⬇️うo`IKPPUP⬇️⁴Q⁷⁷Vv⁷q⁷\0h`o~`I✽mq\0\0⬇️□⬇️Tq⁷**⬅️○\0⬇️5✽²L⁷\0░p\0\0Ga~⬇️テB░,⁷⁷qW✽█●j♥█iW`n⬇️¹⬇️ョ]o⬇️¹^░い✽█Gl`●¹RS`pSe⁷w⁷a⁴~`rQw░y♥³░ケ⬇️そQvQVvVT⬇️なs●5kI⁷\0w*░▒Wa○zz~R⬇️ュ*⬇️▮g`⌂マ░ヨo⬇️█G⬇️⬆️o✽😐●{☉█H⬇️,omo~○oo⁴⁴⁴`Z⁷dl⁴ok``pRv⬇️➡️e░✽\0░T♥そp●なlo⁴o{⬇️ゆ\0✽、⁷\0qh~xy○j⁷q✽█X░T♪³`Z☉█o●∧░き✽█G`~{✽ちMn⬇️¹`j⁷C✽<○o~░…O⌂█☉Tm●\\z⁴⁴✽█\0。\0q⬇️ワtB\0\0Cu\0⬇️に。⬇️てk☉そ♥に`l⬇️h♥█]n./zMo░n⬇️pIH`n^z░T^ᵇᶜᶜoaIqXox✽け⬇️せy~⬇️◝q⁷\0░TW⬇️ら✽む●ら⬇️わ●█**⬇️░⁷⬇️☉✽³●█[@➡️¹\\✽█M]n⬇️ン>?n^✽M⁴⁴`IW`⁴z⬇️▥⬇️⁴•+、○`J⁷H⁴xy✽}░⁶░◝⁷\0,=⁷⁷h`⬇️のN●そzM░ゆ^⬇️█⁷♥█⬇️さ░+q⁷⁷**⁷⁷KPQVVvQ⬇️めVvVPQvQPPLG░@^✽k░る✽r░█h⬇️█omz0░▒、o`j⁷h⁴⁴⬇️f○oo~⬇️²|✽█⬇️◝⁷ha⬇️む⬇️やᵇo•ᶜ░B⬇️●o`i⁷⁷<\r-웃|⬇️◜,░█Wl`░¹RVS`p✽\n`k⬇️ヘo✽フzo♥●░ロ⬇️るha○zo]0y0✽ケai⁷tBFfCfFC✽:u✽█░ケg░@mᶜ0•ᶜo、⬇️るᵇ+++oO░レ░ヨ●|░て░つ⁷⁷Co○~⬇️テ⁴o~⬇️イ⬇️⁶⬇️hg`⬇️ス⬇️ンM^⬇️テ⬇️◜✽on⬇️█●▤0y^░ナ░キ♥MfFfFF\0░サ⌂█]0z0░せ^░○、z✽レ░ヨ⌂²✽█\0\0~░マzx✽⁶z⁴{o`Yh░█⬇️ワ]N●‖mzooᵇᶜ`IX⬇️スzon^z░3○✽キ⌂P\0\0웃サ░(░そ⬇️し⬇️を•、•、z⬇️█\0\0\0。⬇️⁴dRVSe⬇️ᶜq\0<**⬇️⁘\0o♥{●▒]⬇️ヘg⬇️█⬇️s░y●█⬇️○+、`IH⬇️スM^oo░2xy●◜░レ✽⁷✽█q\0░サG`oᶜ✽そ░○♥]✽█<-\0\0h~~○j░x\0\0░█q\0⬅️%✽ヤ`Y✽ヘ⬇️ルo⬇️y░²mozᵇ、o⬇️█aᶜ☉⧗✽R♥ヲ░わ⬇️ュ*✽\r░█W`o+✽そzzᵇᵇ⬇️⌂░F|✽そ⬇️えg○{oj⁷░と✽ᶠ\0\0⬇️て⬇️オ⬅️█i⬇️ら{zzMn⬇️る░@z]Nᵇ、{⬇️█G`+ᶜmzy●コy♥█,*\r\r\r-●\\*⬇️░░c`o、●そᵇ、••ᶜoz⁴⁴⁴`Z░゜=q⁷h○~~R░█⬇️-⬇️て⁷\0~•⬇️c{N●◝⁴zo`Z⬇️█♥ョᵇ+++ᶜ⬇️ᵇ•⬇️イ`IW`+、mo~⬇️セ○~○~░キ⬇️|=░セ<░	\r\r*⬇️😐w⁷⁷X⬇️@░>oᵇ、✽ュ⬇️○⁴`I●か⁷tBqCu✽█w✽<S○o~○░n░X~o⁴░ヘk`✽¹f●⁷♥⁶lI⁷t⬇️「p✽、⬇️⁶u✽◝⁷⁷q◆⁸⁷⁷☉@◆>◆¹░ョ⬇️て➡️,lI[@✽¹AqDAffFFDEBD░□\\q⁷CBFFf⬇️²A⬇️⁶░オ∧²♥@@@⌂<⬇️>あ,😐'░h"
+    compressed_map_upper='⁷⁷*∧¹⁷⁷SvvQ⁷q⁷VvVTPPQ⬇️ᶜ⁷⬇️⁸⬇️²UQVVv⬇️⁷░\rLK☉•●‖♥□⬇️!♥1L♪`\0K░<░:⬇️>░A⬇️゜⁷♥¹\0\0。✽ᵇ●⁶⁷d``p``RVS░⁷●ᶜv░□✽ᵉ☉⁴kIGl♥•😐□⌂1kI✽`q\0⬇️^⬇️⁴*W✽。p●Ep☉゜♥█<\r\r*-⬇️➡️q\0⬇️ワ_⁴oo~ooo○o•+⁴⁴⬇️\r✽ᵉ♥³m░ᵇ⁴o{`IG`nN●▮●⁴░□⁴⬇️•✽!⁴o`Y⬇️}⬇️タ\0\0,=░⁶⁷C~⁴x○⬇️Zm~o○~o`J⬇️◝q☉█░◝‖◀=⬇️⬅️░ひ~xzzyzxyzz•、⬇️♥⬇️⁸░²⬇️‖⬇️	m⬇️\r⬇️_⁴`YG`o{●▮░⁘{✽█o{⁴⁴░.░█i⁷⁷w✽█。\0q░█⁷○y⬇️RxM^zz~{oaI*⁷w\r\r-♥█⬇️⌂%&░⬅️░★⬇️rx░ラ●x░q⬇️●o●▒✽█░モiW`░!]⬇️ュ⬇️R⬇️ˇ✽█⬇️か●9o`Z\r\r=⬇️タq⁷**░●⁷Sox⬇️ケxmxxyy○~`⬇️█⬇️◜。♥█⁷⁷*\r=*q✽█}~○oo~⬇️れ✽w░³⬇️\r⁴oᵇᶜ✽pN✽●⬇️_h✽█✽しoMnnn♥█o⁴░‖⁴⬇️◆░コ░ン●█Xa~♥ょzᵇyz○`J🅾️█,=░ッ⁷⬇️に⁷t`░¹p``BfFFfC⬇️	●▮k✽[✽A]n`JhaoMN░ヨzMn^zz⁴✽█]⬇️ュ0⬇️~Mn`rPPQVTPL⬇️ハ\0\0q\0G`○y░に⬇️け•zxoaI⬇️█q⌂█✽웃⬇️ぬ░ˇ░wD@@A⬇️く⬇️れDAFffDE@ca⬇️ソ░ユoz•ᶜ⬇️トG`n^mo]n./^░◀●█⬇️◝0z0no^ok●ほkI✽█\0⬇️█ox░>0⬇️ろyzo`JKP⬇️くvQ⬇️⁶け³v⬇️ゃs⬇️^●█░¹`Y░n░ヤ>?●∧♥█nn0⁴⁴oz⁴⬇️⁵✽(I⁷**░ニHa~⬇️wz0y0Nzyx░らl●けた⁶l✽█⬇️~░♥`j░モ░ンm░∧Mnn`IW✽□⁴m⬇️⁴░し⬇️▒░∧,●█⬇️にx░ゆ0y]⬇️さnaJ⬇️.om⬇️Mᵇ+●ち░2♥ふ░「•、☉◀⌂⁸⬇️█⬇️◝mz0zM♥█⬇️ユ^░◝⬇️t`Ih░★⁴⬇️U░そ⬇️テk⬇️♥`I=⁷⁷q\0\0\0G`○x░ぬ]N~zy⬇️らY⬇️.{⬇️<⬇️█、⁴⬇️セ⁴⬇️⁵ᵇᶜ✽bzM░「▤³o]0z0^`Z✽█M^✽▤⬇️1░█a✽けm✽す`bc`░█rQ⁷⬇️¹TL⬇️にy░ゆoox✽█i♥.⬇️○✽サ⬇️ャᵇ+ᶜ░ノ✽◝✽ョᵇ♥▮☉²●█zz0zz`I⬇️█░ヲ✽の⬇️s⬇️マ✽□Mn⬇️コ⁴o●ᶠzok``R⁷⁷SkIH`y░█●かyx`Zh░らzz•●○l`✽¹k░█♥ᶜ…▮k⬇️ホo░そn^~~`J░█☉ち░ね●★웃も♥█⬇️ス~o○o`YG`xxyz⬇️³mx⬇️⁶yaJX`o{N●よ⁴⬇️ゆb@⬇️¹c░⬆️♥ᶜ…▮ck⬇️え웃うlIG⬇️タ⬅️そ░ヨ😐□⬇️!✽ニ⁴⁴zx{o`iH`ox⁴⬇️の~m○~oo○`J⬇️■웃と⁴⬇️ゆKPPPs●█r⬇️ᵇL…▮[░えᵇab@AFD@E@\\[░ねFFDEBD░ま⬇️ヨ[☉ᶠ✽よ\\●█✽ヌ○`Z⬇️にp♥ち░ろ◆ら░オ✽▶░ユ░セk➡️▮Ksaoz•░うQVT⬇️き\0\0\0⁷●¹T░ま●へ😐³s`n⬇️¹Nzz⁴░ト✽に@Ec`⬇️ムb░か░らFf♥と✽に⁴⬇️)░ユmo⁴⁴`I⌂▮⬇️◀⬇️テGl⬇️え✽う✽んI⁷w\0⁷dRVVSS⬇️スlo웃¥⬅️ケ⬇️イzm⬇️◝⬇️█rQVVv✽ˇ░\r⬇️ちLK⌂にQvQ✽¥⬇️た⬇️2z]n░█H`✽\r░■⁴{░█⬇️ノz⬇️⌂o⁴++░き\0。\0⁷C░▮웃⁴•、░゛░わ░\'0●>░█⌂ほ웃ちk⬇️オ➡️に⬇️ヘ✽soᵇᵇ⬇️█a웃█⬇️★`IW웃…•++ᶜ`Y⁷⬇️█⁷웃"☉つ✽█✽ひ♪█✽ま☉あ░わa✽オ✽ぬom☉を☉ユᵇ++✽ユ{N●ろ⁴zo`Ih`ᶜ☉…•+⬇️▮⁷<-☉█⁴⬇️"…⌂0●⁙⁴]♥D♪ち{oaJ░`웃こ⌂▥░つ✽█⬇️ユ웃あ⁴░█a+ᶜ☉そ•、⬇️█q。⁷S…セᵇ☉#o0⬇️ウ✽レ웃テ♪+`⬇️█n⬇️¹░ャ^⬇️█l``k`⬅️¹lIX░▮p◆▮░#k░Z⬇️█\0。⁷t░ 웃$웃 ⁴`bc`░█⬇️V★²B\0\0C⬇️`H░"0⬇️◝░⁵o`b@⬇️¹FfD░⁷░ᵇ\\[@@⌂ᵉ●▮✽、c`ᶜ░█Y░█⁷fF⬅️#♥ a⁴⬇️゛G✽█✽VFFDEB⌂JA⁷⁷q\0D@\\░█om░█z⬇️	`IKP⬇️¹QvQ░⁷⬅️⁴L●「⁷q⁷VvVT⬇️$s`⁴ᶜ⬇️ぬj⁷⁷⬇️█⬇️²<\r\r\r-\0⌂¹s`ooj\0G`⁴░サI\0⁷**☉。q⬅️&⁷*Ha⬇️█]noozMnnn`IGl`⧗¹k♥「RVS`p●!l、░ソi⁷\0●█░✽。dRvSRvVVvS⬇️ ⁴o`eW◆█웃|♥✽⁷*G`⬇️ワ⬇️ュon^⬇️웃⬇️█`⁴⁴⁴o♥¹웃ᵇ░「░ᶠoom⌂▶zzᵇ⬇️█q⬅️█C⬇️<~o○o~om○oz⁴⁴B⁷C░\\░█⁷。\0\0KPQ⬇️うPPQvQP♥¹LW●█mz⬇️ウ⬇️オrs⬇️█⬇️ᶜzz0░a●²♥█zᵇᶜ●)웃³•`I⁷\0✽█q✽█hozyxzz⁴xzmy⬇️Q⁴⁷,\r♥█q░█Gl`p`✽¹●⁷p`kIha⬇️◜0n^⬇️q⬇️ちk``l웃w웃jᵇ♥█z•ᶜo⬇️)●❎Mn⬇️¹`I\r\r=☉◝⁷。C○z{⬇️○⬇️░]nn{zo⬇️、oz⁴░█⁷w*⬇️█⬇️チ⁴omo✽¹✽⁷`Yh⬇️スM^░⁙✽ホ♥	⌂ッ⬇️らᵇ+♥█o0•0oᶜ♥◝m░0`I웃}░█g~xmz⁴⬇️◝z⬇️◝xy~R⁷S⬇️テ░█,*☉█✽9⬇️よ⬇️ラ⬇️█IX`o{●□◆█0░:░⬆️⬇️█、░█░ユ{⬇️ᶜ❎█q⁷⁷<S○✽テ○~✽⁴○○j⬇️^●█。⁷⁷░█░ハ]N☉よ░らH`o✽4░ャ⁴⁴l``k♥\r░ッ⬇️リ⬇️░•、⁴░█⁴•ᶜo0o☉○⬇️izMn`i⬅️◝⁷⁷tBFCfFCBFFfCB⬇️	u✽ro`rP✽¹s░ろNz]░フ⬇️◝✽ら'
+  else
+    compressed_map_lower="*⁷░¹KPUUPPs`0⬇️¹z⬇️¹o`j✽「⁷%&●⁸♥⁶q⌂ᵉ<\r\rw⁷⁷░?q⁷ho~⬇️¹○⬇️4KPQVUVTPQPVPVT⬇️TQVV⬇️⁙QVv●\r⬇️‖P⬇️ LG`o⁴░gI**░🐱Gl`pp``loz⁴⁴⬇️▒⁴⁴`I░▤,⬇️お*-♪🐱◆⬅️●よt`p`kooi⁷,Hl`⬇️ᶜ⌂¹웃ᶜ⬇️_⌂「kYGao⁴⁴⁴⌂█⬇️◆⬇️ᶠoo⬇️ョ⁴0⬇️¹●█。\0░⁵∧█●∧●█\0\0Dc`o~j\r=⬇️Xo~~o⬇️]0+++、⬇️R░³⬇️k0✽⁶oom、⬇️‖`jG`⁴z0z░█⬇️`q░█⬇️z☉³y░」⬅️█KPPPUQ░◝TU✽ᵇVv⬇️	V░\rL♥█⁷Ha○○i⁷⁷W`~xy░K⬇️▒•、⬇️イ●W⁴•00░aᵇzm⬇️⁸oai⬇️ヨ0z0n`i░█⁷⬇️>o☉+░○y○♪█Gl``p`R⁷⁷Sp`░\n⬇️ᵉ░	⬇️ᶜk⬇️せq✽⬇️Wao░█⁷Cxxx♥ょ0ᵇ●⁷ᶜ░タ•⬇️█ᵇ⁴+ᶜ⬇️v░ワ⬇️ヨ{0z⁴`I⌂█░◝ooo○o○웃█<-░⁵\r⬇️と░「yx○⬇️ ♥³⁴⁴⁴⬇️-●せ⬇️り\0\0ho~j░ひxzxy✽レᵇ⬇️l⌂▒⁴⬇️z⬇️█、、⬇️☉o`j░S⬇️C⬇️█\r=⬇️マh`✽し⁴o⬇️マ`B⬇️をl●Y░う✽お⬇️ゆyy░セ●ケ⬇️P⁴⁴z0oa●█*░█~♥█yz░(⬇️モ+☉█✽4•0z•+、ᵇᵇ⬇️♪o`iGk⬇️i``lI*✽?H`+✽▒o`b@A░ッD\\⬅️█h`o░キ░シᵇ●(♥✽o`✽せ*⬇️▒⁷g☉█x●○zᵇ░ミ✽█⁴●♥░◆•⬇️レᶜ⬇️7[@AFDEE@\\✽█*Ga+、⬅️Q●⁴q⁷⁷<\r░¹H⬇️█●D⬇️れ😐▒o`rPPL,\r░わh○o░█Sox⬇️そ⁴⬇️s•0●つ⁴0⬇️s░{ᶜ⬇️…⬇️█+⁴o`i\0♥g**⬇️g\0*H`●ス░カ⬇️w⬅️²░ᵉGao웃レ♪▒ᵇk``kI。✽はt~ou⁷⁷X`○✽t⬇️リ0ᵇ●つ⁴0ᵇ、♥➡️░▒••⬇️█j\0♥g⬇️█⁷⁷\0⁷h`+、☉カQVvTU⬇️シ⌂♥H`😐█、✽*♥♪⁴+`J*✽¹\0⬇️¹⬇️+a⬇️ッ✽ワ⬇️v•♥█░[☉▶✽ヒai⬇️+⁷w☉█⁷⬇️█●Uo⬇️カ``pp░シ⌂█h⬅️█z•⌂○zᵇᶜ++`i░◝░~░█h`░ャ✽█•{•+✽웃⬇️ロ♥よ♥、o`j\0⁷░ン*☉█X♥ヌo✽¹⁴⁴⁴o`😐█a░█😐る웃♪⬇️█✽た░ュ░ゅH⬇️█웃▒+ᶜ░s⬇️○웃⁘♥e░█⁷q░ッ♥█G😐ヌ░/⬇️█\r⬇️¹-☉お●ろ0⬇️あ⬅️ウ░▒、ai⬇️◝q♥○⁷Ga⌂l0•、웃█●セ☉⁶`I☉0░█⬇️웃░█♪ナ⬇️█░け。☉お●@✽█✽K웃ち⬇️ア░ッ\0♥▒H♪ゃ✽ひ●ルl``p`✽¹⬇️⁷l●█⬇️y░█⬇️ノhao♪○⬇️█░シ⬇️お\0⬇️かGk☉9⬇️E░Fk♥█o⬇️セa░)웃³h⬇️ゃo~😐モ⬇️ぬz{⬇️オbAFfFfD@AFFf@\\♥に⬇️█✽▒H`⁴…█░シ\0**░ス[E@EAf@⬇️=@F@⬇️ᶜc`○z✽に░サlI🅾️█~{░ム웃モ♥と●オ♥ち⬇️ヲ☉ひ웃█⌂はzz0⬇️ソ⌂シ\0✽░⬇️ハ。☉ホWa░S✽すb@@\\░た\0♥カX`⬇️◜⬇️ム♥な⬇️ユc●[`I⁷w😐た⁷⬇️ヲ░³●█Gk⬅️な0⬇️▒o`j♪+●█☉みC○x♥█Y●カ░█⬇️░\0\0⬇️Ip`lI⬅️j░[p`●⁘*😐ャ‖◀░●⬇️◝⬇️V[@EEE⬇️ふ░なz⬇️▒zᵇ●█♥q░て\r\r=⌂らyxz⁴░█aZ●お░█✽テ[⬇️ンfD\\♥;░ぬ[@@AFfFf⬇️⁘♥っ♥セ%&♥█웃ホ。⬇️な`░Xzᵇ+`⌂ろ,\r*\r*🅾️=zy░◝⬇️█J⬇️ン🅾️Wい\r✽ョ☉▤░ケ⌂█q⁷,w\rw✽█o⬇️¹+😐█w✽,-⬅️ES○o~░'o`J⬇️゛😐^♥ヌ\0\0\0*░¹…}➡️ち⌂#⬇️ョ⬇️ラGk`●¹l⌂█✽て♥ ✽◝X░%p➡️&◆█♥8∧x⌂Y✽そ웃⁵[@@EAf@f@@\\⬅️」➡️%░#D@@F♪&◆ᵇ✽テか²⁷⁷"
+    compressed_map_upper='KPQVvTU⬇️⁶VvPVQV⬇️ᵇPPUQ♥\nL*☉¹K⬇️▶QPVP●!P☉\nL⁷웃 vUQ♥L⬇️Bv⬇️E●⁷PU⬇️R☉:✽lU✽▶⬇️#⬇️%LGl``pp`∧¹kI⁷⬇️¹。⬇️⁵\0░(⬆️!*░"⬇️&hl`✽F♥L●ᶜ●W♪^😐 ░aG`o∧¹⁴⁴⁴o`I\rw✽█w\0G`░■m●-✽⁷⬇️ ⬇️!♥○⁷H░H♥゜⌂$➡️\\◆◀`⬇️█n{Nz★¹♥█░テ。q⁷<\r✽█zm✽*M^░1⬇️ᶠ⬅️█Ga~z♥゜● ░+♪タ✽e♥"● ooaiG`oz]N♥ 0ᵇᵇᶜ☉█✽かi✽█⬇️ノ\0Ha░A●█⬇️●⬇️😐░し✽!q░しW`~zy●I♥マ░わl``p`✽¹k⧗█░ら✽X✽う░く•+⁴⁴☉🐱░_j░ト**⬇️ハh⬇️そ⬇️ニ●キN✽█{☉!✽⁴Coxy●I●ハ⬇️%⬇️きb@●¹c✽?z♥ミ웃き`I░X✽てMN⬇️ニᵇ⁴⁴⁴、⌂█a░ト●█H✽█●わ✽\\⬅️!q✽✽y☉○M^●ゆ✽ナKP░¹LG`░む⌂B♥きaI░X⬇️😐./^]nNz•+⬅️○y~✽トq⁷。⬇️ハGannN✽ふ●つMn░¹✽!♥▒yy~●゜✽◝MN⬇️と⬇️ナGl`p`kIGk``k♥B⬇️•♥ヤo`iGa⬇️█]n>?⬇️ヤ⬇️^⬅️~☉█⁷✽█░そm⬇️)./✽つn^░オo♥く✽✽xx✽゜n⬇️#z⬇️オ⬇️$⬇️きI✽ン`I[@@c웃B♥ヤ⬇️オ`I░X⬇️⌂░ふ♥テ⬇️◝░\\~y░よ웃█h⬇️█]⬇️は>?✽つ⬇️もl```l●!░◝Syx○░゜⌂⁴⬇️セ✽█{o`rPPL⬇️⌂♥Bm♥゜m⬇️▥░Xzo⬇️オ░▮░ロ░◝~⬇️\\B⁷⁷C░_**\r=♥█░たm░ち✽█`b@@@\\☉◝X`~x♥っm⬇️ャ^✽%o`i⬇️█mok`pk░⌂♥B]♥゜moa✽█M^░ヨ⬇️⁷0░▒yzᵇᵇ`bA░ッD⬇️_**♥`░^o⬇️そ⬇️[⬇️◝Mn`Y⬇️ュ●。░きa~zz○●█✽ろ●さj⬇️ロ]N⬇️_`●█✽B☉゜m⬇️き⬇️X{♥□░◝xy⬇️○++`⬇️ン♥Z。✽トKs░ゆ●たooM⬇️ニ⬇️チ⁷wq웃█H⌂^●█░%naiG`zᵇ⬇️⬆️⬇️j✽█☉B░ヤ░D░∧m♥⁙⬇️⁸~xzy~•♥█q⬅️█Gll░ね●ソ✽ヌ⬇️チ⬇️う✽█░)H`~✽R웃¹░エ⬇️$G`ᵇ+]N●\n⬅️B●ヤ░∧k`⌂¹pB⬇️ワCp``l░█●タ<-░웃⬇️や●S☉█{n`i☉█░そHa웃゜●すM^♥█•、⬇️まoaiG`nnn⬇️‖⌂█ooaI[@@@EAfFFFD⬇️⁸✽ラD@f@\\웃█⬇️ハ⬇️ノh⬇️_zz0😐¹`Z⁷<\r●█⬇️くh⬇️くm⌂◜♥\r`I░ロ⁴⁴zᵇ░⌂😐゜●.`I♥り✽e⬅️⁴웃ス⬇️ᵇ░ノH⬇️G🅾️¹oaj✽。✽゜⁷⁷Gk``p`✽¹░⁷♥ᵇl♥█ᵇ+⬇️█⬇️"♪$✽ さ█\r\r\r⧗█`Z⬇️ワ웃つ[@●¹Af@f░⁴D@@F⬇️⁙\\●█•+`I⬇️"♥」😐 ⬇️ホ░a=웃◝😐U⌂ˇ⬇️ん🅾️¹⬇️█J♪つdvve⁷⁷KPPQPVPVTUP●¹s✽█⬇️なr⬇️¥Vv⬇️「●゛♥!L✽█●ゃ●エ☉ロ◆█k`⬇️¹p░⁵░	k░█j♪█Co{j\r\rGl☉#☉/lozzmzo✽@`p웃B♥HI░ホ。⬅️メ☉✽✽サ⌂★[@@Af@fD@@F@@@c`░キi♥ち♥ま~~⬇️➡️Wao~oooᵇ++ᶜ⬇️⁷m⬇️ᵇoozᵇ⬇️█☉\r♥⁵♥\r`i…█☉ワ♥サ웃⧗KPUPPPUVVT⬇️⁷s✽█Z⌂ち░へoo⬇️█⁷C○⬇️ユz•++、zzM^⬇️ᵇ░ᵉm░⁸]N●ᵉ✽⁘✽□⬇️█I⬇️ヘqか█✽フWl`⬅️¹lozoaJ♪ちS●█⁷yxz⁴⬇️¹⬇️○⁴⁴z⁴zMn░ᵉ⬇️⧗웃⁷⬇️‖⬇️、✽あ●█⁷✽█⬇️ヒ●ノQVvTUPL…░C~o○○o○o░¹⁴⁴⬇️█`░█*⬇️¹✽ゆX`○○●█y⌂k⁴⁴n^😐ᵉ⌂♥●³oai*\r\r\r=♥◝H♥ノpp`kI◆○⁷⁷~웃7✽よ⬇️も⬇️ひ웃こHa~o●█xxzm⬅️+⬇️ャ✽ᶠᵇ++ᶜ웃\r☉█`I😐ノW`o~⬇️ヒ⬇️ト⁴⬇️]…¹●█웃よo`J⬇️ン☉さTs`○✽█S~yyz]N★█•++、⬇️ンM^▤█q⁷⁷C✽ノ…█⬇️」░Yo░い░う⁴o✽¹a░こ*✽゛d`p`lo░█X`oyx░$zMn✽⁷웃は♪‖✽Gz⁴♪█⁷⁷\0\0xx░ソ⬇️`⌂█,\r\r\r-⬇️Yk`⬅️¹p⬇️\rl●█░◝hoo○~o~j-⁷Ha~zy⬇️らnn^⬇️x{웃y⬇️●⬇️☉✽‖⬇️うᵇᵇ⬇️•░■🅾️█⁷⁷░○0░⬇️`i✽v⬇️◝。⬇️◜<\r\r[@E@fCE@EFFfD@✽¹\\웃█g○~~~○oj<\rH`~○zzm░ワ⬇️ャᵇᶜᶜᶜ⬇️ャmo♥▮☉▶++░▶⬇️(`i♥█qq✽ユy░○⬇️▒o`j●z☉⁶★⁵●゛●よhoobAFfu⁷\0haoo~M^o●¹•++、⬇️ᵇ]N♥▮♪▶zzM^`I*⁷●z✽◝So✽▒⬇️█ai✽ロ⬇️ト♥く▥█,\r\r\rho○rQvSe⁷⁷H`😐¹p♪ᵉ♪■k⁴⁴n^o`i😐_X`~⬇️|░³o`j●ワ‖◀♥◝⬅️す●\r♥█\r=⬇️よho~○○o~⬇️4[@웃¹Af@fD@@Fˇ■c`⁴⁴✽フ'
+  end
+  
+  decompress_to_memory(compressed_map_lower,4096)
+  decompress_to_memory(compressed_map_upper,8192)
+end
 
 -- HELPER FUNCTIONS
 ----------------------
@@ -168,8 +177,9 @@ function count_remaining_terminals()
   return count_remaining(terminals, function(t) return t.completed end)
 end
 
+
 -- CAMERA
-----------
+----------------------
 gamecam = {}
 gamecam.__index = gamecam
 
@@ -237,7 +247,7 @@ function transition:draw()
 end
 
 -- TEXT PANEL
--------------
+----------------------
 textpanel = {}
 
 function textpanel.new(x, y, height, width, textline, reveal, text_color)
@@ -296,7 +306,7 @@ function textpanel:update()
 end
 
 -- TARGETING
---------------
+----------------------
 targeting = {}
 
 function targeting.new(owner)
@@ -366,7 +376,7 @@ end
 
 
 -- ABILITY MENU
--------------
+----------------------
 ability_menu = {
   panels = {},
   last_selected_ability = 1
@@ -431,29 +441,29 @@ ability_menu.new = function() return setmetatable({}, {__index = ability_menu}) 
 ability_menu.close = function(self) self.active = false end
 
 
--- STATE MANAGEMENT
+-- MAIN
 ----------------------
 function _init()
-  -- test_and_save_map_compression(0x2000, 0x2fff, "compressed_map_upper_2.txt")
-  -- test_and_save_map_compression(0x1000, 0x1fff, "compressed_map_lower_2.txt")
-
+  -- save_compressed_map(0x2000, 0x2fff, "compressed_map_upper_2.txt")
+  -- save_compressed_map(0x1000, 0x1fff, "compressed_map_lower_2.txt")
+  
   cam = gamecam.new()
-
+  
   -- Missions
-  MISSION_BRIEFINGS, mission_data = {
-    "PROTOCOL ZERO:\n\nCONTAINMENT\nFACILITY ALPHA-7\nCOMPROMISED\n\nACTIVATE ALL \nTERMINALS TO \nRESTORE FACILITY\nLOCKDOWN",
-    "SILICON GRAVEYARD:\n\nBARRACUDA VIRUS\nSPREADS TO MEGA-\nCITY DISPOSAL SITE\n\nTRAVERSE HAZARDOUS\nWASTE, EVADE OR \nNEUTRALIZE\nSCAVENGER BOTS",
-    "NEURAL NEXUS:\n\nBARRACUDA ASSAULTS\nCITY'S CENTRAL CORTEX\n\nBATTLE THROUGH\nVIRTUAL MINDSCAPE\nOF INFECTED AIs",
-    "HEAVEN'S SPIRE:\n\nLAST STAND ATOP THE\nGLOBAL NETWORK HUB\n\nASCEND THE TOWER,\nCONFRONT BARRACUDA,\nACTIVATE CORTEX\nPROTOCOL"
-  }, {}
-
-  mission_data, credits, current_mission = stringToTable("0,0,0|0,0,0|0,0,0|0,0,0"), 3000, 3
+  MISSION_BRIEFINGS = {
+    "PROTOCOL ZERO:\n\nFACILITY ALPHA-7\nOVERRUN BY \nBARRACUDA\n\nINITIATE LOCKDOWN\nPROTOCOLS AND\nSECURE VITAL DATA\nBEFORE EXTRACTION",
+    "SILICON WASTELAND:\n\nBARRACUDA SPREADS\nTO CITY OUTSKIRTS\n\nNAVIGATE HAZARDOUS\nTERRAIN, \nNEUTRALIZE INFECTED \nSCAVENGERS,\nSECURE DATA NODES",
+    "METROPOLIS SIEGE:\n\nVIRUS INFILTRATES\nURBAN MAINFRAME\n\nBATTLE THROUGH\nCORRUPTED DISTRICTS,\nLIBERATE TERMINALS,\nDISRUPT BARRACUDA",
+    "FACILITY 800A:\n\nFINAL STAND AT\nNETWORK NEXUS\n\nINFILTRATE CORE,\nINITIATE CORTEX\nPROTOCOL, PURGE\nBARRACUDA THREAT"
+  }
+  
+  mission_data, credits, current_mission = stringToTable("0,0,0|0,0,0|0,0,0|0,0,0"), 5000, 1
 
   SWAP_PALETTE, SWAP_PALETTE_DARKER, SWAP_PALETTE_DARK, INTRO_MAP_ARGS, STATE_NAMES = unpack(stringToTable[[
     0,0,0,0,0,0,5,6,2,5,9,3,1,2,2,4|
     0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0|
     0,1,0,0,0,0,0,2,0,0,0,0,0,0,0,0|
-    42,1,0,0,128,48|intro,mission_select,loadout_select,gameplay]])
+    4,37,0,0,128,48|intro,mission_select,loadout_select,gameplay]])
 
   entity_abilities = {
     dervish = {"mACHINE gUN"},
@@ -485,7 +495,8 @@ function _init()
   trans = transition.new()
   player = entity.new(0, 0, "bot", "player")
 
-  change_state("mission_select", false)
+  load_compressed_map()
+  change_state("intro", false)
 end
 
 function _update()
@@ -599,7 +610,7 @@ function init_mission_select()
   cam.x, cam.y = 0, 0
   camera(0,0)
 
-  info_panel = textpanel.new(50,35,67,76,"", true)
+  info_panel = textpanel.new(50,35,69,76,"", true)
   LEVEL_SELECT_ARGS = stringToTable([[
     4,35,9,38,MISSION 1,true|
     4,50,9,38,MISSION 2,true|
@@ -749,17 +760,7 @@ end
 -- GAMEPLAY
 ----------------------
 function init_gameplay()
-  if current_mission <= 2 then
-    compressed_map_lower="Gk`⬅️¹lbc☉▮kozz⬇️³░⁴⁴{`IG`⁴、、✽■✽³o0^0n^o`i⁷●¹q✽⁸KPPQ⬇️ᵇVvVTP✽¹s`░F웃cl⬇️Tm●E●⁵`Y[@@@FfD⬇️⁶✽³\\☉▮c░:zoo░⬇️⁴o░█웃|●░{⬇️うᵇ`Z♥z●♥Wl``RVS`p⌂カ░を⬅️¹⬇️█om⬇️サMN✽チ`j⬇️は░つQvQ●の☉⁶✽む☉メ⁴…█Mnn0ozᵇ+`I✽◝*✽³⬇️웃C☉l⁴●³0ᶜᶜ+ᶜ🅾️まmo]n./^]on⬇️¹`iG⬇️はˇ²░む웃▒…█⬇️れ░○☉█⁷‖◀⬇️◝,\r\r\r♥ふ⁴●⁵⁴0•+•、✽っᵇ♥♥M]⬇️ン>?░@⬇️'⬇️█`o•++、om●む♥⁷●ん✽J⬇️Ko⬆️█zz•⁴⁴`Y●█%&⬇️◝。⁷q\0⌂ふ●⬇️0⬇️~░Z⬇️てᶜ⬇️bMn^░y░?●█░ス░█●R♥Y😐░⁴⁴░▥✽█♥▮░■░なᵇ+⬇️█Z✽◝*⬇️³\r\r=⁷⁷S⌂8●;0ozxol`♥¹k^✽_⬇️✽✽◝zo`YH⬇️ス•、☉ンM^✽ロ●2p☉7``lIWkko○웃I⌂「✽◝☉⁵Xk…!kozyo`b@✽¹c⬇️lzz░d░fMnnn`iHa⬇️⌂⬇️u]N♥◝░▒░2fD●5●;\\qFao⬇️IAFFE@@F░。Ef@D@\\⁷⁷\0⌂¹[⬇️hFFDEB☉<c`~yz○`Y⁷⁷。⬇️たG✽█●j●l`Z░⁘✽ル⬇️{●⁵⬇️うo`IKPPUP⬇️⁴Q⁷⁷Vv⁷q⁷\0h`o~`I✽mq\0\0⬇️□⬇️Tq⁷**⬅️○\0⬇️5✽²L⁷\0░p\0\0Ga~⬇️テB░,⁷⁷qW✽█●j♥█iW`n⬇️¹⬇️ョ]o⬇️¹^░い✽█Gl`●¹RS`pSe⁷w⁷a⁴~`rQw░y♥³░ケ⬇️そQvQVvVT⬇️なs●5kI⁷\0w*░▒Wa○zz~R⬇️ュ*⬇️▮g`⌂マ░ヨo⬇️█G⬇️⬆️o✽😐●{☉█H⬇️,omo~○oo⁴⁴⁴`Z⁷dl⁴ok``pRv⬇️➡️e░✽\0░T♥そp●なlo⁴o{⬇️ゆ\0✽、⁷\0qh~xy○j⁷q✽█X░T♪³`Z☉█o●∧░き✽█G`~{✽ちMn⬇️¹`j⁷C✽<○o~░…O⌂█☉Tm●\\z⁴⁴✽█\0。\0q⬇️ワtB\0\0Cu\0⬇️に。⬇️てk☉そ♥に`l⬇️h♥█]n./zMo░n⬇️pIH`n^z░T^ᵇᶜᶜoaIqXox✽け⬇️せy~⬇️◝q⁷\0░TW⬇️ら✽む●ら⬇️わ●█**⬇️░⁷⬇️☉✽³●█[@➡️¹\\✽█M]n⬇️ン>?n^✽M⁴⁴`IW`⁴z⬇️▥⬇️⁴•+、○`J⁷H⁴xy✽}░⁶░◝⁷\0,=⁷⁷h`⬇️のN●そzM░ゆ^⬇️█⁷♥█⬇️さ░+q⁷⁷**⁷⁷KPQVVvQ⬇️めVvVPQvQPPLG░@^✽k░る✽r░█h⬇️█omz0░▒、o`j⁷h⁴⁴⬇️f○oo~⬇️²|✽█⬇️◝⁷ha⬇️む⬇️やᵇo•ᶜ░B⬇️●o`i⁷⁷<\r-웃|⬇️◜,░█Wl`░¹RVS`p✽\n`k⬇️ヘo✽フzo♥●░ロ⬇️るha○zo]0y0✽ケai⁷tBFfCfFC✽:u✽█░ケg░@mᶜ0•ᶜo、⬇️るᵇ+++oO░レ░ヨ●|░て░つ⁷⁷Co○~⬇️テ⁴o~⬇️イ⬇️⁶⬇️hg`⬇️ス⬇️ンM^⬇️テ⬇️◜✽on⬇️█●▤0y^░ナ░キ♥MfFfFF\0░サ⌂█]0z0░せ^░○、z✽レ░ヨ⌂²✽█\0\0~░マzx✽⁶z⁴{o`Yh░█⬇️ワ]N●‖mzooᵇᶜ`IX⬇️スzon^z░3○✽キ⌂P\0\0웃サ░(░そ⬇️し⬇️を•、•、z⬇️█\0\0\0。⬇️⁴dRVSe⬇️ᶜq\0<**⬇️⁘\0o♥{●▒]⬇️ヘg⬇️█⬇️s░y●█⬇️○+、`IH⬇️スM^oo░2xy●◜░レ✽⁷✽█q\0░サG`oᶜ✽そ░○♥]✽█<-\0\0h~~○j░x\0\0░█q\0⬅️%✽ヤ`Y✽ヘ⬇️ルo⬇️y░²mozᵇ、o⬇️█aᶜ☉⧗✽R♥ヲ░わ⬇️ュ*✽\r░█W`o+✽そzzᵇᵇ⬇️⌂░F|✽そ⬇️えg○{oj⁷░と✽ᶠ\0\0⬇️て⬇️オ⬅️█i⬇️ら{zzMn⬇️る░@z]Nᵇ、{⬇️█G`+ᶜmzy●コy♥█,*\r\r\r-●\\*⬇️░░c`o、●そᵇ、••ᶜoz⁴⁴⁴`Z░゜=q⁷h○~~R░█⬇️-⬇️て⁷\0~•⬇️c{N●◝⁴zo`Z⬇️█♥ョᵇ+++ᶜ⬇️ᵇ•⬇️イ`IW`+、mo~⬇️セ○~○~░キ⬇️|=░セ<░	\r\r*⬇️😐w⁷⁷X⬇️@░>oᵇ、✽ュ⬇️○⁴`I●か⁷tBqCu✽█w✽<S○o~○░n░X~o⁴░ヘk`✽¹f●⁷♥⁶lI⁷t⬇️「p✽、⬇️⁶u✽◝⁷⁷q◆⁸⁷⁷☉@◆>◆¹░ョ⬇️て➡️,lI[@✽¹AqDAffFFDEBD░□\\q⁷CBFFf⬇️²A⬇️⁶░オ∧²♥@@@⌂<⬇️>あ,😐'░h"
-    compressed_map_upper='⁷⁷*∧¹⁷⁷SvvQ⁷q⁷VvVTPPQ⬇️ᶜ⁷⬇️⁸⬇️²UQVVv⬇️⁷░\rLK☉•●‖♥□⬇️!♥1L♪`\0K░<░:⬇️>░A⬇️゜⁷♥¹\0\0。✽ᵇ●⁶⁷d``p``RVS░⁷●ᶜv░□✽ᵉ☉⁴kIGl♥•😐□⌂1kI✽`q\0⬇️^⬇️⁴*W✽。p●Ep☉゜♥█<\r\r*-⬇️➡️q\0⬇️ワ_⁴oo~ooo○o•+⁴⁴⬇️\r✽ᵉ♥³m░ᵇ⁴o{`IG`nN●▮●⁴░□⁴⬇️•✽!⁴o`Y⬇️}⬇️タ\0\0,=░⁶⁷C~⁴x○⬇️Zm~o○~o`J⬇️◝q☉█░◝‖◀=⬇️⬅️░ひ~xzzyzxyzz•、⬇️♥⬇️⁸░²⬇️‖⬇️	m⬇️\r⬇️_⁴`YG`o{●▮░⁘{✽█o{⁴⁴░.░█i⁷⁷w✽█。\0q░█⁷○y⬇️RxM^zz~{oaI*⁷w\r\r-♥█⬇️⌂%&░⬅️░★⬇️rx░ラ●x░q⬇️●o●▒✽█░モiW`░!]⬇️ュ⬇️R⬇️ˇ✽█⬇️か●9o`Z\r\r=⬇️タq⁷**░●⁷Sox⬇️ケxmxxyy○~`⬇️█⬇️◜。♥█⁷⁷*\r=*q✽█}~○oo~⬇️れ✽w░³⬇️\r⁴oᵇᶜ✽pN✽●⬇️_h✽█✽しoMnnn♥█o⁴░‖⁴⬇️◆░コ░ン●█Xa~♥ょzᵇyz○`J🅾️█,=░ッ⁷⬇️に⁷t`░¹p``BfFFfC⬇️	●▮k✽[✽A]n`JhaoMN░ヨzMn^zz⁴✽█]⬇️ュ0⬇️~Mn`rPPQVTPL⬇️ハ\0\0q\0G`○y░に⬇️け•zxoaI⬇️█q⌂█✽웃⬇️ぬ░ˇ░wD@@A⬇️く⬇️れDAFffDE@ca⬇️ソ░ユoz•ᶜ⬇️トG`n^mo]n./^░◀●█⬇️◝0z0no^ok●ほkI✽█\0⬇️█ox░>0⬇️ろyzo`JKP⬇️くvQ⬇️⁶け³v⬇️ゃs⬇️^●█░¹`Y░n░ヤ>?●∧♥█nn0⁴⁴oz⁴⬇️⁵✽(I⁷**░ニHa~⬇️wz0y0Nzyx░らl●けた⁶l✽█⬇️~░♥`j░モ░ンm░∧Mnn`IW✽□⁴m⬇️⁴░し⬇️▒░∧,●█⬇️にx░ゆ0y]⬇️さnaJ⬇️.om⬇️Mᵇ+●ち░2♥ふ░「•、☉◀⌂⁸⬇️█⬇️◝mz0zM♥█⬇️ユ^░◝⬇️t`Ih░★⁴⬇️U░そ⬇️テk⬇️♥`I=⁷⁷q\0\0\0G`○x░ぬ]N~zy⬇️らY⬇️.{⬇️<⬇️█、⁴⬇️セ⁴⬇️⁵ᵇᶜ✽bzM░「▤³o]0z0^`Z✽█M^✽▤⬇️1░█a✽けm✽す`bc`░█rQ⁷⬇️¹TL⬇️にy░ゆoox✽█i♥.⬇️○✽サ⬇️ャᵇ+ᶜ░ノ✽◝✽ョᵇ♥▮☉²●█zz0zz`I⬇️█░ヲ✽の⬇️s⬇️マ✽□Mn⬇️コ⁴o●ᶠzok``R⁷⁷SkIH`y░█●かyx`Zh░らzz•●○l`✽¹k░█♥ᶜ…▮k⬇️ホo░そn^~~`J░█☉ち░ね●★웃も♥█⬇️ス~o○o`YG`xxyz⬇️³mx⬇️⁶yaJX`o{N●よ⁴⬇️ゆb@⬇️¹c░⬆️♥ᶜ…▮ck⬇️え웃うlIG⬇️タ⬅️そ░ヨ😐□⬇️!✽ニ⁴⁴zx{o`iH`ox⁴⬇️の~m○~oo○`J⬇️■웃と⁴⬇️ゆKPPPs●█r⬇️ᵇL…▮[░えᵇab@AFD@E@\\[░ねFFDEBD░ま⬇️ヨ[☉ᶠ✽よ\\●█✽ヌ○`Z⬇️にp♥ち░ろ◆ら░オ✽▶░ユ░セk➡️▮Ksaoz•░うQVT⬇️き\0\0\0⁷●¹T░ま●へ😐³s`n⬇️¹Nzz⁴░ト✽に@Ec`⬇️ムb░か░らFf♥と✽に⁴⬇️)░ユmo⁴⁴`I⌂▮⬇️◀⬇️テGl⬇️え✽う✽んI⁷w\0⁷dRVVSS⬇️スlo웃¥⬅️ケ⬇️イzm⬇️◝⬇️█rQVVv✽ˇ░\r⬇️ちLK⌂にQvQ✽¥⬇️た⬇️2z]n░█H`✽\r░■⁴{░█⬇️ノz⬇️⌂o⁴++░き\0。\0⁷C░▮웃⁴•、░゛░わ░\'0●>░█⌂ほ웃ちk⬇️オ➡️に⬇️ヘ✽soᵇᵇ⬇️█a웃█⬇️★`IW웃…•++ᶜ`Y⁷⬇️█⁷웃"☉つ✽█✽ひ♪█✽ま☉あ░わa✽オ✽ぬom☉を☉ユᵇ++✽ユ{N●ろ⁴zo`Ih`ᶜ☉…•+⬇️▮⁷<-☉█⁴⬇️"…⌂0●⁙⁴]♥D♪ち{oaJ░`웃こ⌂▥░つ✽█⬇️ユ웃あ⁴░█a+ᶜ☉そ•、⬇️█q。⁷S…セᵇ☉#o0⬇️ウ✽レ웃テ♪+`⬇️█n⬇️¹░ャ^⬇️█l``k`⬅️¹lIX░▮p◆▮░#k░Z⬇️█\0。⁷t░ 웃$웃 ⁴`bc`░█⬇️V★²B\0\0C⬇️`H░"0⬇️◝░⁵o`b@⬇️¹FfD░⁷░ᵇ\\[@@⌂ᵉ●▮✽、c`ᶜ░█Y░█⁷fF⬅️#♥ a⁴⬇️゛G✽█✽VFFDEB⌂JA⁷⁷q\0D@\\░█om░█z⬇️	`IKP⬇️¹QvQ░⁷⬅️⁴L●「⁷q⁷VvVT⬇️$s`⁴ᶜ⬇️ぬj⁷⁷⬇️█⬇️²<\r\r\r-\0⌂¹s`ooj\0G`⁴░サI\0⁷**☉。q⬅️&⁷*Ha⬇️█]noozMnnn`IGl`⧗¹k♥「RVS`p●!l、░ソi⁷\0●█░✽。dRvSRvVVvS⬇️ ⁴o`eW◆█웃|♥✽⁷*G`⬇️ワ⬇️ュon^⬇️웃⬇️█`⁴⁴⁴o♥¹웃ᵇ░「░ᶠoom⌂▶zzᵇ⬇️█q⬅️█C⬇️<~o○o~om○oz⁴⁴B⁷C░\\░█⁷。\0\0KPQ⬇️うPPQvQP♥¹LW●█mz⬇️ウ⬇️オrs⬇️█⬇️ᶜzz0░a●²♥█zᵇᶜ●)웃³•`I⁷\0✽█q✽█hozyxzz⁴xzmy⬇️Q⁴⁷,\r♥█q░█Gl`p`✽¹●⁷p`kIha⬇️◜0n^⬇️q⬇️ちk``l웃w웃jᵇ♥█z•ᶜo⬇️)●❎Mn⬇️¹`I\r\r=☉◝⁷。C○z{⬇️○⬇️░]nn{zo⬇️、oz⁴░█⁷w*⬇️█⬇️チ⁴omo✽¹✽⁷`Yh⬇️スM^░⁙✽ホ♥	⌂ッ⬇️らᵇ+♥█o0•0oᶜ♥◝m░0`I웃}░█g~xmz⁴⬇️◝z⬇️◝xy~R⁷S⬇️テ░█,*☉█✽9⬇️よ⬇️ラ⬇️█IX`o{●□◆█0░:░⬆️⬇️█、░█░ユ{⬇️ᶜ❎█q⁷⁷<S○✽テ○~✽⁴○○j⬇️^●█。⁷⁷░█░ハ]N☉よ░らH`o✽4░ャ⁴⁴l``k♥\r░ッ⬇️リ⬇️░•、⁴░█⁴•ᶜo0o☉○⬇️izMn`i⬅️◝⁷⁷tBFCfFCBFFfCB⬇️	u✽ro`rP✽¹s░ろNz]░フ⬇️◝✽ら'
-  -- else
-  --   compressed_map_lower="*⁷⌂¹G`0⬇️¹z⬇️¹o`I●「%&⬅️ ⁷⁷q⌂.<\r\rw⁷⁷😐?ふᵇ●█KP░¹s`oz⁴⁴⬇️▒⁴⁴●█,⬇️お*-∧c●⬅️ん█Gl`░¹lo⬇️ョ⁴0⬇️¹●█。\0░⁵けよる█`o⁴⁴⁴oo░█░³o♪█KP⬇️¹Q░◝T░\n😐⁴Lゃ█♥z⬆️█Gl`⬇️¹R⁷⁷S░⁸😐⁴k✽せゅ█o✽¹웃█<-░⁵\r⬇️お♥▶…¹●せろ█ᶜ●ヲ░マB⁷⁷Cl●セ。♪お●こ⌂ᵇ☉せろ█+✽▒o`b@A░ッD\\ユ█、➡️カq⁷⁷<\r░¹ハ█ᶜ∧カ⬇️✽⬇️おネ█、●カrP♥¹L⌂ソノ█✽○zok`♥¹k⬅️ソノ█●ヌo웃¹😐ソマ█∧ソト█q●ヌ⁴➡️█⬇️」☉お…¹は█☉N➡️█…ヌ◆ソq⁷Gk`🅾️¹kひ█∧ちけ█⁷⁷[@🅾️¹c☉なア█웃¹zz0🅾️ソ\0*\0✽¹。●⁷\0\0Wキ█k`♥¹ko⬇️○0🅾️ソ웃█q♥🐱Cオ█[@♥¹c░タ0zzᵇ●ソq☉し\0*\r\r=♥◝\0\0⁷●◝ゅ█웃ムG`⁴░タᵇ+♪ソ*\r*🅾️)サ█w✽█o⬇️¹+◆█⬇️そ-♥マq⬇️ラS░$░(ウ█⬇️ラGk`●¹l◆█⁷。⌂◝X☉%🅾️&ほ▒♪¹[@☉¹\\⬅️」▥%@\\ら█モン¹>✽◝3⬇️¹>⬇️⁵ネ∧	モ3あ$ネモ>⬇️ む@⬇️]ネ✽⬇️░♪ネ⬇️i⌂³⬇️\\♥ᶠ✽█✽!░³☉$☉め😐らこ@✽キ✽g░タ>░○り@●やネ⬅️やい█⬇️ル…ら✽ョ⬇️「♪う●キ░ニ░ナ⬅️ノ♥s●ロ░ᵉ♥チ♥.く@░▒♥ら⬇️◜░9●♪✽ヨさ³☉や●ろネ⬇️²☉\nすA>◆h"
-  --   compressed_map_upper="KP●¹QVVvTPPU✽ᶠ●⁶⬇️¥L*♥¹\0☉(⬅️⁷⬇️。⁷り¹Gl`あ¹kI☉a\0★(kI\0\0る▒G`oomo❎¹`⬅️█⬇️(웃*✽1`⬇️█る▒⬇️█zmz◆¹✽…⬇️⁷웃█\0✽█z♥*M^░#⬇️█wき█q▥\r😐█]N●pz0☉█l``B⁷⁷Cl☉█⁷░█⬇️す●ち✽ぬ░█。き█け゛✽X░|●⁵♥█`bA░ッD\\◆█●ち⬇️◝✽█\r=を█o░シMN⌂▒⬇️チ◆ス♥█⬅️ち⬇️█q\0ゃ█./^]nNえ█nnnN⌂ちMn`I\0⁷⁷を█]n>?⬇️ロ░]あ█⬇️ャm⬇️*✽ちnn^●さを█⬇️ヲ⬇️セけ█]⬇️ン✽ち웃さわ█zo⬇️オ⬇️●あ█\0●█░ち░し♥█\0ん█M^o⬇️¹⬇️⁷0▤█⁷♥█⬇️ち^●◝Mn⬇️さwqわ█♥ヲ웃◝⧗█Ks✽█☉ちnn^░さ。⁷ろ█om░◝웃⁷░b➡️█Gll░ロ⬅️ちっ█k`⬅️¹B\0⁷⁷C⬇️■l➡️█⬇️せ⬇️▒⌂█✽さな█q⬆️て[@⬅️¹A⁷⬇️█⁷D⬇️⁙\\★█⬇️◝0⬅️¹░█<\r●█ˇZい「⬅️ツ*\0ˇ¹…ス●█😐³░█⬇️?ち◝キ█⬇️ワミ█🅾️¹░█░よシ█…▒Gk`😐¹kユ█[@😐¹c`ユ█⁷KP⬅️¹sラ█Wl`⬅️¹lコ█😐ノL…セCo♪¹ゃ█⬅️ヘG⌂ノk░ツ🅾️チoz♪¹░█qウ█W`●ノ⁴⁴⁴`I\r⬇️¹-か█🅾️より█⁷C✽ノ●█░◝<⬅️░S●う⌂⁶キ█\0\0●ソ☉]✽◜。●◝Xk`◆¹lカ█⁷⁷░◝0░⬇️`I☉ッ♥█[@➡️¹\\コ█0░▒⬇️█☉ッ♥█➡️ヘ●▤れ█q⌂◝So✽▒♥█<\r\r⬇️ト▤ヌゃ█⌂◝X`░█░³✽█░◝‖◀♥◝⬅️す●\rん█"
-  end
-  
-  -- decompress_to_memory(compressed_map_lower,4096)
-  -- decompress_to_memory(compressed_map_upper,8192)
-
+  load_compressed_map()
   music(0)
   player_hud = player_hud.new()
   entities, particles, terminals, doors, barrels, data_fragments, ending_sequence_timer = {}, {}, {}, {}, {}, {}, 1000
@@ -1148,7 +1149,7 @@ function entity.new(x, y, base_class, subclass)
     15,dervish,50,50,60,100|
     13,vanguard,70,70,50,120|
     1,warden,100,100,70,200|
-    7,player,999,999,70,0|
+    7,player,500,500,70,0|
     11,preacher,80,80,80,280|
     6,cyberseer,160,160,80,300|
     1,quantumcleric,170,170,70,320
@@ -1847,7 +1848,6 @@ function terminal.new(x, y, target_door)
 end
 
 function terminal:update()
-  printh(self.interactive)
   if self.completed then
     self.interactive = false
     return
@@ -2360,39 +2360,7 @@ __label__
 __gff__
 0000000041000100000004040400000000000000000000000000000404000000000000000000800000000104000011010100000000000000010101010000010103030303030303030303030303000001030303030303030003030303030000010101030301010303030303010100000001000303010103200000002001050000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-__map__
-4b50515676545550515656765056515654555050505551565156545550504c2a2a2a2a2a2a2a2a2a4b505050515056505654555050505050565056545550504c072a2a2a2a2a2a2a4b5076555150515676545550505050765050555050507650505055555050515056505654555051567654555550765050505076507650504c
-476c6060707060606060606060606060606060606060606060606060606b49070707071d07070700476c60606060606060606060606060606060606060606b492a07070707070707686c607060606060707060606060607060606060706060606060607060606060606060606060606070706060606060706060606060606b49
-47606f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f0404046f60490d7707071d0707770047600404046f6d6f6f6f6f6f6f6d6f6f6f6f04046f6f6049070707070707070748606f6f6f6d6f6f6f6f6f6f6f6f6f6f6f6d6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6d6f6f6f6f6f6f6f6f6f6f6f6f6f6f6049
-47606e7b4e7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f0404046f6049070707071d71073c0d47600404047a6d7a7a7a7a7a4d5e7a7a7a7a04047a6f6049070707070707070747617e7a7a6d7a7a7a7a7a7a4d5e7a7a7a6d7a7a7a6f6f6f6f6f6f6f6f6f6f6f6f6f7a7a7a7a7a6d7a7a7a7a7a7a7a7a7a6d7a7a6f6f6169
-47606f7a5d4e6f6f6f6f7a7a7a300b0b0c7a7a7a7a7a7a7a6f6f6f6f6f6069070707071d0707070048616f7a7a7a6d7a7a7a7a7a6d7a7a04047a7a7a7a6f6069070707710707070757607e7a795d4e6f6f6f6f6f6f6f6f6f6f6d7a7a7a6f6c6060706060606060606b6f7a7a7a7a7a6d7a7a7a7a7a7a7a7a7a6d7a7a7a6f6049
-48616f7a7a6f7a7a7a7a6f7a7a7a1b2b04040c7a7a7a7a7a7a7a7a7a6f606a070707072a2a07070768606f7a7a7a6d6f6f6f6f6f6f4e7a04047a7a7b7a6f606a070707070707070707436f78797a6f7a7a7a7a7a6d7a7a7a7a6f4e7a7a6f60624040404040404063606f7a7a7a7a7a5d4e6f6f6f6f6f6f6f6f6d7a7a7a6f6049
-68606f7a6f6d7a7a7a4d4e6f7a7a0b0404041c7a7a7a7a7a7a7a7a7a6f6169070707072a2a07070748606f7a7a7a6f7a7a7a7a7a7a6f4e7a7a7a7a7a7a6f61690707070771070707070779797a6f7a7a7a7a7a4d5e7a7a7a7a7a6f7a7a6f60494b50505050504c47606f6f6f6f7a7a7a6f7a7a7a7a7a7a7a7a6f4e7a7a6f6149
-48606f7a6f6d7a2e2f5e5d6e4e7a1b2b041c7a7a7a7a7a7a7a7a7a797e606a07070771071d07070747616e6e4e6f6d7a7a7a7a7a4d4e6f7a4d6e6e6e6e6e606a0707070707710707070779797e6d7a7a7a7a7a6d7a7a7a7a4d4e7a6f7a6f6049476c6070606b49476b60606b6e6e4e6f6d7a7a4d4e7a7a7a4d4e6f7a7a6f6069
-47616f7a6f5d6e3e3f7a7a6f6d7a7a1c7a7a7a7a7a7a7a7a7a797a797e606a07070707071d07070748606f7a6d6f5d6e2e2f2e2f5e5d6e6e5e6f6f6f6f6f606a0707077107070707070778786f5d6e2e2f6e6e2e2f7a7a2e2f5d6e6e6e6e604947606f6f6f60495b404063606f7a6d6f5d6e2e2f6d7a2e2f5e5d6e6e4e6f6049
-48606f7a6f7a7a7a6d7a7a6f6d7a7a7a7a7a7a7a7a6f6f6f6f7e797a6f604907070707071d07070768606f7a5d6f7a7a3e3f3e3f7a7a6f7a7a6f6c6060606c490707070707070707075379787f7a7a3e3f7a7a3e3f7a7a3e3f7a7a6f7a6f604947606f7b6f607250504c47606f7a5d6f7a7a3e3f6d7a3e3f7a7a6f7a6d6f6049
-68606f7a7a6f6e6e5e7a6f7a6d7a7a797a7a7a7a7a7e6c6060420707436c4907072a2a0d3d07070768606f7a7a6f7a7a6d7a6d7a7a7a6f7a7a6f60624040405c070771070707070758607e786f7a7a7a6d7a7a6d5d6e6e5e7a7a7a6f7a6f606947606f6d6f6b60706b4947606f7a7a6f7a7a6d7a5d6e5e7a7a7a6f7a6d6f6149
-68606f7a4d5e6f6f6f6f7a4d5e307a7a797a797a0b0b60624107070707445c07072a2a070707070758606f7a7a7a6f6e5e7a5e7a7a6f7a7a4d6e60590707072a070707070707070768617e7a7a7f7a7a6d7a7a6d7a7a7a7a7a7a6f7a7a6f606a47606f5d4e6f6f6f604947606f7a7a7a6f6e5e7a7a7a7a7a7a6f7a7a6d6f6069
-58606f7b5e7a7a7a7a7a7a6d7a7a797879797a0b2b2b60490707070707070707071d07070707074b73606f7a7a4d5e6f6f6f6f6f6f4d6e6e5e6f60690777712a070707070707070748606f7a7a7a6f6e5e7a7a6d7a7a7a7a7a6f4d6e6e6e616947607a0b6d7a7a6f606947606f7a7a4d5e6f6f6f6f6f6f6f6f7a4d6e5e6f6049
-47606f6d6f6f6f6f6f6f6f6d6f6f7e787a797e1b2b2b60490707077107070707071d0707070707476c6c6f7a7a6d7a7a7a7a7a7a7a6d7a7a7a6f606a071d072a070707077107070748607e7a4d6e5e6f6f6f6f6f6f6f6f6f6f7a6d7a7a6f606a47600b2b5d4e7a6f606a47606f7a7a6d7a7a7a7a7a7a7a7a7a7a6d7a7a6f6069
-476b60606060606060606060607042070707437060606c490707070707070707073c2d0771070747606f6f6f7a6d7a7a7a7a7a7a7a6d7a7a7b6e6069071d072a070707070707070748616f7a6d7a7a7a7a7a7a6d7a7a7a7a7a4d5e7a7a6f606a47601b1c7a6d7a6f616947606e6e6e5e7a7a7a7a7a7a7a7a7a7a6d7a6f6f6149
-5b404040454166464646444045410707070707444066405c070707070707070707071d0707070768616f7a7a7a30303030303030303030303030605a073c0d2a070707070771070768606f6f6d6f6f6f6f6f6f6f6f6f6f6f6f6d6f6f6f6f604947606f7a04047a0b606a47606f6f6f6f6f6f6f6f6f6f6f6f6f6f6d6f6f6f6049
-2a0707070707071d0707070707070707070707070707072a070707070707070707072a2a07070748606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f616a0707072a2a2a2a0707070707476b60607060606060606070606060706060606060606c4947606f7a04040b2b606a476b6060606070606060606060706060606060606c49
-2a0707070707071d0707070707070707070707070707072a070707070707070707072a2a0d0d0d48606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f605a7107070707072a07070707075b404040404040404166406641664066444040464040405c47606f7a04041b2b60495b40404166406644404041664066444040464040405c
-2a07072a2a0d0d3d0707070707070707077107070707072a07070707070707070707070707070747606f6f6f6f6f6f6f6f6f6f6f6f6f6f6f7a6f604a0707070707072a0707070707076476766507074b5050515056505654555050505050505073606f7a04047a6f60725050515676545550565056545550545550505050504c
-2a07072a2a710707070707710707070707070707070707072a0707070707070707070707070707476b606060607060606060606060606b6f7a6f606a0707070707072a070707070707436f7b6a0d0d476c606060606060606060606070606060606c6f7a7a6d7a6f6b6060606060707060606060606060606060606060606b49
-2a0707071d070707070707070707070771070707070707072a07070707710707070707070707075b404041664066444040464040406360047a6f60690707070707072a710707070707077e7e6a070757616f7e6f6f6f0b2b2b0c6f6f6f6d6f6f6f6f6f7a0b6d7a6f6f6f6d6f6f6f6f6f6f6f6f6f6f6f6f6d6f6f6f6f6f6f6069
-2a0707071d070707070707070707070707070707070707072a0707070707070707070771070707074b5055505050555656545050507360047a6f605a0707070707072a070707710707076f6f6a070707437f6f7a7a7a1b2b2b1c7a7a4d5e7a7a7a7a7a7a1b6d7a7a7a7a5d4e7a7a7a7a7a7a7a7a7a7a7a6d7a7a7a7a6f6f6049
-2a0707711d070707070707070707070707070707070707072a070707070707070707070707070707576c6060606060606060606060606c6f7a6f614a0707070707072a070707070707536f6f6a0707070779787a040404041c7a7a04047a047a4d6e040404047a7a7a040404047a7a7a04047a047a7a7a047a7a7a7a7a6f6049
-2a0707071d070707077107074b50555050505156765455504c0707072a070707070707070707070707437e6f7f7f6f7f6f6f6f6f6f04046f7a6f604a0707072a2a2a2a070707070758607f7f6a0707070779797a040404047a7a7a040404046e5e7a040404047a7a7a040404047a7a7a040404047a7a7a7a7a7a7a7a7a6f6169
-2a0d0d0d3d07070707070707486c6060606060607070606b4907072a07070707070707070707070707077e7a7a7a7a7a7a7a7a7a7a7a047a7a6f60490771072a070707070707070748617e6f6a070707077978787a6d7a7a7a7a7a7a7a7a7a7a7a7a7a7a6d7a7a7a7a0b2b2b0c7a7a7a7a6d7a7a7a7a7a7a7a7a7a7a7a6f6049
-2a070707070707070707070757606f7e7e6f7f6f040404604907070707070707070707070707070707077e7a7a7a7a7a0404047a7a7a7a7a7a6f604a0707072a070707070707075473607f6f6a070707537e79797a5d4e7a7a7a7a7a7a7a7a7a7a7a7a7a6d7a7a7a7a1b2b2b1c7a7a7a4d5e7a7a7a7a7a7a7a7a7a7a7a6f6049
-2a070707070707070707710707437e7a7a7a7a6f040404604907070707070707070707710707070707536f7e6f7f6f6f040404046f6f6f6f6f6f61490707072a0771070707646070606c6f6f6a070758606f7978040404047a4d6e040404047a7a7a7a0404047a7a7a040404047a4d6e040404047a7a6f040404047a046f6049
-2a0707070707070707070707000078787a7a7a6f6f6f6f604907070707070707072c0d0d0d2d0707586b606060606060606060606060706060606c490707072a0707070707686f6f7f7e6f7e6a2d0748617e7a790404046e6e5e7a04047b047a7a7a040404047a7a7a047a04046e5e7a040404047a0b0b047b04047a04046049
-2a07070707070707070707070707787a7a7a307a7a7a6f60690d0d2d07070707071d0707073c0d0d5b4045406643454045464666444040404040405c0707072a0707070707677f7e7e7e7f6f6a3c0d48607e7f7a7a6d7a7a7a7a7a7a7a0b0c0c0c7a7a7a6d6f7a7a7a7a7a7a7a7a7a7a7a7a7a7a0b2b2b0c7a7a7a7a7a6d6069
-2a07070707070771710707070707797a7a307a307a7a6f606a07071d07070707071d07070707070707070707070707070707070707070707071d07070707072a0707070707686f6f6241466675070068616f6f7e4d5e6f6f6f6f6f6f6f1b2b2b1c6f6f6f5d4e6f6f6f6f6f6f6f6f6f6f6f6f6f6f1b2b2b1c6f6f7a7a4d5e6049
-2a077107070707070707070707536f797a7a307a7a7a6f616907073c0d0d2a07072a07070707070707070707070707070707070707070707071d07070707072a072c0d0d0d686f7f7251765365070748606060606060606060606060607060606060606060606060606060606060706060606060606060606b04046e5e6f6069
-2a070707070707070707070758607e7a7a7a7a7a7a7a6f606a07070707070715160707070707070771070707070707070707070707710707071d07070707072a0d3d070707686f7e7f7f6f7e6a07075b404040404040404040404166406644404046404040404040404040416640664440404640404040636004047a7a6f6169
+
 __sfx__
 151000000c0730000000000000000c013000000000000000266550d0000e625000000e615000000e615000000c0730000000000000000c013000000c07300000266550d0000e625000000e615000000e61500000
 d1100000021450e14502115021450212502115021450e11502145021250211502145021250211502145021150f145031250311503145031250f1150314503115021450e1250211502145021250e1150214502115
