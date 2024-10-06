@@ -2,6 +2,23 @@ pico-8 cartridge // http://www.pico-8.com
 version 41
 __lua__
 
+--[[
+CORTEX PROTOCOL
+  by Emanuele Bonura
+  itch: https://izzy88izzy.itch.io/
+  github: https://github.com/EBonura/CortexProtocol
+  instagram: https://www.instagram.com/izzy88izzy/
+  minified with: https://thisismypassport.github.io/shrinko8/
+
+How to Play:
+* Use arrow keys to move
+* Press X to use your selected ability
+* Press O to open the ability menu and switch between abilities
+* Interact with terminals using X when prompted
+* Collect data fragments to restore health and earn credits
+* Complete all objectives and reach the extraction point to finish each mission
+]]
+
 -- MAP COMPRESSION
 ----------------------
 -- function compress(data)
