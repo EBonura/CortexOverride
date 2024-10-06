@@ -33,20 +33,3 @@ Your mission:
 ## Development
 
 This game is developed using PICO-8, a fantasy console for making, sharing, and playing tiny games and other computer programs. The game is still a work in progress, with ongoing development and feature additions.
-
-## Contributing
-
-As this is a personal project, contributions are not currently being accepted. However, feedback and suggestions are always welcome!
-
-## License
-
-[Insert your chosen license here]
-
-## Credits
-
-Developed by [Your Name/Username]
-
-## Acknowledgments
-
-- PICO-8 community for inspiration and resources
-- [Any other acknowledgments you'd like to include]
