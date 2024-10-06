@@ -45,11 +45,11 @@ Complete the main objective to finish each mission. Optional objectives increase
 
 This game is developed using [PICO-8](https://www.lexaloffle.com/pico-8.php), a fantasy console for making, sharing, and playing tiny games and other computer programs. The game is still a work in progress, with ongoing development and feature additions.
 
-The code has been minified using [shrinko8](https://github.com/thisismypassport/shrinko8), a PICO-8 code shrinker/minifier.
+Currently, Cortex Protocol is contained within a single .p8 cartridge file. However, due to its size and complexity, it's not yet possible to save it as a .png cartridge.
 
-## Creator
+## Author
 
-Cortex Protocol is created by Emanuele Bonura.
+Cortex Protocol is a passion project by Emanuele Bonura.
 
 - Itch.io: [https://izzy88izzy.itch.io/](https://izzy88izzy.itch.io/)
 - GitHub: [https://github.com/EBonura/CortexProtocol](https://github.com/EBonura/CortexProtocol)
