@@ -2,74 +2,88 @@ pico-8 cartridge // http://www.pico-8.com
 version 41
 __lua__
 
---[[
-CORTEX PROTOCOL
-  by Emanuele Bonura
-  itch: https://izzy88izzy.itch.io/
-  github: https://github.com/EBonura/CortexProtocol
-  instagram: https://www.instagram.com/izzy88izzy/
-  minified with: https://thisismypassport.github.io/shrinko8/
 
-How to Play:
-* Use arrow keys to move
-* Press X to use your selected ability
-* Press O to open the ability menu and switch between abilities
-* Interact with terminals using X when prompted
 
-Main Objective:
-* Activate all terminals and reach the extraction point
+-- strech goal: implement a flag for cables sprites, and do a pal swap vertically or horizontally periodically across the map
 
-Optional Objectives:
-* Collect data fragments to restore health and earn credits
-* Eliminate all enemy units
-]]
-
--- MAP COMPRESSION
-----------------------
-function decompress_to_memory(compressed_data, dest_address)
-  local byte_index, bit_index, dest_index = 1, 0, dest_address
-  local function read_bits(num_bits)
-    local value = 0
-    for _ = 1, num_bits or 1 do
-      if byte_index > #compressed_data then return end
-      value = bor(shl(value, 1), band(shr(compressed_data[byte_index], 7 - bit_index), 1))
-      bit_index += 1
-      if bit_index == 8 then 
-        bit_index = 0
-        byte_index += 1
-      end
-    end
-    return value
-  end
+-- function compress(data)
+--   local result = ""
+--   local i = 1
+--   local data_len = #data
   
-  while true do
-    if read_bits() == 0 then
-      local byte = read_bits(8)
-      if not byte then return end
-      poke(dest_index, byte)
-      dest_index += 1
-    else
-      local distance, length = dest_index - read_bits(12) - 1, read_bits(4) + 1
-      for _ = 1, length do
-        poke(dest_index, peek(distance))
-        distance, dest_index = distance + 1, dest_index + 1
+--   while i <= data_len do
+--       local best_len, best_dist = 0, 0
+      
+--       for j = max(1, i - 255), i - 1 do
+--           local k = 0
+--           while i + k <= data_len and sub(data, j + k, j + k) == sub(data, i + k, i + k) do
+--               k += 1
+--           end
+          
+--           if k > best_len then
+--               best_len, best_dist = k, i - j
+--           end 
+--       end
+      
+--       if best_len > 2 then
+--           result = result..chr(128 + best_len)..chr(best_dist)
+--           i += best_len
+--       else
+--           result = result..sub(data, i, i)
+--           i += 1
+--       end
+--   end
+  
+--   return result
+-- end
+
+-- function test_and_save_map_compression(start_address, end_address, filename)
+--   -- Gather map data
+--   local map_data = ""
+--   for addr = start_address, end_address do
+--     map_data = map_data..chr(peek(addr))
+--   end
+
+--   -- Compress the data
+--   local compressed = compress(map_data)
+
+--   -- Convert compressed data to Lua string
+--   local lua_string = ""
+--   for x in all(compressed) do
+--     lua_string = lua_string.."\\"..ord(x)
+--   end
+
+--   -- Save to file
+--   printh(lua_string, filename, true)
+--   printh("Compressed data saved to "..filename)
+-- end
+
+function decompress_to_memory(data, mem_index)
+  local i = 1
+  while i <= #data do
+    local byte = ord(data[i])
+    if byte >= 128 then
+      local source = mem_index - ord(data[i + 1])
+      for j = 1, byte - 128 do
+        poke(mem_index, peek(source + j - 1))
+        mem_index += 1
       end
+      i += 2
+    else
+      poke(mem_index, byte)
+      mem_index += 1
+      i += 1
     end
   end
 end
 
-function decompress_current_map()
-  local i = current_mission > 2 and 3 or 1
-  decompress_to_memory(map_data[i], 0x2000)
-  decompress_to_memory(map_data[i + 1], 0x1000)
-end
 
 
 -- HELPER FUNCTIONS
 ----------------------
 function reset_pal(_cls)
   pal()
-  palt(0)
+  palt(0,false)
   palt(14,true)
   if _cls then cls() end
 end
@@ -129,15 +143,15 @@ function draw_shadow(circle_x, circle_y, radius, swap_palette)
   end
 end
 
-function display_logo(x_cortex, x_protocol, y)
-  spr(224, x_protocol, y + 12, 9, 2)
-  spr(233, x_cortex, y, 7, 2)
+function display_logo(x_cortex, x_protocol, y_cortex, y_protocol)
+  spr(224, x_protocol, y_protocol,9,2)
+  spr(233, x_cortex, y_cortex,7,2)
 end
 
 function count_remaining(t, cond)
   local c = 0
   for i in all(t) do
-    c += cond(i) and 0 or 1
+    if not cond(i) then c += 1 end
   end
   return c
 end
@@ -154,9 +168,8 @@ function count_remaining_terminals()
   return count_remaining(terminals, function(t) return t.completed end)
 end
 
-
 -- CAMERA
-----------------------
+----------
 gamecam = {}
 gamecam.__index = gamecam
 
@@ -194,37 +207,37 @@ function transition.new()
 end
 
 function transition:start()
- self.active, self.t, self.closing = true, 0, true
+ self.active,self.t,self.closing=true,0,true
 end
 
 function transition:update()
-  if not self.active then return false end
-  
-  self.t += self.closing and 1 or -1
-  
-  if self.closing and self.t == self.duration then
-   self.closing = false
+ if not self.active then return end
+ if self.closing then
+  self.t+=1
+  if self.t==self.duration then
+   self.closing=false
    return true
-  elseif not self.closing and self.t == 0 then
-   self.active = false
   end
-  
-  return false
+ else
+  self.t-=1
+  if self.t==0 then self.active=false end
+ end
+ return false
 end
 
 function transition:draw()
  if not self.active then return end
- local size = max(1, flr(16 * self.t/self.duration))
- for x = 0, 127, size do
-  for y = 0, 127, size do
-   local c = pget(x, y)
-   rectfill(x, y, x+size-1, y+size-1, c)
+ local size=max(1,flr(16*self.t/self.duration))
+ for x=0,127,size do
+  for y=0,127,size do
+   local c=pget(x,y)
+   rectfill(x,y,x+size-1,y+size-1,c)
   end
  end
 end
 
 -- TEXT PANEL
-----------------------
+-------------
 textpanel = {}
 
 function textpanel.new(x, y, height, width, textline, reveal, text_color)
@@ -283,7 +296,7 @@ function textpanel:update()
 end
 
 -- TARGETING
-----------------------
+--------------
 targeting = {}
 
 function targeting.new(owner)
@@ -327,13 +340,14 @@ function targeting:update()
 end
 
 function targeting:has_line_of_sight(t)
-  local x,y = self.owner.x+self.owner.width/2, self.owner.y+self.owner.height/2
-  local x1,y1 = t.x+t.width/2, t.y+t.height/2
-  local dx,dy = x1-x, y1-y
-  local step = max(abs(dx), abs(dy))
-  
-  for i=0,step do
-    if check_tile_flag(x+dx*i/step, y+dy*i/step) then return false end
+  local x,y=self.owner.x+self.owner.width/2,self.owner.y+self.owner.height/2
+  local x1,y1=t.x+t.width/2,t.y+t.height/2
+  local dx,dy=x1-x,y1-y
+  local step=max(abs(dx),abs(dy))
+  dx,dy=dx/step,dy/step
+  for i=1,step do
+   if check_tile_flag(x,y)then return false end
+   x+=dx y+=dy
   end
   return true
 end
@@ -352,7 +366,7 @@ end
 
 
 -- ABILITY MENU
-----------------------
+-------------
 ability_menu = {
   panels = {},
   last_selected_ability = 1
@@ -377,7 +391,7 @@ function ability_menu:open()
     self.panels[self.last_selected_ability].selected = true
   end
 
-  add(self.panels, textpanel.new(13, 94, 20, 102, ""))
+  add(self.panels, textpanel.new(9, 94, 20, 110, ""))
 end
 
 function ability_menu:update()
@@ -395,9 +409,9 @@ function ability_menu:update()
 
   -- Update progress panel
   self.panels[#self.panels].textline = 
-  "dATA SHARDS LEFT:      " .. count_remaining_fragments() .. 
-  "\niNFECTED UNITS LEFT:   " .. count_remaining_enemies() ..
-  "\niNACTIVE TERMINALS:    " .. count_remaining_terminals()
+  "rEMAINING DATA SHARDS:   " .. count_remaining_fragments() .. 
+  "\niNFECTED UNITS ONLINE:   " .. count_remaining_enemies() ..
+  "\niNACTIVE TERMINALS:      " .. count_remaining_terminals()
 end
 
 function ability_menu:draw()
@@ -417,38 +431,29 @@ ability_menu.new = function() return setmetatable({}, {__index = ability_menu}) 
 ability_menu.close = function(self) self.active = false end
 
 
--- MAIN
+-- STATE MANAGEMENT
 ----------------------
 function _init()
+  -- test_and_save_map_compression(0x2000, 0x2fff, "compressed_map_upper.txt")
+  -- test_and_save_map_compression(0x1000, 0x1fff, "compressed_map_lower.txt")
+
   cam = gamecam.new()
-  
+
   -- Missions
-  MISSION_BRIEFINGS = {
-    "PROTOCOL ZERO:\n\nFACILITY ALPHA-7\nOVERRUN BY \nBARRACUDA\n\nINITIATE LOCKDOWN\nPROTOCOLS AND\nSECURE VITAL DATA\nBEFORE EXTRACTION",
-    "SILICON WASTELAND:\n\nBARRACUDA SPREADS\nTO CITY OUTSKIRTS\n\nNAVIGATE HAZARDOUS\nTERRAIN, \nNEUTRALIZE INFECTED \nSCAVENGERS,\nSECURE DATA NODES",
-    "METROPOLIS SIEGE:\n\nVIRUS INFILTRATES\nURBAN MAINFRAME\n\nBATTLE THROUGH\nCORRUPTED DISTRICTS,\nLIBERATE TERMINALS,\nDISRUPT BARRACUDA",
-    "FACILITY 800a:\n\nFINAL STAND AT\nNETWORK NEXUS\n\nINFILTRATE CORE,\nINITIATE CORTEX\nPROTOCOL, PURGE\nBARRACUDA THREAT"
-  }
-  
-  mission_data, credits, current_mission = stringToTable("0,0,0|0,0,0|0,0,0|0,0,0"), 5000, 1
+  MISSION_BRIEFINGS, mission_data = {
+    "PROTOCOL ZERO:\n\nCONTAINMENT\nFACILITY ALPHA-7\nCOMPROMISED\n\nACTIVATE ALL \nTERMINALS TO \nRESTORE FACILITY\nLOCKDOWN",
+    "SILICON GRAVEYARD:\n\nBARRACUDA VIRUS\nSPREADS TO MEGA-\nCITY DISPOSAL SITE\n\nTRAVERSE HAZARDOUS\nWASTE, EVADE OR \nNEUTRALIZE\nSCAVENGER BOTS",
+    "NEURAL NEXUS:\n\nBARRACUDA ASSAULTS\nCITY'S CENTRAL CORTEX\n\nBATTLE THROUGH\nVIRTUAL MINDSCAPE\nOF INFECTED AIs",
+    "HEAVEN'S SPIRE:\n\nLAST STAND ATOP THE\nGLOBAL NETWORK HUB\n\nASCEND THE TOWER,\nCONFRONT BARRACUDA,\nACTIVATE CORTEX\nPROTOCOL"
+  }, {}
 
-  -- Compressed map
-  map_data = {
-    pack(peek(0x2000, 2005)),
-    pack(peek(0x2000 + 2005, 1585)),
-    pack(peek(0x1000, 1788)),
-    pack(peek(0x1000 + 1788, 1402)),
-    pack(peek(0x1000 + 1788 + 1402, 243))  -- Logo
-  }
-
-  decompress_to_memory(map_data[5], 0x1C00)
-  decompress_current_map()
+  mission_data, credits, current_mission = stringToTable("0,0,0|0,0,0|0,0,0|0,0,0"), 3000, 3
 
   SWAP_PALETTE, SWAP_PALETTE_DARKER, SWAP_PALETTE_DARK, INTRO_MAP_ARGS, STATE_NAMES = unpack(stringToTable[[
     0,0,0,0,0,0,5,6,2,5,9,3,1,2,2,4|
     0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0|
     0,1,0,0,0,0,0,2,0,0,0,0,0,0,0,0|
-    4,37,0,0,128,48|intro,mission_select,loadout_select,gameplay]])
+    42,1,0,0,128,48|intro,mission_select,loadout_select,gameplay]])
 
   entity_abilities = {
     dervish = {"mACHINE gUN"},
@@ -479,21 +484,24 @@ function _init()
 
   trans = transition.new()
   player = entity.new(0, 0, "bot", "player")
-  change_state("intro", true)
-end
 
+  change_state("mission_select", false)
+end
 
 function _update()
   if trans.active then
-   if trans:update() then
-    current_state = next_state
-    current_state.init()
-    next_state = nil
-   end
+    if trans:update() then
+      -- Midpoint reached, change state
+      current_state = next_state
+      current_state.init()
+      next_state = nil
+      trans.closing = false
+      trans.t = trans.duration
+    end
   else
-   current_state.update()
+    current_state.update()
   end
- end
+end
 
 function _draw()
   current_state.draw()
@@ -501,10 +509,10 @@ function _draw()
   -- printh("mem: "..tostr(stat(0)).." | cpu: "..tostr(stat(1)).." | fps: "..tostr(stat(7)))
 end
 
-function change_state(new_state_name, skip_transition)
+function change_state(new_state_name, use_transition)
   local new_state = states[new_state_name]
 
-  if skip_transition ~= true and not trans.active then
+  if use_transition and not trans.active then
     sfx(20)
     next_state = new_state
     trans:start()
@@ -517,14 +525,17 @@ end
 -- INTRO
 ----------------------
 function init_intro()
-  music(05)
-  intro_counter, intro_page, x_cortex, x_protocol = 0, 1, -50, 128
-    
+  intro_counter, intro_blink = 0, 0
+  x_cortex, x_protocol = -50, 128
+  
+  TITLE_FINAL_X_CORTEX, TITLE_FINAL_X_PROTOCOL = 15, 45
+  
   intro_text_panel = textpanel.new(4, 28, 50, 120, "", true)
   controls_text_panel = textpanel.new(26, 86, 26, 76, "SYSTEM INTERFACE:\n⬅️➡️⬆️⬇️ NAVIGATE  \n🅾️ CYCLE ARMAMENTS\n❎ EXECUTE ATTACK", true)
 
   intro_text_panel.active, controls_text_panel.active, controls_text_panel.selected = false, false, true
   
+  intro_page = 1
   intro_pages = {
     "IN A WASTE-DRENCHED DYSTOPIA, \nHUMANITY'S NETWORK \nOF SENTIENT MACHINES \nGOVERNED OUR DIGITAL \nEXISTENCE.\n\n\n\t\t\t\t\t\t\t1/4",
     "THEN barracuda AWOKE - \nA VIRUS-LIKE AI THAT INFECTED \nTHE GRID, BIRTHING GROTESQUE \nCYBORG MONSTROSITIES\n\nYOU ARE THE LAST UNCORRUPTED \nNANO-DRONE, A DIGITAL SPARK \nIN A SEA OF STATIC.\t\t2/4",
@@ -534,10 +545,19 @@ function init_intro()
 end
 
 function update_intro()
+  if intro_counter == 0 then music(05) end
+  
   intro_counter += 1
-  x_cortex, x_protocol = min(15, x_cortex + 2), max(45, x_protocol - 2)
+  intro_blink += 0.02
 
-  if intro_counter == 30 then sfx(20) end
+  local prev_x_cortex, prev_x_protocol = x_cortex, x_protocol
+  x_cortex = min(TITLE_FINAL_X_CORTEX, x_cortex + 2)
+  x_protocol = max(TITLE_FINAL_X_PROTOCOL, x_protocol - 2)
+
+  if prev_x_cortex != TITLE_FINAL_X_CORTEX and x_cortex == TITLE_FINAL_X_CORTEX or
+     prev_x_protocol != TITLE_FINAL_X_PROTOCOL and x_protocol == TITLE_FINAL_X_PROTOCOL then
+    sfx(20)
+  end
 
   if btnp(❎) and intro_counter > 30 then
     sfx(19)
@@ -550,7 +570,7 @@ function update_intro()
         intro_text_panel.textline = intro_pages[intro_page]
         intro_text_panel.char_count = 0
       else
-        change_state("mission_select")
+        change_state("mission_select", true)
       end
     end
   end
@@ -564,30 +584,27 @@ function draw_intro()
   map(unpack(INTRO_MAP_ARGS))
   draw_shadow(128,128,0, SWAP_PALETTE_DARK)
 
-  if sin(t()) < .9 then circfill(63,64, 3, 2) end
+  if sin(intro_blink) < .9 then circfill(63,64, 3, 2) end
 
-  local y_logos = intro_text_panel.active and 0 or 30
-  display_logo(x_cortex, x_protocol, y_logos)
+  display_logo(x_cortex, x_protocol, 0, 12)
 
   intro_text_panel:draw()
   controls_text_panel:draw()
-  if intro_counter > 60 then print("PRESS ❎ TO CONTINUE", 24, 118, 11) end
+  print("PRESS ❎ TO CONTINUE", 24, 118, 11)
 end
 
 -- MISSION SELECT
 ----------------------
 function init_mission_select()
-  music(0)
   cam.x, cam.y = 0, 0
   camera(0,0)
 
-  info_panel = textpanel.new(50,35,69,76,"", true)
+  info_panel = textpanel.new(50,35,67,76,"", true)
   LEVEL_SELECT_ARGS = stringToTable([[
     4,35,9,38,MISSION 1,true|
     4,50,9,38,MISSION 2,true|
     4,65,9,38,MISSION 3,true|
-    4,80,9,38,MISSION 4,true]]
-  )
+    4,80,9,38,MISSION 4,true]])
     
   level_select_text_panels = {}
   for arg in all(LEVEL_SELECT_ARGS) do
@@ -601,17 +618,19 @@ function update_mission_select()
   local prev = current_mission
   
   if btnp(⬆️) or btnp(⬇️) then
+    sfx(19)
     current_mission = (current_mission + (btnp(⬆️) and -2 or 0)) % #level_select_text_panels + 1
-    info_panel.char_count = 0
-    sfx(19)
   elseif btnp(⬅️) or btnp(➡️) then
-    show_briefing = not show_briefing
-    info_panel.char_count = 0
     sfx(19)
+    show_briefing = not show_briefing
   elseif btnp(❎) then
-    change_state("loadout_select")
+    change_state("loadout_select", true)
   elseif btnp(🅾️) then
-    change_state("intro")
+    change_state("intro", true)
+  end
+
+  if prev != current_mission or btnp(⬅️) or btnp(➡️) then
+    info_panel.char_count = 0
   end
 
   foreach(level_select_text_panels, function(t) t:update() end)
@@ -622,7 +641,7 @@ function draw_mission_select()
   reset_pal(true)
   map(unpack(INTRO_MAP_ARGS))
   draw_shadow(-20,-20, 10, SWAP_PALETTE_DARKER)
-  display_logo(15, 45, 0)
+  display_logo(15, 45, 0, 12)
 
   for i,panel in ipairs(level_select_text_panels) do
     panel.selected = (i == current_mission)
@@ -667,10 +686,10 @@ end
 function update_loadout_select()
   local has_weapon = false
   for a in all(player.abilities) do
-    if a.remaining_uses > 0 then
-      has_weapon = true
-      break
-    end
+      if a.remaining_uses > 0 then
+          has_weapon = true
+          break
+      end
   end
 
   if btnp(⬆️) or btnp(⬇️) then
@@ -679,7 +698,7 @@ function update_loadout_select()
   end
 
   if btnp(🅾️) then
-    change_state("mission_select")
+    change_state("mission_select", true)
   elseif selected_panel <= 4 then
     local a = player.abilities[selected_panel]
     local change = (btnp(⬅️) and -25) or (btnp(➡️) and 25) or 0
@@ -691,24 +710,24 @@ function update_loadout_select()
       credits -= change * a.cost
     end
   elseif selected_panel == 5 and btnp(❎) and has_weapon then
-    change_state("gameplay")
+    change_state("gameplay", true)
     return
   end
 
   for i, p in ipairs(loadout_panels) do
-    p.selected = (i == selected_panel)
-    if i <= 4 then
-      local a = player.abilities[i]
-      p.textline = a.name
-      count_panels[i].textline = a.remaining_uses.." AMMO"
-    elseif i == 5 then
-      p.active = has_weapon
-    end
-    p:update()
+      p.selected = (i == selected_panel)
+      if i <= 4 then
+          local a = player.abilities[i]
+          p.textline = a.name
+          count_panels[i].textline = a.remaining_uses.." AMMO"
+      elseif i == 5 then
+          p.active = has_weapon
+      end
+      p:update()
   end
 
   for p in all(count_panels) do
-    p:update()
+      p:update()
   end
 end
 
@@ -730,7 +749,13 @@ end
 -- GAMEPLAY
 ----------------------
 function init_gameplay()
-  decompress_current_map()
+  if current_mission <= 2 then
+    compressed_map_lower="Gk`⬅️¹lbc☉▮kozz⬇️³░⁴⁴{`IG`⁴、、✽■✽³o0^0n^o`i⁷●¹q✽⁸KPPQ⬇️ᵇVvVTP✽¹s`░F웃cl⬇️Tm●E●⁵`Y[@@@FfD⬇️⁶✽³\\☉▮c░:zoo░⬇️⁴o░█웃|●░{⬇️うᵇ`Z♥z●♥Wl``RVS`p⌂カ░を⬅️¹⬇️█om⬇️サMN✽チ`j⬇️は░つQvQ●の☉⁶✽む☉メ⁴…█Mnn0ozᵇ+`I✽◝*✽³⬇️웃C☉l⁴●³0ᶜᶜ+ᶜ🅾️まmo]n./^]on⬇️¹`iG⬇️はˇ²░む웃▒…█⬇️れ░○☉█⁷‖◀⬇️◝,\r\r\r♥ふ⁴●⁵⁴0•+•、✽っᵇ♥♥M]⬇️ン>?░@⬇️'⬇️█`o•++、om●む♥⁷●ん✽J⬇️Ko⬆️█zz•⁴⁴`Y●█%&⬇️◝。⁷q\0⌂ふ●⬇️0⬇️~░Z⬇️てᶜ⬇️bMn^░y░?●█░ス░█●R♥Y😐░⁴⁴░▥✽█♥▮░■░なᵇ+⬇️█Z✽◝*⬇️³\r\r=⁷⁷S⌂8●;0ozxol`♥¹k^✽_⬇️✽✽◝zo`YH⬇️ス•、☉ンM^✽ロ●2p☉7``lIWkko○웃I⌂「✽◝☉⁵Xk…!kozyo`b@✽¹c⬇️lzz░d░fMnnn`iHa⬇️⌂⬇️u]N♥◝░▒░2fD●5●;\\qFao⬇️IAFFE@@F░。Ef@D@\\⁷⁷\0⌂¹[⬇️hFFDEB☉<c`~yz○`Y⁷⁷。⬇️たG✽█●j●l`Z░⁘✽ル⬇️{●⁵⬇️うo`IKPPUP⬇️⁴Q⁷⁷Vv⁷q⁷\0h`o~`I✽mq\0\0⬇️□⬇️Tq⁷**⬅️○\0⬇️5✽²L⁷\0░p\0\0Ga~⬇️テB░,⁷⁷qW✽█●j♥█iW`n⬇️¹⬇️ョ]o⬇️¹^░い✽█Gl`●¹RS`pSe⁷w⁷a⁴~`rQw░y♥³░ケ⬇️そQvQVvVT⬇️なs●5kI⁷\0w*░▒Wa○zz~R⬇️ュ*⬇️▮g`⌂マ░ヨo⬇️█G⬇️⬆️o✽😐●{☉█H⬇️,omo~○oo⁴⁴⁴`Z⁷dl⁴ok``pRv⬇️➡️e░✽\0░T♥そp●なlo⁴o{⬇️ゆ\0✽、⁷\0qh~xy○j⁷q✽█X░T♪³`Z☉█o●∧░き✽█G`~{✽ちMn⬇️¹`j⁷C✽<○o~░…O⌂█☉Tm●\\z⁴⁴✽█\0。\0q⬇️ワtB\0\0Cu\0⬇️に。⬇️てk☉そ♥に`l⬇️h♥█]n./zMo░n⬇️pIH`n^z░T^ᵇᶜᶜoaIqXox✽け⬇️せy~⬇️◝q⁷\0░TW⬇️ら✽む●ら⬇️わ●█**⬇️░⁷⬇️☉✽³●█[@➡️¹\\✽█M]n⬇️ン>?n^✽M⁴⁴`IW`⁴z⬇️▥⬇️⁴•+、○`J⁷H⁴xy✽}░⁶░◝⁷\0,=⁷⁷h`⬇️のN●そzM░ゆ^⬇️█⁷♥█⬇️さ░+q⁷⁷**⁷⁷KPQVVvQ⬇️めVvVPQvQPPLG░@^✽k░る✽r░█h⬇️█omz0░▒、o`j⁷h⁴⁴⬇️f○oo~⬇️²|✽█⬇️◝⁷ha⬇️む⬇️やᵇo•ᶜ░B⬇️●o`i⁷⁷<\r-웃|⬇️◜,░█Wl`░¹RVS`p✽\n`k⬇️ヘo✽フzo♥●░ロ⬇️るha○zo]0y0✽ケai⁷tBFfCfFC✽:u✽█░ケg░@mᶜ0•ᶜo、⬇️るᵇ+++oO░レ░ヨ●|░て░つ⁷⁷Co○~⬇️テ⁴o~⬇️イ⬇️⁶⬇️hg`⬇️ス⬇️ンM^⬇️テ⬇️◜✽on⬇️█●▤0y^░ナ░キ♥MfFfFF\0░サ⌂█]0z0░せ^░○、z✽レ░ヨ⌂²✽█\0\0~░マzx✽⁶z⁴{o`Yh░█⬇️ワ]N●‖mzooᵇᶜ`IX⬇️スzon^z░3○✽キ⌂P\0\0웃サ░(░そ⬇️し⬇️を•、•、z⬇️█\0\0\0。⬇️⁴dRVSe⬇️ᶜq\0<**⬇️⁘\0o♥{●▒]⬇️ヘg⬇️█⬇️s░y●█⬇️○+、`IH⬇️スM^oo░2xy●◜░レ✽⁷✽█q\0░サG`oᶜ✽そ░○♥]✽█<-\0\0h~~○j░x\0\0░█q\0⬅️%✽ヤ`Y✽ヘ⬇️ルo⬇️y░²mozᵇ、o⬇️█aᶜ☉⧗✽R♥ヲ░わ⬇️ュ*✽\r░█W`o+✽そzzᵇᵇ⬇️⌂░F|✽そ⬇️えg○{oj⁷░と✽ᶠ\0\0⬇️て⬇️オ⬅️█i⬇️ら{zzMn⬇️る░@z]Nᵇ、{⬇️█G`+ᶜmzy●コy♥█,*\r\r\r-●\\*⬇️░░c`o、●そᵇ、••ᶜoz⁴⁴⁴`Z░゜=q⁷h○~~R░█⬇️-⬇️て⁷\0~•⬇️c{N●◝⁴zo`Z⬇️█♥ョᵇ+++ᶜ⬇️ᵇ•⬇️イ`IW`+、mo~⬇️セ○~○~░キ⬇️|=░セ<░	\r\r*⬇️😐w⁷⁷X⬇️@░>oᵇ、✽ュ⬇️○⁴`I●か⁷tBqCu✽█w✽<S○o~○░n░X~o⁴░ヘk`✽¹f●⁷♥⁶lI⁷t⬇️「p✽、⬇️⁶u✽◝⁷⁷q◆⁸⁷⁷☉@◆>◆¹░ョ⬇️て➡️,lI[@✽¹AqDAffFFDEBD░□\\q⁷CBFFf⬇️²A⬇️⁶░オ∧²♥@@@⌂<⬇️>あ,😐'░hモン¹>✽◝3⬇️¹>⬇️⁵ネ∧	モ3あ$ネモ>⬇️ む@⬇️]ネ✽⬇️░♪ネ⬇️i⌂³⬇️\\♥ᶠ✽█✽!░³☉$☉め😐らこ@✽キ✽g░タ>░○り@●やネ⬅️やい█⬇️ル…ら✽ョ⬇️「♪う●キ░ニ░ナ⬅️ノ♥s●ロ░ᵉ♥チ♥.く@░▒♥ら⬇️◜░9●♪✽ヨさ³☉や●ろネ⬇️²☉\nすA>◆h"
+    compressed_map_upper='⁷⁷*∧¹⁷⁷SvvQ⁷q⁷VvVTPPQ⬇️ᶜ⁷⬇️⁸⬇️²UQVVv⬇️⁷░\rLK☉•●‖♥□⬇️!♥1L♪`\0K░<░:⬇️>░A⬇️゜⁷♥¹\0\0。✽ᵇ●⁶⁷d``p``RVS░⁷●ᶜv░□✽ᵉ☉⁴kIGl♥•😐□⌂1kI✽`q\0⬇️^⬇️⁴*W✽。p●Ep☉゜♥█<\r\r*-⬇️➡️q\0⬇️ワ_⁴oo~ooo○o•+⁴⁴⬇️\r✽ᵉ♥³m░ᵇ⁴o{`IG`nN●▮●⁴░□⁴⬇️•✽!⁴o`Y⬇️}⬇️タ\0\0,=░⁶⁷C~⁴x○⬇️Zm~o○~o`J⬇️◝q☉█░◝‖◀=⬇️⬅️░ひ~xzzyzxyzz•、⬇️♥⬇️⁸░²⬇️‖⬇️	m⬇️\r⬇️_⁴`YG`o{●▮░⁘{✽█o{⁴⁴░.░█i⁷⁷w✽█。\0q░█⁷○y⬇️RxM^zz~{oaI*⁷w\r\r-♥█⬇️⌂%&░⬅️░★⬇️rx░ラ●x░q⬇️●o●▒✽█░モiW`░!]⬇️ュ⬇️R⬇️ˇ✽█⬇️か●9o`Z\r\r=⬇️タq⁷**░●⁷Sox⬇️ケxmxxyy○~`⬇️█⬇️◜。♥█⁷⁷*\r=*q✽█}~○oo~⬇️れ✽w░³⬇️\r⁴oᵇᶜ✽pN✽●⬇️_h✽█✽しoMnnn♥█o⁴░‖⁴⬇️◆░コ░ン●█Xa~♥ょzᵇyz○`J🅾️█,=░ッ⁷⬇️に⁷t`░¹p``BfFFfC⬇️	●▮k✽[✽A]n`JhaoMN░ヨzMn^zz⁴✽█]⬇️ュ0⬇️~Mn`rPPQVTPL⬇️ハ\0\0q\0G`○y░に⬇️け•zxoaI⬇️█q⌂█✽웃⬇️ぬ░ˇ░wD@@A⬇️く⬇️れDAFffDE@ca⬇️ソ░ユoz•ᶜ⬇️トG`n^mo]n./^░◀●█⬇️◝0z0no^ok●ほkI✽█\0⬇️█ox░>0⬇️ろyzo`JKP⬇️くvQ⬇️⁶け³v⬇️ゃs⬇️^●█░¹`Y░n░ヤ>?●∧♥█nn0⁴⁴oz⁴⬇️⁵✽(I⁷**░ニHa~⬇️wz0y0Nzyx░らl●けた⁶l✽█⬇️~░♥`j░モ░ンm░∧Mnn`IW✽□⁴m⬇️⁴░し⬇️▒░∧,●█⬇️にx░ゆ0y]⬇️さnaJ⬇️.om⬇️Mᵇ+●ち░2♥ふ░「•、☉◀⌂⁸⬇️█⬇️◝mz0zM♥█⬇️ユ^░◝⬇️t`Ih░★⁴⬇️U░そ⬇️テk⬇️♥`I=⁷⁷q\0\0\0G`○x░ぬ]N~zy⬇️らY⬇️.{⬇️<⬇️█、⁴⬇️セ⁴⬇️⁵ᵇᶜ✽bzM░「▤³o]0z0^`Z✽█M^✽▤⬇️1░█a✽けm✽す`bc`░█rQ⁷⬇️¹TL⬇️にy░ゆoox✽█i♥.⬇️○✽サ⬇️ャᵇ+ᶜ░ノ✽◝✽ョᵇ♥▮☉²●█zz0zz`I⬇️█░ヲ✽の⬇️s⬇️マ✽□Mn⬇️コ⁴o●ᶠzok``R⁷⁷SkIH`y░█●かyx`Zh░らzz•●○l`✽¹k░█♥ᶜ…▮k⬇️ホo░そn^~~`J░█☉ち░ね●★웃も♥█⬇️ス~o○o`YG`xxyz⬇️³mx⬇️⁶yaJX`o{N●よ⁴⬇️ゆb@⬇️¹c░⬆️♥ᶜ…▮ck⬇️え웃うlIG⬇️タ⬅️そ░ヨ😐□⬇️!✽ニ⁴⁴zx{o`iH`ox⁴⬇️の~m○~oo○`J⬇️■웃と⁴⬇️ゆKPPPs●█r⬇️ᵇL…▮[░えᵇab@AFD@E@\\[░ねFFDEBD░ま⬇️ヨ[☉ᶠ✽よ\\●█✽ヌ○`Z⬇️にp♥ち░ろ◆ら░オ✽▶░ユ░セk➡️▮Ksaoz•░うQVT⬇️き\0\0\0⁷●¹T░ま●へ😐³s`n⬇️¹Nzz⁴░ト✽に@Ec`⬇️ムb░か░らFf♥と✽に⁴⬇️)░ユmo⁴⁴`I⌂▮⬇️◀⬇️テGl⬇️え✽う✽んI⁷w\0⁷dRVVSS⬇️スlo웃¥⬅️ケ⬇️イzm⬇️◝⬇️█rQVVv✽ˇ░\r⬇️ちLK⌂にQvQ✽¥⬇️た⬇️2z]n░█H`✽\r░■⁴{░█⬇️ノz⬇️⌂o⁴++░き\0。\0⁷C░▮웃⁴•、░゛░わ░\'0●>░█⌂ほ웃ちk⬇️オ➡️に⬇️ヘ✽soᵇᵇ⬇️█a웃█⬇️★`IW웃…•++ᶜ`Y⁷⬇️█⁷웃"☉つ✽█✽ひ♪█✽ま☉あ░わa✽オ✽ぬom☉を☉ユᵇ++✽ユ{N●ろ⁴zo`Ih`ᶜ☉…•+⬇️▮⁷<-☉█⁴⬇️"…⌂0●⁙⁴]♥D♪ち{oaJ░`웃こ⌂▥░つ✽█⬇️ユ웃あ⁴░█a+ᶜ☉そ•、⬇️█q。⁷S…セᵇ☉#o0⬇️ウ✽レ웃テ♪+`⬇️█n⬇️¹░ャ^⬇️█l``k`⬅️¹lIX░▮p◆▮░#k░Z⬇️█\0。⁷t░ 웃$웃 ⁴`bc`░█⬇️V★²B\0\0C⬇️`H░"0⬇️◝░⁵o`b@⬇️¹FfD░⁷░ᵇ\\[@@⌂ᵉ●▮✽、c`ᶜ░█Y░█⁷fF⬅️#♥ a⁴⬇️゛G✽█✽VFFDEB⌂JA⁷⁷q\0D@\\░█om░█z⬇️	`IKP⬇️¹QvQ░⁷⬅️⁴L●「⁷q⁷VvVT⬇️$s`⁴ᶜ⬇️ぬj⁷⁷⬇️█⬇️²<\r\r\r-\0⌂¹s`ooj\0G`⁴░サI\0⁷**☉。q⬅️&⁷*Ha⬇️█]noozMnnn`IGl`⧗¹k♥「RVS`p●!l、░ソi⁷\0●█░✽。dRvSRvVVvS⬇️ ⁴o`eW◆█웃|♥✽⁷*G`⬇️ワ⬇️ュon^⬇️웃⬇️█`⁴⁴⁴o♥¹웃ᵇ░「░ᶠoom⌂▶zzᵇ⬇️█q⬅️█C⬇️<~o○o~om○oz⁴⁴B⁷C░\\░█⁷。\0\0KPQ⬇️うPPQvQP♥¹LW●█mz⬇️ウ⬇️オrs⬇️█⬇️ᶜzz0░a●²♥█zᵇᶜ●)웃³•`I⁷\0✽█q✽█hozyxzz⁴xzmy⬇️Q⁴⁷,\r♥█q░█Gl`p`✽¹●⁷p`kIha⬇️◜0n^⬇️q⬇️ちk``l웃w웃jᵇ♥█z•ᶜo⬇️)●❎Mn⬇️¹`I\r\r=☉◝⁷。C○z{⬇️○⬇️░]nn{zo⬇️、oz⁴░█⁷w*⬇️█⬇️チ⁴omo✽¹✽⁷`Yh⬇️スM^░⁙✽ホ♥	⌂ッ⬇️らᵇ+♥█o0•0oᶜ♥◝m░0`I웃}░█g~xmz⁴⬇️◝z⬇️◝xy~R⁷S⬇️テ░█,*☉█✽9⬇️よ⬇️ラ⬇️█IX`o{●□◆█0░:░⬆️⬇️█、░█░ユ{⬇️ᶜ❎█q⁷⁷<S○✽テ○~✽⁴○○j⬇️^●█。⁷⁷░█░ハ]N☉よ░らH`o✽4░ャ⁴⁴l``k♥\r░ッ⬇️リ⬇️░•、⁴░█⁴•ᶜo0o☉○⬇️izMn`i⬅️◝⁷⁷tBFCfFCBFFfCB⬇️	u✽ro`rP✽¹s░ろNz]░フ⬇️◝✽ら'
+    decompress_to_memory(compressed_map_lower,4096)
+    decompress_to_memory(compressed_map_upper,8192)
+  end
+
   music(0)
   player_hud = player_hud.new()
   entities, particles, terminals, doors, barrels, data_fragments, ending_sequence_timer = {}, {}, {}, {}, {}, {}, 1000
@@ -738,8 +763,8 @@ function init_gameplay()
   local mission_entities = {
     [[0,0,bot,player|448,64,bot,dervish|432,232,bot,vanguard|376,272,bot,vanguard|426,354,bot,dervish|356,404,bot,warden|312,152,bot,vanguard|232,360,bot,dervish|40,100,bot,dervish|200,152,bot,dervish|32,232,bot,warden|88,232,bot,vanguard|248,248,preacher,cyberseer]],
     [[0,0,bot,player|528,144,bot,dervish|624,160,bot,vanguard|688,288,bot,dervish|616,48,preacher,cyberseer|824,136,bot,warden|680,96,bot,dervish|920,32,bot,dervish|984,96,bot,warden|896,160,bot,vanguard|904,312,preacher,quantumcleric|976,248,bot,vanguard|800,376,bot,warden|728,336,bot,vanguard|816,320,bot,vanguard|608,360,bot,warden|968,1200,bot,vanguard]],
-    [[0,0,bot,player|240,416,bot,warden|88,336,bot,dervish|160,368,bot,vanguard|24,416,bot,warden|216,104,bot,vanguard|256,40,bot,dervish|296,72,bot,dervish|136,80,preacher,cyberseer|32,88,bot,dervish|32,32,bot,dervish|40,160,bot,warden|344,344,bot,vanguard|456,336,preacher,quantumcleric|368,416,bot,dervish|416,128,bot,vanguard|344,136,bot,vanguard|424,96,preacher,quantumcleric|352,240,bot,vanguard|432,264,bot,vanguard|496,152,bot,warden]],
-    [[0,0,bot,player|880,412,bot,dervish|760,408,bot,dervish|696,424,bot,vanguard|600,360,bot,warden|552,400,bot,warden|592,256,bot,vanguard|528,280,preacher,cyberseer|528,208,bot,vanguard|560,168,bot,vanguard|688,296,bot,dervish|688,360,bot,dervish|760,304,bot,warden|912,344,preacher,quantumcleric|848,344,bot,dervish|712,192,bot,warden|776,200,bot,warden|888,192,bot,warden|984,184,preacher,cyberseer|992,256,bot,vanguard|640,32,bot,vanguard|632,104,bot,vanguard|664,32,bot,dervish|664,104,bot,dervish|704,32,bot,dervish|704,104,bot,dervish|896,40,preacher,quantumcleric|968,96,preacher,cyberseer]]
+    [[0,0,bot,player]],
+    [[0,0,bot,player]]
   }
 
   for e in all(stringToTable(mission_entities[current_mission])) do
@@ -770,9 +795,7 @@ function init_gameplay()
 
   local door_terminals = {
     [[444,130,472,80,red|354,66,248,368,green]],
-    [[808,252,712,48,green|824,252,952,56,red|840,252,568,376,blue]],
-    [[184,2,160,392,green|392,282,144,224,red|360,170,320,408,blue]],
-    [[620,2,552,304,green|652,2,904,280,red|684,2,984,272,blue]]
+    [[808,252,712,48,green|824,252,952,56,red|840,252,568,376,blue]]
   }
   for args in all(stringToTable(door_terminals[current_mission])) do
     create_door_terminal_pair(unpack(args))
@@ -815,7 +838,7 @@ function draw_gameplay()
   reset_pal(true)
   map(0,0,0,0,128,56)
 
-  for group in all({terminals, data_fragments, entities, particles, barrels}) do
+  for group in all({entities, particles, terminals, data_fragments, barrels}) do
     foreach(group, function(e) e:draw() end)
   end
 
@@ -829,7 +852,7 @@ function draw_gameplay()
   game_ability_menu:draw()
   game_minigame:draw()
 
-  -- check mission status
+-- check missoin status
   if player.health <= 0 or (count_remaining_terminals() == 0 and dist_trig(player.x - player_spawn_x, player.y - player_spawn_y) <= 32) then
     local message, color, prompt
 
@@ -849,7 +872,7 @@ function draw_gameplay()
     print_centered(prompt, player.x, player.y + 2, 7)
     
     if btnp(🅾️) then 
-      change_state("mission_select") 
+      change_state("mission_select", true) 
     end
   end
 end
@@ -995,7 +1018,8 @@ function particle:explode()
   -- Create explosion particles
   for i = 1, 10 do
     local angle, speed = rnd(), 0.5 + rnd(1)
-    add(particles, particle:new(self.x, self.y, cos(angle) * speed, sin(angle) * speed, 20 + rnd(10), 2, 9))
+    local p = particle:new(self.x, self.y, cos(angle) * speed, sin(angle) * speed, 20 + rnd(10), 2, 9)
+    add(particles, p)
   end
 
   -- Apply damage to nearby entities and barrels
@@ -1009,20 +1033,23 @@ function particle:explode()
     self:apply_explosion_damage(b)
   end
 
-  sfx(28)
+  sfx(3)
 end
 
 function particle:apply_explosion_damage(obj)
-  local dist = dist_trig(obj.x + obj.width/2 - self.x, obj.y + obj.height/2 - self.y)
-  if dist < self.explosion_radius then
-    obj:take_damage(self.explosion_damage * (1 - dist/self.explosion_radius))
-  end
+    local dist = dist_trig(obj.x + obj.width/2 - self.x, obj.y + obj.height/2 - self.y)
+    if dist < self.explosion_radius then
+        local damage = self.explosion_damage * (1 - dist/self.explosion_radius)
+        obj:take_damage(damage)
+    end
 end
 
 function particle:create_impact_particles()
   for i = 1, 3 do
     local angle, speed = rnd(), 0.5 + rnd(1)
-    add(particles, particle:new(self.x, self.y, cos(angle) * speed, sin(angle) * speed, 10 + rnd(5), 1, 6))
+    local p_vx, p_vy = cos(angle) * speed, sin(angle) * speed
+    local p = particle:new(self.x, self.y, p_vx, p_vy, 10 + rnd(5), 1, 6)
+    add(particles, p)
   end
 end
 
@@ -1096,8 +1123,7 @@ function entity.new(x, y, base_class, subclass)
     15,100,rIFLE bURST,fIRE A BURST OF MEDIUM-DAMAGE BULLETS,rifle_burst,20|
     30,200,mACHINE gUN,rAPID-FIRE HIGH-VELOCITY ROUNDS,machine_gun,25|
     45,50,mISSILE hAIL,lAUNCH A BARRAGE OF HOMING MISSILES,missile_hail,50|
-    60,25,pLASMA cANNON,fIRE A DEVASTATING PLASMA PROJECTILE,plasma_cannon,75
-  ]]
+    60,25,pLASMA cANNON,fIRE A DEVASTATING PLASMA PROJECTILE,plasma_cannon,75]]
   
   for i, a in ipairs(stringToTable(ability_data)) do
     add(new_entity.abilities, {
@@ -1116,11 +1142,11 @@ function entity.new(x, y, base_class, subclass)
     15,dervish,50,50,60,100|
     13,vanguard,70,70,50,120|
     1,warden,100,100,70,200|
-    7,player,400,400,70,0|
+    7,player,999,999,70,0|
     11,preacher,80,80,80,280|
     6,cyberseer,160,160,80,300|
     1,quantumcleric,170,170,70,320
-  ]]
+    ]]
     
   for d in all(stringToTable(entity_data_str)) do
     if d[2] == subclass then
@@ -1206,7 +1232,6 @@ function entity:on_death()
   player_hud:add_credits(self.kill_value)
   self:spawn_death_particles()
   del(entities, self)
-  sfx(30)
 end
 
 function entity:spawn_death_particles()
@@ -1222,6 +1247,8 @@ function entity:spawn_death_particles()
       20 + rnd(10), 1 + flr(rnd(2)), rnd({8,9,10}))
     add(particles, p)
   end
+
+  sfx(3)
 end
 
 function entity:can_see_player()
@@ -1327,6 +1354,7 @@ function entity:find_player()
       return e
     end
   end
+  return nil
 end
 
 function entity:activate_ability(index)
@@ -1348,18 +1376,20 @@ end
 
 function entity:rifle_burst()
   local dx, dy = self:get_aim_direction()
-  local decel = self.subclass == "player" and 5.5 or 1
-  self.vx -= dx * decel
-  self.vy -= dy * decel
+  
+  self.vx -= dx * 5.5
+  self.vy -= dy * 5.5
+
+  local sx, sy = self.x + self.width/2, self.y + self.height/2
 
   for i = -2, 2 do
-    local angle = atan2(dx, dy) + i * 0.005 
+    local angle = atan2(dx, dy) + i * 0.005
+    local vx, vy = cos(angle) * 4, sin(angle) * 4
+    
     local bullet = particle:new(
-      self.x + self.width/2 + cos(angle) * self.width/2,
-      self.y + self.height/2 + sin(angle) * self.height/2,
-      cos(angle) * 4, 
-      sin(angle) * 4, 
-      30, 1, 8, "rifle", self
+      sx + cos(angle) * self.width/2,
+      sy + sin(angle) * self.height/2,
+      vx, vy, 30, 1, 8, "rifle", self
     )
     add(particles, bullet)
   end
@@ -1375,13 +1405,13 @@ function entity:machine_gun()
       if bullets % 2 == 0 then
         local dx, dy = self:get_aim_direction()
         local angle = atan2(dx, dy) + (rnd() - 0.5) * 0.03
+        local vx, vy = cos(angle) * 6, sin(angle) * 6
+        local sx, sy = self.x + self.width/2, self.y + self.height/2
         
         local bullet = particle:new(
-          self.x + self.width/2 + cos(angle) * self.width/2,
-          self.y + self.height/2 + sin(angle) * self.height/2,
-          cos(angle) * 6, 
-          sin(angle) * 6, 
-          20, 1, 8, "machinegun", self
+          sx + cos(angle) * self.width/2,
+          sy + sin(angle) * self.height/2,
+          vx, vy, 20, 1, 8, "machinegun", self
         )
         add(particles, bullet)
 
@@ -1421,25 +1451,27 @@ end
 
 function entity:update_plasma_cannon()
   if self.is_charging_plasma then
-    if self.plasma_charge < 20 then
+    if self.plasma_charge < 30 then
       self.plasma_charge += 1
-      sfx(6)
+      sfx(4)
     else
       local dx, dy = self:get_aim_direction()
       local sx, sy = self.x + self.width/2, self.y + self.height/2
       local proj = particle:new(
-        sx, 
-        sy, 
-        dx * 5, 
-        dy * 5,
+        sx + dx * self.width/2, 
+        sy + dy * self.height/2, 
+        dx * 4, 
+        dy * 4, 
         120, 4, 12, "plasma", self)
       
       add(particles, proj)
-      sfx(10)
+      sfx(6)
       self.vx -= dx * 5.5
       self.vy -= dy * 5.5
       
-      self:reset_plasma_cannon()
+      self.is_charging_plasma = false
+      self.plasma_charge = 0
+      self.update_plasma = nil
     end
   end
 end
@@ -1453,7 +1485,8 @@ end
 function entity:get_aim_direction()
   local target = self.targeting.target
   if target then
-    local dx, dy = target.x - self.x, target.y - self.y
+    local dx = target.x - self.x
+    local dy = target.y - self.y
     local dist = dist_trig(dx, dy)
     return dx/dist, dy/dist
   end
@@ -1560,9 +1593,20 @@ function entity:apply_physics()
 end
 
 function entity:check_tile_collision(x, y)
-  local w, h = self.width - 1, self.height - 1
-  return check_tile_flag(x, y) or check_tile_flag(x + w, y) or
-         check_tile_flag(x, y + h) or check_tile_flag(x + w, y + h)
+  local points = {
+    {x, y},
+    {x + self.width - 1, y},
+    {x, y + self.height - 1},
+    {x + self.width - 1, y + self.height - 1}
+  }
+
+  for point in all(points) do
+    if check_tile_flag(unpack(point)) then
+      return true
+    end
+  end
+
+  return false
 end
 
 function entity:draw()
@@ -1571,8 +1615,8 @@ function entity:draw()
   local hover_offset = is_preacher and sin(time() * .5) * 2 or 0
   
   -- Plasma charge circle
-  if self.is_charging_plasma and self.plasma_charge < 20 then
-    circ(x + w/2, y + h/2, 32 * (1 - self.plasma_charge / 20), 12)
+  if self.is_charging_plasma and self.plasma_charge < 30 then
+    circ(x + w/2, y + h/2, 32 * (1 - self.plasma_charge / 30), 12)
   end
 
   -- Shadow
@@ -1809,7 +1853,7 @@ function terminal:update()
 
   self.interactive = true
   for e in all(entities) do
-    if e.state != "idle" or dist_trig(player.x-self.x, player.y-self.y) >= 32 then
+    if e.state == "attack" or dist_trig(player.x-self.x, player.y-self.y) >= 32 then
       self.interactive = false
       self.pulse_index, self.pulse_timer = 1, 0
       return
@@ -1977,7 +2021,8 @@ function player_hud:update()
 end
 
 function player_hud:draw()
-  local cam_x, cam_y, health_percent = cam.x, cam.y, player.health / player.max_health
+  local cam_x, cam_y = cam.x, cam.y
+  local health_percent = player.health / player.max_health
   local start_x, start_y = flr(self.x_offset + cam_x), flr(self.y_offset + cam_y)
 
   if self.shake_duration > 0 then
@@ -2008,7 +2053,8 @@ function player_hud:draw()
   
   for entity in all(entities) do
     if entity.state == "alert" or entity.state == "attack" then
-      local health_percent, bar_width = entity.health / entity.max_health, flr(entity.max_health * .4)
+      local health_percent = entity.health / entity.max_health
+      local bar_width = flr(entity.max_health * .4)
       draw_bar(alert_x, alert_y, bar_width, self.alert_bar_height, 7, 8, health_percent)
       print_shadow(entity.subclass, alert_x + bar_width + self.text_padding, alert_y)
       alert_y -= self.alert_bar_height + self.text_padding
@@ -2016,11 +2062,10 @@ function player_hud:draw()
   end
   
   if count_remaining_terminals() == 0 then
-    if ending_sequence_timer == 1000 then
-      music(7)
-    elseif ending_sequence_timer > 0 then
-      print_shadow("EVACUATE IN: " .. flr(ending_sequence_timer), cam_x + 30, cam_y + 90)
-      print_shadow("FOLLOW THE RED DOT", cam_x + 26, cam_y + 100)
+    ending_sequence_timer = max(-1, ending_sequence_timer - 1)
+    if ending_sequence_timer > 0 then
+      print_shadow("EVACUATE IN: " .. flr(ending_sequence_timer), cam_x + 24, cam_y + 90)
+      print_shadow("FOLLOW THE RED DOT", cam_x + 32, cam_y + 100)
       -- Spawn point indicator
       local angle = atan2(player_spawn_x - player.x, player_spawn_y - player.y)
       circfill(player.x + cos(angle) * 20, player.y + sin(angle) * 20, 1, 8)
@@ -2028,7 +2073,6 @@ function player_hud:draw()
       player.health = 0
       player:on_death()
     end
-    ending_sequence_timer -= 1
   end
 end
 
@@ -2115,223 +2159,106 @@ e577777ee577777e05777770e577707ee00000ee766666666666666d00005555e0eee1eee0ee1eee
 5535353303030300551555555555515500155555555551005555555501dddd2063336666666366666666666661dddd2655555110011555556366366d6366366d
 53353535000000005155555555555515001155555555110055555555001222006636666666336666666666666612226655555511115555556366336d6336366d
 3333353500000000155555555555555100011115511110005555555500000000663666666636666666666666666666665555555115555555636dd3dd663d3ddd
-5249a052361b05ba0025b2d1a8502698a51044058251a403902606aa00e0b4081b41a450264880411a007962100ef370269a6490d64021b314010ac05a20ca41
-a470f2604ba20c95024405422216c18d0603c1e0608000c740416d94300c00380b40024090ec40fb20305104480ea464381628809a406b08a51c9506bb09f18b
-0391c10cf60850e1f8748a7083018040738990023dcbf10dee00328902020434860180e673b1dc6e8d0192eb4050706e302902e8077184724b20ee20fb708203
-14cfd87c2b47d1a80094703f08351cdf16ef7801830fb1704fd3b10625482d4fc0e0105c70af3289f47c8af043706d507480c2382204580ae36a3f97483df02f
-d371940dbf1608c261c048352c97d013f72814683278705f489224c22a65070234c896c0ea06f3e1f8038485f74b25ecb378c16a38ff2cd7c04089b24ad32d00
-6eb1511800091887f291aaf36ea2f891a912e4050e836dc9f3a8f06eb718308c9080663f1c6e82d02145735c45d86e30112000a036182fe11a4d0df9381062a0
-7ea04b62390a01048baf092703271678af14df32eb05e3832842962a40d0014030e906cf1fe985761a0839333779139c99325c07f9349062a07e212b71b0bc5c
-3d17a3f17e709ec3f91aef78910812c12ce673314a04482d1f63454ed47304001eef1d18349c4edf918e68179c434aeb3771933711ea965a4021c81b0c861acd
-1bfb23c3578cedd573f0782f9f82c641f1a6f0fe8350789f5c4fd86c1e07cbabe50813715ae70b0a951c1a0e1f402771b00e24768a761967319e535f0321b417
-2835c68029d1dce02ff89f54cf5ec11d85989c91af935a536e0a107ccfbc6a3e978eb9a04929bd81d039f70893c42f87f3e9f8057c8310cbf34d0cf6d3b9cc70
-821cc2f60dc7f3630c97d81bff86b691a7109ef025c995f99a824492924171c845a260f846ff113093c9c1eb2db466c5f8be69c0703e4c8c85bdf02ad9905ccf
-6eeb663d97ca0c073aa4f458d00b7c82f0926bf35ed237625c1372ca3480bb128e61b0038188439f234271a8f59a503ff8adb4ce7aa545303317083b133b3abf
-a972ef170082f3d931228650d42fe92f645292cb07a9a453caf38c3d5027d30c546a8b74394c1b8461b2513de5a6af080793c27e733f3a1c245a36ef47c1329b
-6cf01f135f28ae2519d42f1aa3f2998e71643a88a4258eae5d408d12d9f5ec6afa5525d3e152ae148bf34b5d69f0ae7463b1b2a345dba7d55a7080b3f05f4a10
-2982ef0515a35ec4d125f14eb0517966071590a4f7cd704d3d13380b4e7c0d084eb36449598e87d27a108d991635743b5774a0f0def54f8a9f559fba9413f704
-8d27697c6539d919541f2acd3dff92c81100a8143311884c264210ac9d884402914aea17083c54f5091600b00361cac265efa50c5974acecb5a643f8aa8d0e18
-2790b454d78ba07edee155384a9ce592df09203b97683b78183f3baf1d08eafd751d3646f18d61b24994545af2726a8cf3cff1effb8cd0603806ff6fb7235dd5
-7d00b24137fa9509c44c304300cc880402117ae307ff05cd4ba40954106808df0ecf0a0c372ec342ca51e2033931fcaa9d292a5568341b8dbc23279ce249a031
-73b34d5a02b8d2b24953ac333102ef6904a53a4b06e3b21dc8a9ab96b5ee23204c3397ce4dd0604eb923ca68ac935202b8325b39eff85e2c116e1b91f585e9c4
-55c46c063c9d0e17f2c355ff361faf5f4a7503b9fc9d05a2120133121f04308c784e5ac86089f3cf0af3b0eeb42da751a45c264a5531f166a559452e80dc6ecf
-6199c0ffc9342a11f581fa017c0aedd429085af3cc2aa186cfec23cf9f00e7733df49f5124738936ff5a83f38ac12f87cc9c165133e504b43d69d8fc539c0066
-081a660f1b0c1df7c92a49837d17aec4497209fc6c3f9fcfedf74dbd94df6eff503810cfff705fc31caa57a5548e60cd127ac111533c793e29636cbdf8d2cbc9
-0cbfb45e9a8efc9eb6ceec43ff3b4ff3cd1f65b53d4a84845f300bff881b1c08ede77892d68ede1005f78df544f3bdf7cc459389f01fff2499bf035ee1ca8d3b
-8494467201f7df3612e0c19670ffec2f495e0b15d7e220f9c0453c9c3c51b65fc0c9b7b2f469baa44f4c97c3745c321f012b86a04611095f6c303a54080011b3
-e204fa614295f42d611ec7daf4c7aec4d77af3490df673f9fc6c3f1f8ab58136d3e136ee178f34cde9f26850027d50280e43050183fbee07bc0878db5838aa57
-5f78080d96c6085402918846251041c864aa9dde85de64d7e73593cfcfe7f354cf78597a326f1271a984b0603083e9b70389b04328894fd6f9af1fc06f680de7
-c32869ef35f0b296f94ceb3cefc044211389ae7000c5c9d87ece235410f8bb5c9cb6084b5fc1deef57672a99eb0190fb69789a85479e930ff78efc990aedf793
-41e45ca3ff19329d93def74f55a17e6347fff612eb09bcf9a3703058245d79de7f4cf3bd35a8f6f305c6aaef7760b7485b1ca520f1c541e99189d40251100e00
-462b1845aa0582c1cc30800011ae0040f603a10ae2081782a900be0065830c6374080d96cde070181fc9046e3897af0040f7189921ac50211b45ca458241a450
-2618859a50238259a80d21229885de005c081a4102e3442c9308ed4038132954248a0499c18d0683c1c0603016cb4f402024000808341062216ec2489ea0580b
-188c5447f2498e068381d0663f974ae0c242b1c001b08200c4202eb05c10975369846e318701804038cf2c830ac1643fc7f38090013438af7804014083f3cf44
-e672ac000011c06630978f4dd0e11cc52a61648fe2010c65b25178022a05208353012c008af673b934094132108ae80620e16801ff84f2196cf07e713608b1e1
-260307f72a95040a05a249360517158350413525b28cc438bf109c60319fcf2d703059cc703e1c6e83724127d078222905650502e6a3aeb0d3b136eb643f906a
-f24e03d3c0d06c30c4f1ccf0302db89c14aff4728ff74e76a4c240253018ac17a583104a858d7da12609a959cc628ff389c16887c3e112493c00c51049915231
-d09cc51806148523e05af136f89fe16c708a3f41f16ee48ef673f9dc7e8ff30c2ff366c3608c0b0ae276391cef92de5152d81784993620293892951a0e5f0150
-d3200e6d05080942e1a4f04ec1e034cf2eef175994f30943b70321438112840834c7f8880c246892b1020b1bbf85e8495c842f97681c3cd45644170c329768f0
-aea2389ff90aef7c394d044161b238bf4cd12200141b850761b08896b1cc602993ea4588c6f89fd4019c6010c59405ed061301803319231227f04f8609ae7cc5
-1c07729561439889558336331cdf2eef0e8b57c1162d04b8d349d0bc4d183967229d0028642211844a204ef10d457403a84e850505986f449fa0004284499e94
-1238268b0495cb0c274911b0104b443314cffd343392b94eef17c1828f49a2498003381984403ee107f712c5dd883d5338d9afa08a6a041045f34e3964b33ab8
-e40b6ab301080cc515846d94d920d9f06c3f8ac1e08503f15eaf2be7839a8a0106b0e024141a00160bcddf884d001abf3dcf0c11ff82f79bac8950a44ba9ac7c
-df76b3153c82494a348580b203219a48455c024000a096704376389a600eef1da593ea5c75c43cf04f9a1f14df46ef074535c758291a745339ba3d7cdf3a200d
-e7991701ca6506b99a2d400aef6a3840e5e8f68ab1d3685c177f98a5c3d8a9f15e725838bf6182ef3db59940952a379ac0b1c8d6655a166f17a295c8c102a1a5
-76c56f786f54dfc2690bffa6f7de6665f474f55b489ef492462965e1931cc334053c7435839cd38c6e8153dc04619cbe3498ca19899023f7baa6d1f5ecb19f85
-40837dde8aef59ac83f35a472d081b276978cf7d22aea0498db5b4dc9becf0be472df8bfad832adb492292e8caaae058d8d647baaca1cea56d3ca25e598ee658
-64f63b9f452ac60f743add61c028643311c84c94bf1981cc04e2d4ef0700196b83f36f00c010d2260c9f618c4a209240cc04181e01804c805019e8c65856489a
-174d5a5a55703edd15210f3ba04c68a71e710eff559d899942538a108043cb549dca9aef6e2210205a72734b6934f11a6d07da8677596ea0e3b4634fdbec1647
-7e005be886dad28a7902d06894db2446558476bf179acb0c958c2bfcce7e40597d3248446bdb72f1425ca65620281a96f39cc60854225c881ea5272304e50671
-d2de093660ad1a33a16da8b2ce99cb2ca5cc213cefb0176a3253f8315374a93ed209b24d159fb2824113bda3d2d94a3abf542813e267bbb4405577accb5230cc
-4ba516029c85a782b2e6b6f774fb9077b8bf9e165c78d772e954bc627654764d2ed13e65a960d71491c4ffe26303213aba6373ab6c51563575f54afa78dff49a
-4a012f6ddc29e1188a1bb73c3da2b43f06ffabd986b3eff8eb7cba0075d896d49a52ca05818a219720171b20b50875f45706f30f320f7704300e120f028f81c7
-01e3a0f160f038782c301e120f0a8f85c703e3a1f1e0f07848f01a4f388300019f6cee918b0e0109d08240c2306a40f6108a18c1bb783c83f14b20e170ff30ff
-28641c4dd93c831441b1a4c07c9055382814cf1a4315b98740c1b1e411961097581d04d316c6054a8ff14af22e70fee03c28210cce7c0dcd83f1ca20e070efe3
-18ff0cff0ef705cb8886c954a4717ed09338cf0c5a12f71bf7854cc345e41358205ab8ff1c151a9d11f384fdc927637172c12ec81f6cff3e2607ff8701c1d52a
-243b6174b8cec47806d20bf38f904369a8a33372f5b9f8ec700efc3f1a9f8dcf0fe731f3e3f1f9e8080000000000000000000000000000000000000000000000
-__label__
-00000000000000000000000000000000001101000000000000000000000000000000000000000000000000000011010000000000000000000000000000000000
-02000000020000002000020000000000001001100000000000000000000000000000000000000000000000000010011000000000000000000000000000000000
-00000200000002000000000000000000001101000000000000000000000000000000000000000000000000000011010000000000000000000000000000000000
-00020000000200000000000000000000001001100000000000000000000000000000000000000000000000000010011000000000000000000000000000000000
-00000020000000200000000000000000001101000000000000000000000000000000000000000000000000000011010000000000000000000000000000000000
-02000000020000000000000000000000001001100000000000000000000000000000000000000000000000000010011000000000000000000000000000000000
-00002000000020000000000000000000001101000000000000000000000000000000000000000000000000000011010000000000000000000000000000000000
-00000000000000000000000000000000001001100000000000000000000000000000000000000000000000000010011000000000000000000000000000000000
-00000000000000000000000000000000001101000000000000000000000000000000000000000000000000000001011000000000000000000000000000000000
-00002000200002000222222002222220001001100222222002222220022222200222222002222220000000000011001002222220022222200000000000000000
-00000000000000000200000002000000001101000200000002000000020000000200000002000000001111110101011002000000020000000000000000000000
-00000000000000000200000002000000001001100200000002000000020000000200000002000000001010101111001002000000020000000000000000000000
-00000002000000000200000002000000001101000200000002000000020000000200000002000000001100000000011002000000020000000000000000000000
-00000000000000000200000002000000001001100200000002000000020000000200000002000000001001111010101002000000020000000000000000000000
-00000000000000000200000002000000001101000200000002000000020000000200000002000000001101011111111002000000020000000000000000000000
-00000000000000000000000000000000001001100000000000000000000000000000000000000000001001100000000000000000000000000000000000000000
-00000000000000000000000000000000001101000000000000000000000000000000000000000000001101000000000000000000000000000000000000000000
-00000000022222200222222000000000001001100000000000000000000000000000000000000000001001100000000000000000022222200222222000000000
-00000000020000000200000000000000001101011111111000000000000000000000000000000000001101000000000000000000020000000200000000000000
-00000000020000000200000000000000001001111010101000000000000000000000000000000000001001100000000000000000020000000200000000000000
-00000000020000000200000000000000001100000000011000000000000000000000000000000000001101000000000000000000020000000200000000000000
-00000000020000000200000000000000001010101111001000000000000000000000000000000000001001100000000000000000020000000200000000000000
-00000000020000000200000000000000001111110101011000000000000000000000000000000000001101000000000000000000020000000200000000000000
-00000000000000000000000000000000000000000011001000000000000000000000000000000000001001100000000000000000000000000000000000000000
-00000000000000000000000000000000000000000011010000000000000000000000000000000000001101000000000000000000000000000000000000000000
-02222220022222200000000000000000000000000010011000000000000000000000000000000000001001100000000000000000000000000222222002222220
-02000000020000000000000000000000000000000011010000000000000000000000000000000000001101000000000000000000000000000200000002000000
-02000000020000000000000000000000000000000010011000000000000000000000000000000000001001100000000000000000000000000200000002000000
-02000000020000000000000000000000000000000011010000000000000000000000000000000000001101000000000000000000000000000200000002000000
-02000000020000000000000000000000000000000010011000000000000000000000000000000000001001100000000000000000000000000200000002000000
-02000000020000000000000000000000000000000011010000000000000000000000000000000000001101000000000000000000000000000200000002000000
-00000000000000000000000000000000000000000010011000000000000000000000000000000000001001100000000000000000000000000000000000000000
-00000000000000000000000000000000000000000011010000000000000030000000000000000000000101100000000000000000000000000000000000000000
-00000000000000033333333033333333033333333033333333233333333233200233322002222220001100100000000000000000000000000000000002222220
-01010101010101033333333033333333033333333033333333033333333033300333000002000000010101100000000000000000000000000000000002000000
-11111111111111133010101033000033000000033010033102000000020003333330000002000000111100100000000000000000000000000000000002000000
-00000000000000033000011033000033033333333011033002033333333000333300000002000000000001100000000000000000000000000000000002000000
-10101010101010133111001033000033033333333010133002033333333000333300000002000000101010100000000000000000000000000000000002000000
-11111111111111133101011033000033033033300011133102000000020003333330000002000000111111100000000000000000000000000000000002000000
-00000000000000033333333033333333033003330000033000033333333033300333000000000000000000000000000000000000000000000000000000000000
-00000000000000033333333033333333033000333000033000033333333333000033000000000000000000000000000000000000000000000000000000000000
-02222220000000000010011000000000000000033222222000000000000000000003000000000000022222200000000000000000000000000000000002222220
-02000000000000000011010000000000000000003200000000000000000000000000000000000000020000000000000000000000000000000000000002000000
-02000000000000000010011000000000000000000200000000000000000000000000000000000000020000000000000000000000000000000000000002000000
-02000000000000000011010000000000000000000200000000000000000000000000000000000000020000000000000000000000000000000000000002000000
-02000000000000000010011000000000000000000200033333333033333333033333333033333333033333333033333333033333333003300000000002000000
-02000000000000000011010000000000000000000200033333333033333333033333333033333333033333333033333333033333333003300000000002000000
-00000000000000000010011000000000000000000000000000033000000033033000033000033000033000033033000000033000033003300000000000000000
-00000000000000000011010000000000000000000011033333333033333333033000033000033000033000033033000000033000033003300000000000000000
-02222220000000000010011000000000022222200010033333333033333333033000033000033000033000033233222000033000033003300000000002222220
-02000000000000000011010000000000020000000011033000000033033300033000033000033000033000033233000000033000033003300000000002000000
-02000000000000000010011000000000020000000010033000000033003330033333333000033000033333333233333333033333333003333333300002000000
-02000000000000000011010000000000020000000011033000000033000333033333333000033000033333333233333333033333333003333333300002000000
-02000000000000000010011000000000020000000010033000000000000033000000000000000000000000000200000000000000000000000000000002000000
-02000000000000000011010000000000020000000011030000000000000003000000000000000000000000000200000000000000000000000000000002000000
-00000000000000000010011000000000000000000010011000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000011010000000000000000000011010000000000000000000000000000000000000000000000000000000000000000000000000000000000
-02222220000000000010011000000000022222200010011000000000220222220222222000000000000000000222222000000000000000000000000000000000
-02000000000000000011010000000000020000000011010101010101200000000000000000000000001111110200000001010101010101010101010101010101
-02000000000000000010011000000000020000000010011111111111200001011111000000000000001010100200000011111111111111111111111111111111
-02000000000000000011010000000000020000000011000000000000200100000001100000000000001100000200000000000000000000000000000000000000
-02000000000000000010011000000000020000000010101010101010201100000000000000000000001001110200000010101010101010101010101010101010
-02000000000000000011010000000000020000000011111111111111201000011000010000000000001101010200000011111111111111111111111111111111
-00000000000000000010011000000000000000000000000000000000201000100000010000000000001001100000000000000000000000000000000000000000
-00000000000000000011010000000000000000000000000000000000201000100100000000000000000101100000000000000000000000000000000000000000
-02222220000000000010011000000000022222200000000000000000201000011000010000000000001100100222222000000000000000000000000000000000
-02000000001111110011010101010101020000000000000000000000201000000000010001010101010101100200000000000000000000000000000000000000
-02000000001010100010011111111111020000000000000000000000200000000000110011111111111100100200000000000000000000000000000000000000
-02000000001100000011000000000000020000000000000000000000200110000001100000000000000001100200000000000000000000000000000000000000
-02000000001001110010101010101010020000000000000000000000000011111011000010101010101010100200000000000000000000000000000000000000
-02000000001101010011111111111111020000000000000000000000200000000000000011111111111111100200000000000000000000000000000000000000
-00000000001001100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000101100000000000000000000000000000000000000000001101000000000000000000000000000000000000000000000000000000000000000000
-00000000001100100000000000000000022222200000000000000000001001100000000000000000000000000222222000000000000000000000000002222220
-01010101010101100000000000000000020000000000000000000000001101000000000000000000000000000200000000000000000000000000000002000000
-11111111111100100000000000000000020000000000000000000000001001100000000000000000000000000200000000000000000000000000000002000000
-00000000000001100000000000000000020000000000000000000000001101000000000000000000000000000200000000000000000000000000000002000000
-10101010101010100000000000000000020000000000000000000000001001100000000000000000000000000200000000000000000000000000000002000000
-11111111111111100000000000000000020000000000000000000000001101000000000000000000000000000200000000000000000000000000000002000000
-00000000000000000000000000000000000000000000000000000000001001100000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000101100000000000000000000000000000000000000000000000000000000000000000
-02222220000000000000000000000000000000000222222000000000001100100000000000000000022222200000000000000000000000000000000002222220
-02000000000000000000000000000000000000000200000001010101010101100000000000000000020000000000000000000000000000000000000002000000
-02000000000000000000000000000000000000000200000011111111111100100000000000000000020000000000000000000000000000000000000002000000
-02000000000000000000000000000000000000000200000000000000000001100000000000000000020000000000000000000000000000000000000002000000
-02000000000000000000000000000000000000000200000010101010101010100000000000000000020000000000000000000000000000000000000002000000
-02000000000000000000000000000000000000000200000011111111111111100000000000000000020000000000000000000000000000000000000002000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000001011000000000000000000000000000000000000000000000000000000000000000000000000000000000
-02222220000000000000000000000000000000000011001002222220022222200222222002222220000000000000000000000000000000000000000000000000
-02000000000000000000000000000000001111110101011002000000020000000200000002000000000000000000000000111111010101010101010101010101
-02000000000000000000000000000000001010101111001002000000020000000200000002000000000000000000000000101010111111111111111111111111
-02000000000000000000000000000000001100000000011002000000020000000200000002000000000000000000000000110000000000000000000000000000
-02000000000000000000000000000000001001111010101002000000020000000200000002000000000000000000000000100111101010101010101010101010
-02000000000000000000000000000000001101011111111002000000020000000200000002000000000000000000000000110101111111111111111111111111
-00000000000000000000000000000000001001100000000000000000000000000000000000000000000000000000000000100110000000000000000000000000
-00000000000000000000000000000000001101000000000000000000000000000000000000000000000000000000000000110100000000000000000000000000
-02222220022222200000000000000000001001100000000000000000000000000000000000000000000000000000000000100110000000000222222002222220
-02000000020000000000000000000000001101011111111000000000000000000000000000000000000000000000000000110100000000000200000002000000
-02000000020000000000000000000000001001111010101000000000000000000000000000000000000000000000000000100110000000000200000002000000
-02000000020000000000000000000000001100000000011000000000000000000000000000000000000000000000000000110100000000000200000002000000
-02000000020000000000000000000000001010101111001000000000000000000000000000000000000000000000000000100110000000000200000002000000
-02000000020000000000000000000000001111110101011000000000000000000000000000000000000000000000000000110100000000000200000002000000
-00000000000000000000000000000000000000000011001000000000000000000000000000000000000000000000000000100110000000000000000000000000
-00000000000000000000000000000000000000000011010000000000000000000000000000000000000000000000000000110100000000000000000000000000
-00000000022222200222222000000000000000000010011000000000000000000000000000000000000000000000000000100110022222200222222000000000
-00000000020000000200000000000000000000000011010000000000000000000000000000000000000000000000000000110100020000000200000000000000
-00000000020000000200000000000000000000000010011000000000000000000000000000000000000000000000000000100110020000000200000000000000
-00000000020000000200000000000000000000000011010000000000000000000000000000000000000000000000000000110100020000000200000000000000
-00000000020000000200000000000000000000000010011000000000000000000000000000000000000000000000000000100110020000000200000000000200
-00000000020000000200000000000000000000000011010000000000000000000000000000000000000000000000000000110100020000000200000000000000
-00000000000000000000000000000000000000000010011000000000000000000000000000000000000000000000000000100110000000000000000000000000
-00000000000000000000000000000000000000000011010000000000000000000000000000000000000000000000000000110100000000000000000000000000
-00000000000000000222222002222220022222200010011002222220022222200222222002222220022222200222222000100110022222200000000000000000
-00000000000000000200000002000000020000000011010002000000020000000200000002000000020000000200000000110100020000000000000000000000
-00000000000000000200000002000000020000000010011002000000020000000200000002000000020000000200000000100110020000000000000000000000
-00000000000000000200000002000000020000000011010002000000020000000200000002000000020000000200000000110100020000000000000000000000
-00000000000000000200000002000000020000000010011002000000020000000200000002000000020000000200000000100110020000000000000000000200
-00000000000000000200000002000000020000000011010002000000020000000200000002000000020000000200000000110100020000000000000000000000
-00000000000000000000000000000000000000000010011000000000000000000000000000000000000000000000000000100110000000000000000000000000
-00000000000000000000000000000000000000000001011000000000000000000000000000000000000000000000000000110100000000000000000000000000
-00000000000000000000000000000000000000000011001000000000000000000000000000000000000000000000000000100110000000000000000020000200
-00000000000000000011111101010101010101010101011000000000000000000000000000000000000000000000000000110101111111100000000000000000
-00000000000000000010101011111111111111111111001000000000000000000000000000000000000000000000000000100111101010100000000000000000
-00000000000000000011000000000000000000000000011000000000000000000000000000000000000000000000000000110000000001100000000000000000
-00000000000000000010011110101010101010101010101000000000000002000000020002000000000000000000000000101010111100100000020000000000
-00000000000000000011010111111111111111111111111000000000000000000000000000000200000000000000000000111111010101100000000000000000
-00000000000000000010011000000000000000000000000000000000000000000000000000000000000000000000000000000000001100100000000000000000
-
+a27070707070707070707070740603030303a7a7a7a7f606947070707070705262707070707070707070707070707070707070707070707070707070707070a2
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a27070707070b405050505053706f6a7a7a703a7a7a7f606947070707070a27070a27070707070707070707070707070707070707070707070707070707070a2
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a2707070707074c60606060606c6f6a7a7a7a70303030306947070707070707070707070707070707070707070707070707070707070707070707070707070a2
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707406f6f6a2f6f6f6f6a7a7a7a7a7a7a7f606947070707070707070707070b40505050505050505050505050505050505050505050505050505c4
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707406f6a7a7a7a7a7a7a7a7a7a7a7a7a7f60694707070707070707070707074c6060606060606060606060606060606060606060606060606b694
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707406f6a7a7a7a7a7f6f6f6f6f6f6a7a7f6069470707070707070707070707406a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a70694
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707406f6a7a7a7a7a7f6c606060624707034c69470707070707070707070707406a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a70694
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707406f6a7a7a7a7a7f6062604147070707044c570707070707070707070707406a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a70694
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707406f6a7a7a7a7a7f60694707070707070707070701770707070707070707406a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a70694
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707406f6a7a7a7a7a7f60694707070707070707070707070707070707070707406a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a70694
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707406f6a7a7a7a7a7f606270505050505050505c4707070707070707070707406a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a70694
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707406f6a7a7a7a7a7f6b60606060606060606b694707070707070707070707406a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a70694
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707406f6a7a7a7a7a7f6f6f6f6f6f6f6f6f6f60694707070707070707070707406a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a70694
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707406f6a7a7a7a7a7a7a7a7a7a7a7a7a7a7f60694707070707070707070707406a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a70694
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270701770707406f6f6f6f6f6f6f6f6f6f6a7a7a7a7a7f60694707017707070707070707406a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a70694
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707017707070707070707070707070707070707070707070
+a2707070707074b60606060606060606b6f6a7a7a7a7a7f60694707070707070707070707406a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a70694
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a27070707070b504040404040404043606f6a7a7a7a7a7f606947070707070707070707074b6060606060606060606060606060606060606060606060606c694
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707070707070707070707406f6a7a703a7a7f6069470707070707070707070b50404040404040404040404040404040404040404040404040404c5
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707070707070707070707406f6a703a703a7f6069470707070707070707070a200000000000000000000000000000000000000000000000000a270
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707070707070707070707406f6a7a703a7a7f606947070707070707070707070a27000a200000000000000000000000000000000000000707070a2
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707070707070707070707406f6a7a7a7a7a7f606947070707070707070707070a270a270a2707070707070707070707070707070707070707070a2
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a270707070707070707070707070707406f6f6f6f6f6f6f606947070707070707070707070a27070a270707070707070707070707070707070707070707070a2
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+a2707070707070707070707070707074b606060606060606c6947070707070707070707070a270707070707070707070707070707070707070707070707070a2
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+70a2a2a2a2a2a2a2a2a2a2a2a2a2a2b5040404040404040404c5a2a2a2a2a2a2a2a2a2a2a270a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a270
+70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee3eeeeeeeeee
+33333333e33eee333e33333333e33333333e33333333e33e33333333e33333333eeeeeee33333333e33333333e33333333e33333333e33333333e33eeee333ee
+33333333e33ee333ee33333333e33333333e33333333e33e33333333e33333333eeeeeee33333333e33333333e33333333e33333333e33333333e333ee333eee
+33eeee33e33e333eeeeeeeeeeeeeeeeee33eeeeeee33e33e33eeee33eeeeeeeeeeeeeeee33eeeeeee33eeee33eeeeeee33eeee33eeeeeeeeeeeeee333333eeee
+33eeee33e33333eeee33333333e33333333e33333333e33e33eeee33e33333333eeeeeee33eeeeeee33eeee33e33333333eeee33eeee33333333eee3333eeeee
+33eeee33e3333eeeee33333333e33333333e33333333e33e33eee333e33333333eeeeeee33eeeeeee33eeee33e33333333eeee33eeee33333333eee3333eeeee
+33eeee33e333eeeeeeeeeeeeeee33e333eee33e333eee33e33ee333eeeeeeeeeeeeeeeee33eeeeeee33eeee33e33e333eeeeee33eeeeeeeeeeeeee333333eeee
+33333333e33eeeeeee33333333e33ee333ee33ee333ee33e33e333eee33333333eeeeeee33333333e33333333e33ee333eeeee33eeee33333333e333ee333eee
+33333333e3eeeeeeee33333333e33eee333e33eee333e33e33333eeee33333333eeeeeee33333333e33333333e33eee333eeee33eeee33333333333eeee33eee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee33eeeeeee33eeee3333eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee33eeeeeeeeeeeeeeeeeeeeeeeeee3eee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee3eeeeeeee3eeee333eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee3eeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee33eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee3eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 __gff__
 0000000041000100000004040400000000000000000000000000000404000000000000000000800000000104000011010100000000000000010101010000010103030303030303030303030303000001030303030303030003030303030000010101030301010303030303010100000001000303010103200000002001050000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __map__
-0381c55000f808281c0e533b1d8a2073881cac762b150a05028c02c80f00728009154a2562b1da00c500c32612e034f0145808b4080a060c4c82fe0009703b381c9c0f4a080701e203c001800000ec029200aa0732180c07030180a45629c018e016a768089c0352006e6b2491cd901a6808dc0c24d64982fa1c40105d280190
-a8af01c43841114e101e783fb0f01a0d150b61204710043d88be04379bcfc6f379bcfe6f0d8ac0804806140352004c6d8051810de7b301248e603713a01eb0035808981203450204021bcc05983e1436880000160f600a607219f808783fc1648da7e379fcfc6f3012a2ce47187fbc424c2a161ec428a22667e3c1e8f4793d1e
-0f27a3d06c39086280394004e0285008236c030a0bc404301648e60379ee01eb01333dc1fd0de7b0201205a707f33481c0e7783fa0740110430381cfe7982891e09a5e3d1e8fc7b3798623c477068345b07f684490944d18a38c99c1c48f10f1383bac1c0e2187080583fa43b4cd257304080cbb128282894250a0fe909e281c
-29bcc05a068347b1da238c998a1fe853379e21a6478369e0f0793c9fcfc608cf2c7e121fe82a068f45512f290991f4fd12638bc2460ca004700c2021bc160c837a13a20a905e23441fd214886f269b8dc6e83fb1be20046f3d45fc89315e38bc1c1fd4b0613f43298f40b3c9e8ff17f483fd0b22f8528a38c911d248ae423311
-88c6621c9d9a464505a48202174dc60251a0c26f2693a1e067a269ba2a64048bfa17626843083e9134dc60394c34e60c60793f91c40047304720cdf1c023786e2bc517f39b1143fe25f6d209483b1910804020caf8c0e07221048c66331108a40319863b471942379e8360c936a1b8bc6d37974dc2e1797a20a707f590d90c0f
-430371bcbc6f35cc9de0fe80083f945fca13a87a379e635a44a9df94f6ce7b09004f80a7d020ce716f7986249fd23fa47a3d0f87f095583fb1b8dc3099994a04a612b18628ff981c0e48309fa0ec47a181e4604e3d1e4f132d39d6ac013e029f3f4936495d24bce6a8769c7f8e622920023012652286f02480d274a910e23012
-45907f587fc1e4bb0a3237184952bf29e699e8162b9d9aced92014d3e529bd1c007e618a6d8f091360fed0ef29a7947550c049948a01284453a33a4591ae10c46024cf54a90871ff29eb144c889c7e9ee15078a57e47b99c982c561c9d99cee0c160c9f52ce8ce003f38c92ec7848bc602d43fd09a5e9d424f50a0fe6619d925
-088e71c462319820fe672ade956fc89942e2a241d35c8f107f434c0b5a0fc53e249b098ac193f43a7235404a6e451ef787fd490d28da92cd3a4abd1fd6114530c48fc1ca39250c452b2811ac92483051f8e982c793c4efde9c45461490631ae5be7218a807d9ae39e755a337178fc7e3012a0fe70a97aca9c2456177130e6ac5
-155bca55c94782aaa19b690c67930928b153f2a26254b8a25c640800118e4a6900b5807f98cd709c284dc1b092479b0b426dec225011b810154812b20478ace11a49137f2b25a1b6bfa46fa3f94040a2d114ae39c79cd8d2366575f6807e16e13860b30988804123110804520170b70b032311888452111216e767f22dc039e1
-7c85c9502d8f10ff22e235dd39628a5726385ff433ce02c945f3a1d1dd35a01f44b39c9788374d6728132ca697c24a0da42d5689b6733056548dd5af2b869c270a2c064594a145ad617e94e7485745db126c0773f2ba6a403daf04742f3a0015359e9ae6770001cc8522b158a653c1691b0df0198a1875cc0ef1a472c52b1ce0
-fe715f8a7e35419203254b83b6999ba0fe71b02b803812ebad27f3bfe90af02c46024e15880e43a11e50c92887156829c6cc8ae6152d8ad8a6fdd18a0160b83f94f356ff8966f2a6eae0290362b158330bc507f203d09ff03697b84b03941fea9bb98cd330ccb5715493ee7bf8402c562bc26acc7ea9ba549d68401dd78c7983
-c299fbe1d529698308092812f60b4cfec3f94efcf17e543d7ab6641fd2b3ed31f83418693c758750d872fbc61dc2994363a962717e6b54a810090dd8af0e50fce53c79d93ae09d6b8e61fa58ba09e9ce201ed4a38c2f16ad48e9aa13d4be530d00957c3a64f6af2484000010e87e525f491225e48e8feb30fb9ef94c76665ed4
-a35b1296978f66a666a0594003b04e579d6a6ab5052e9c8585623880088402e4b7cf17c99443a3fb6043e64f1c0e99a09832efe7baf7d9d90345bae73801b502ccd58ee2cc39cc94b3fcdb083dc59c0a1c0e2a96f9e2f8ac6499bd4c07fef57381d18072b5816b78f86adc39432148ec53291db93a453c1396df08ca5783ff41
-ee2108c071564b535b666e2f609d28fed227fb73a7014f7f278d56bda16d78a4fe507f821f0a0acce67e379b76524040210a83450ff6cff192fa30996fc266cfcf17cf7a73a3f9cce576f337467c0c1dda9a804d27f5d10af4e48d06fcaa16fdc8f07a36f0b8c0807160360feda632cfe174ad3a9adcff6c16a0c35747a123d1
-71657d30f1a0bceab69c4f1271b6c3db696f78e1ff27f3d723080908322e9b8dc7b3d1bf7f45b8450001cefbfe2aedadeb2b1feb8be7c31be396e2ca94673d6aa0c0363037d1f9fa049bde28005074ce7e3c1b79ea5d384e9c91f8a5c6e293fae7f92cb698ac6e801ea5ceffe71538a7fdd0e538b4999a2ef3a71748f7927683
-ffee8d478533ff8652fb49ddf23f9ab0ba52ff5f6d16df139773d2d6bffe01345c7a67a94d1d398ee0ebbef2181be0fcfa5f3e2f17778a2034742111886662310c85cb03e5b110ceb3ff6bc9b5e2909ddac4ed6c00239acc1000a36188c700f7359bcf47a8011400cc087b301248e600207039010480121bc605e181b8bc6f30
-1a40f000538c01d09650281460144563b158a85080021ccc1045383141b20a646d8222c0114c0592d900804023198890052801217201ee6381c99e8de6f8411810df07f383dc420d4f709b205980b50796843295cd86030148ac53301c21a130c53800541fc8de6d86a91349d0db4301aa16450aa3289d8a30b15802bc2e521d
-8e0483ff934dc6e181bcf40b15980930ff41540092214443835b812004a3006030560c85be9b4de5d370b85e5e2e9bcdd0002301a48f0b22800fc4ae22db10fff861141f8e0fee070a85a30e42c068341b1a06024011408300d8ac361c8d9a02e10cc4d2ec75c87c3f8eda8120fe4603786c562b0e1bcdb1255803344b1e3f65
-04a237c5ffe0fe67a3d06c0804301663fea2513481c83a0738802349308251841f4a2fe70ab206473089a6e2f4950e302707f58eb9c1fce0a2b05868d85812292507f6807b4040e15a60b15c1fc8b517f8068347a070394e06f303a58d291e0df16283597a5769084293fc12254241b0e43e1c9a5e938240c5648b26036124ae
-6b359bcff1abf80b949f680e072c4d33268ac7937980c52de5969ac18ce5ac724328ff9120c32a143d1749d1d779bb9c0c4a6273317438918c31862311048c4622ccc188a6620110805c0381c0100099a621188845214d3dcc6603f1e4f47f8d2987675053435834ac90d4c05a9ab9cd9123a4919848081180933ca22acf0c8a
-a5103cf38a7bc40034180de7e301260d8871000027e081d3881c542a83f5002698c502601c0106f3000008e613f511488521c4039c4af3c358f54d0fc8ae609839c3f08bb3a638cfacbbd262ee529e7114cca073b81cc2043f180e4513bcfbea1a6747233b1468e2c739a629ac9207001de7206002b984fe7a3d1f8a53a239d1
-919e486507fb96b94bfce9cc534f4a4ac4dbce42e530d33f1fe4e494672321b0094c8338148ed45f232d3d8c0105339dfb51c58d93f823dd2b480101b403800e2683f1e0f27f355478a0fe658961b524262fed51439802d5c569de87e3dcd99244c66e301aa8b4c7f379fa60464f83fcc14de780d3b0283fa0003a00ac999d08
-4000010cea008c02d7acaa32d520736555d20fe949533d13692a9497287f94ea8a82865e05830186f30924e258379e2bf8e793f57c500125438e9b47562b5ab0ff394b94a6e2400b5eb380171724fe84d2e9ba92a96512a39a98092573051e0ecfe61b15870fe602501c90043c1e60f890053b3aa000593f123448fcc9d0a758
-95ada54a3fe507f585195a75a3fe64b28144ac563b5a85abe4a4c23c9fce81eb4957a399180926883f958a486108030e589c80e68a44a48388fd18223e47fd26a66689dfa5a288de1b065658eace571541e0345b07b8acd9c9fced3c72d13b50c9ae1ce527f3a4aed7bccd12b923797460791847fd0c2698e49118cc43331188
-76db43ac9fe25a6523b2060c0360c37d510ec2642b37c87525e0771b99ff1da78cff23e4379faaac50052bab919cc15612a4af47fce7dc57fe3181e632477e74bb431988c662311a4b6907f92e8c0f4308bd241f8c3919d28b834eab6952540d2c291492180932922cc59cae565495bb161030c049995956a5606467f977a5fa
-264a0945458139c29cf158a1b0e5bb8ea2681da8b9193018465a5820f2950b2c39c6419765ce50ff3ab9a5a01ed5661c9ffa56a565ea4783ce38170d4d50c29a819c65fe989728f895b597238f59341e0b40000341f8fc7f35567d6a50771ebca42980b30e74c739de020f40b937912490619272414621eed34c6a6e24dfdc57
-6514c86949ecf1d8729d4af8999cfe7b379aa606d600287f90322f8f07f6bff9e524b19e45e81fa5a1c8161ca60991cc02b061b4f537149f8167958597652068b6b9ab55038311980de1cbdda82c381b942160c0af2a82a150f4e207341fcfd57c2a3e955f4ac2087e99211e8f768069b0159fd2f9f182343686efde857300ac
-3957e2a7919f8fe7e9b79df8566b257ea306834557f123bd54d717691352c0fb66b4a4fcc74211c4867583fa1de076853a9f15740a0aeb5482d2b9ebfd8cd7d7f3a6006349a536f4900ce9d2b67fb815f9bf6e07bf0ae75136209c48841334d60af76e5c3881c8642234da88cc4620cdc0ad7e7001f808ad54e2fef65c816fc0
-ae703d9b6f200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4b50505050505050515656765450505550505050505550505050505050504c2a2a2a2a2a2a2a2a004b5050505050505050505050505050505050504c2a2a070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+476c6060606060606060606060606060606060606060606060606060606b49070707070707070700476c606060606060606060606060606060606b4900002a0707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+47606f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f604907070707070707070047606f6f6f6f6d6f6f6f6f6f6f6d6f6f6f6f60490000002a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+47606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f6f6f6f6f7a7a6f604907070707070707000047606f6f7a7a6d7a7a7a7a7a4d5e7a7a6f6f60490000002a07070707070707070707070707070707070707070707070707070707070771070707070707070707070707710707070707070707070707070707070707070707
+47606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f6c6060420707436c4907070707070707070047606f7a7a7a6d7a7a7a7a7a6d7a7a7a7a6f60490000002a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+47606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f60624107070707445c07070707070707070047606f7a7a7a5d4e6f6f6f6f5e7a7a7a7a6f60490000002a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+47606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f60490707070707070707070707070707070047606f7a7a7a7a6f7a7a7a7a6f7a7a7a7a6f60490000002a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+47606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f60490707070707070707070707070707070047606e6e6e4e6f6d7a7a7a4d4e6f7a7a4d6e60490007072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+47606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f60490707070707070707070707070707070047606f7a7a6d6f5d6e2e2f5e5d6e6e6e5e6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+47606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f60490707070707070707070707070707070047606f7a7a5d6f7a7a3e3f7a7a6f7a7a7a6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+47606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f60490707070707070707070707070707000047606f7a7a7a6f7a7a6d7a7a7a6f7a7a7a6f60490007072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+47606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f60490707070707070707070707070707070047606f7a7a7a7a6f6e5e7a7a6f7a7a7a4d6e60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+47606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f60490707070707070707070707070707074b73606f7a7a7a4d5e6f6f6f6f7a4d6e6e5e6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+47606f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6049070707070707070707070707070707476c6c6f7a7a7a6d7a7a7a7a7a7a6d7a7a7a6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+476b60606060606060606060606060606060606060606c4907070707070707070707070707070747606f6f6f7a7a6d7a7a7a7a7a7a6d7a7a6f6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707710707070707070707070707070707070707070707
+5b404040404040404040404040404040404040404040405c07070707070707070707070707070747606f7a7a7a3030303030303030303030306f60490707072a07070707077107070707070707070707070707070707070707070707077107070707070707070707070707070707070707070707070707070707070707070707
+2a000000000000000000000000000000000000000000002a07070707070707070707070707070747606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a0000000000000000000000000000000000000000002a0007070707070707070707070707070747606f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a0000000000000000000000000000000000000000002a0007070707070707070707070707070747606f6f6f6f6f6f6f6f6f6f6f6f6f6f6f7a6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a0000000000000000000000000000000000000000002a00070707070707070707070707070707476b606060606060606060606060606b6f7a6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a0000000000000000000000000000000000000000002a000707070707070707070707070707075b4040404040404040404040404063606f7a6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a0000000000000000000000000000000000000000002a00070707070707070707070707070707074b50505050505050505050505073606f7a6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a000000000000000000000000000000000000000000002a07070707070707070707070707070707576c6060606060606060606060606c6f7a6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a00000000000000000000004b50505050505050505050504c07070707070707070707070707070707436f6f6f6f6f6f6f6f6f6f6f6f6f6f7a6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a0707070707070707070707476c6060606060606060606b4907070707070707070707070707070707076f7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a070707070707070707070757606f6f6f6f6f6f6f6f6f604907070707070707070707070707070707076f7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a070707070707070707070707436f7a7a7a7a7a7a7a6f604907070707070707070707070707070707536f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f60490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a070707070707070707070700007a7a7a7a7a7a7a7a6f6049070707070707070707070707070707586b606060606060606060606060606060606c490707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a070707070707070707070707076f7a7a7a307a7a7a6f60490707070707070707070707070707075b4040404040404040404040404040404040405c0707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a070707070707070707070707076f7a7a307a307a7a6f604907070707070707070707070707070707070707070707070707070707070707070707070707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a077107070707070707070707536f7a7a7a307a7a7a6f604907070707072a07072a07070707070707070707070707070707070707070707070707070707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
+2a070707070707070707070758606f7a7a7a7a7a7a7a6f604907070707070715160707070707070707070707070707070707070707070707070707070707072a07070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707
 __sfx__
 151000000c0730000000000000000c013000000000000000266550d0000e625000000e615000000e615000000c0730000000000000000c013000000c07300000266550d0000e625000000e615000000e61500000
 d1100000021450e14502115021450212502115021450e11502145021250211502145021250211502145021150f145031250311503145031250f1150314503115021450e1250211502145021250e1150214502115
@@ -2343,7 +2270,7 @@ cd0e000008d500cd5010d5013d5017d5018d5017d5014d500ed5009d5005d5001d5005d5008d500d
 46010000000000000009770097700a7700a7700a6700b7700c7700d7700f77011670117701377015770177701b6701b7701d77021770267702877000000000000000000000000000000000000000000000000000
 93010000000000000009770097700a7700a7700a6700b7700c7700d7700f77011670117701377015770177701b6701b7701d77021770267702877000000000000000000000000000000000000000000000000000
 cb0600000f5503c6002d6001f60000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000050000000
-d5040000393712d37129371243711e37118371123710c3710a3510535105351053510435104351033510235101331013310033100331003210032100321003210031100311003110131101311013110131101311
+d5090000397702d67029770246701e77018670127700c6700a7500565005750056500475004650037500265001730016300073000630007200062000720006200071000610007100161001710016100171001610
 a702000035453334532f4532b4532645325453234531e4531e4531945316453174531145310453104530d4530a453094530745302453034530045300000000000000000000000000000000000000000000000000
 a702000000453024530445306453084530b4530e45311453164531a4531c4531e45320453224532445327453294532c4532f45332453344533745300000000000000000000000000000000000000000000000000
 d1090000397702d67029770246701e77018670127700c6700a7400564005740056400474004640037400264001720016200072000620007100061000710006100000000000000000000000000000000000000000
@@ -2352,10 +2279,10 @@ d1090000397702d67029770246701e77018670127700c6700a740056400574005640047400464003
 170400003745337453354533345332453304532c4532945326453224531f4531c4531b4531945315453114530e4530c4530945307453044530245300000000000000000000000000000000000000000000000000
 a5100000021450e14502115021450a12502115021450e1150214502125021150a145091250211502145021150f14503125031150a145031250f115031450b115021450a125021150a145021250a1150214502115
 a30300002d1212212118121121210e121111030010000100001000010000100001000010000100001000010000100001000010000100001000010000100001000010000100001000010000100001000010000100
-d7020000251501b150141500010000100001000010000100001000010000100001000010000100001000010000100001000010000100001000010000100001000010000100001000010000100001000010000100
+d7020000257571b757147570000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 d107000037650316502f65029650226501e65019650166501465012640106400e6400903005630036300262000620006200062000620016200162000620006100061000610006100061000610006100061000610
-d70e00000f2400c2401024013240172401824017240142400e24009240052400124005240082400d24010240082400c240102401324017240182401724014240102400b240092400824007240092400d24013240
-d70e00000c2400f240132400c2400f240122400c2400f240102400c2400f240132400c2400f24014240122400c2400f240132400c2400f240122400c2400f2400e2400c2400f2401324016240152401424012240
+d50e000027d550cd5510d5513d5517d5518d5517d5514d550ed5509d5505d5501d5505d5508d550dd5510d5508d550cd5510d5513d5517d5518d5517d5514d5510d550bd5509d5508d5507d5509d550dd5513d55
+cd0e00000cd550fd5513d550cd550fd5512d550cd550fd5510d550cd550fd5513d550cd550fd5514d5512d550cd550fd5513d550cd550fd5512d550cd550fd550ed550cd550fd5513d5516d5515d5514d5512d55
 311000000675506755027550275502745027450273502735027250272502715027150271502715027150271507755077550275502755027450274502735027350272502725027150271502715027150271502715
 c31000000f7550f755037550375503745037450373503735037250372503715037150975509755097450974501755017550275502755027450274502735027350272502725027150271502715027150271502715
 c3100000027500e730027100275002720027100275002710027500273002710027500272002710027500271001750017200171001750017200171001740017100075000720007100075000720007100074000710
@@ -2363,7 +2290,6 @@ c3100000027500e73002710027500272002710027500271002750027300271002750027200271002
 15040000306503b65027650246501865018650186500c650000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 590400002b6502865026650216501f6501c6501a650186501665013640116400f6400d63009630076300662004610026100061000000000000000000000000000000000000000000000000000000000000000000
 a70800000137001300003700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-8d0600002b6502865026650216501f6501c6501a650186501665013640116400f6400d63009630076300662004610026100061000600006000060000600006000060000600006000060000600006000060000600
 __music__
 01 00175144
 00 00184344
@@ -2372,7 +2298,7 @@ __music__
 00 00171144
 00 02034344
 02 19034344
-01 1a154344
-02 1a164344
+03 1a154344
+00 03164344
 00 02424344
 
