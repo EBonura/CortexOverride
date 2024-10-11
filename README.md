@@ -1,21 +1,23 @@
 # Cortex Override
 
-## Description
-
 In a world where sentient machines govern our digital existence, a virus-like AI called Barracuda has infected the grid, birthing grotesque cybernetic monstrosities. You are the last uncorrupted nano-drone, a digital spark in a sea of static.
 
-## Mission Objectives
+### Controls:
+- Arrow keys (⬆️⬇️⬅️➡️): Move and navigate menus
+- ❎ (Z or C): Use selected ability / Select menu option
+- 🅾️ (X or V): Previous menu
+- Hold 🅾️: Open ability menu
+- P or Enter: Pause menu
 
-Main Objective:
+### Main Objectives
 - Initiate all terminals to execute system purge
 - Reach the extraction point
 
-Optional Objectives:
-- Assimilate all data shards
-- Purge all hostile entities
+### Extra challenges:
+- Collect all data shards
+- Eliminate all enemy units
 
-## Features
-
+Features
 - Fast-paced, top-down combat
 - Multiple abilities: Rifle Burst, Machine Gun, Missile Hail, Plasma Cannon
 - Roguelike elements: Upgrade your abilities between missions
@@ -25,37 +27,16 @@ Optional Objectives:
 - Mini-game for hacking terminals
 - Pixel art graphics with dynamic lighting and shadow effects
 
-## How to Play
-
-### Controls:
-- Arrow keys (⬆️⬇️⬅️➡️): Move and navigate menus
-- ❎ (Z or C): Use selected ability / Select menu option
-- 🅾️ (X or V): Previous menu
-- Hold 🅾️: Open ability menu
-- P or Enter: Pause menu
-
-### Main Objective:
-- Activate all terminals and reach the extraction point
-
-### Extra challenges:
-- Collect all data shards
-- Eliminate all enemy units
-
-Complete the main objective to finish each mission.
-
 ### Terminals and Laser Doors:
 Terminals are scattered throughout the game, with many linked to color-coded laser doors. Unlock terminals via a hacking mini-game to deactivate linked doors and access new areas. Some terminals aren't connected to doors but are still vital for the system purge. Hacking all terminals is crucial to complete the main objective.
 
 ### Data Shards:
 Data shards are vital collectibles scattered throughout each level. Each shard restores 25 health points and awards 50 credits when collected. Gathering all data shards in a level is an optional objective.
 
-
 ## Entities
-
 In Cortex Override, you'll encounter various entities, each with their own abilities and characteristics. Eliminating all entities in a level is an optional objective.
 
 ### Corrupted Bots
-
 1. **Dervish**
    - Ability: Machine Gun
    - Health: 50
@@ -75,7 +56,6 @@ In Cortex Override, you'll encounter various entities, each with their own abili
    - Kill Value: 200 credits
 
 ### Cybernetic Monstrosities
-
 1. **Cyberseer**
    - Abilities: Rifle Burst, Missile Hail
    - Health: 160
@@ -89,10 +69,12 @@ In Cortex Override, you'll encounter various entities, each with their own abili
    - Kill Value: 320 credits
 
 ## Development
-
 This game is developed as a single cartridge game using [PICO-8](https://www.lexaloffle.com/pico-8.php), a fantasy console for making, sharing, and playing tiny games and other computer programs.
 
 Title font: https://www.dafont.com/vermin-vibes-1989.font?text=cortex+override
+
+Minified with: https://thisismypassport.github.io/shrinko8/
+
 
 ## Author
 
