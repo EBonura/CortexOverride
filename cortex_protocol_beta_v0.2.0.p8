@@ -129,9 +129,9 @@ function draw_shadow(circle_x, circle_y, radius, swap_palette)
   end
 end
 
-function display_logo(x_cortex, x_protocol, y_cortex, y_protocol)
-  spr(224, x_protocol, y_protocol,9,2)
-  spr(233, x_cortex, y_cortex,7,2)
+function display_logo(x_cortex, x_protocol, y)
+  spr(224, x_protocol, y + 12, 9, 2)
+  spr(233, x_cortex, y, 7, 2)
 end
 
 function count_remaining(t, cond)
@@ -566,7 +566,8 @@ function draw_intro()
 
   if sin(t()) < .9 then circfill(63,64, 3, 2) end
 
-  display_logo(x_cortex, x_protocol, 30, 42)
+  local y_logos = intro_text_panel.active and 0 or 30
+  display_logo(x_cortex, x_protocol, y_logos)
 
   intro_text_panel:draw()
   controls_text_panel:draw()
@@ -621,7 +622,7 @@ function draw_mission_select()
   reset_pal(true)
   map(unpack(INTRO_MAP_ARGS))
   draw_shadow(-20,-20, 10, SWAP_PALETTE_DARKER)
-  display_logo(15, 45, 0, 12)
+  display_logo(15, 45, 0)
 
   for i,panel in ipairs(level_select_text_panels) do
     panel.selected = (i == current_mission)
