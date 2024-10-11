@@ -27,21 +27,66 @@ Optional Objectives:
 
 ## How to Play
 
-Controls:
+### Controls:
 - Arrow keys (⬆️⬇️⬅️➡️): Move and navigate menus
 - ❎ (Z or C): Use selected ability / Select menu option
 - 🅾️ (X or V): Previous menu
 - Hold 🅾️: Open ability menu
 - P or Enter: Pause menu
 
-Main Objective:
+### Main Objective:
 - Activate all terminals and reach the extraction point
 
-Optional Objectives:
-- Collect data fragments to restore health and earn credits
+### Extra challenges:
+- Collect all data shards
 - Eliminate all enemy units
 
-Complete the main objective to finish each mission. Optional objectives increase your score and provide additional benefits.
+Complete the main objective to finish each mission.
+
+### Terminals and Laser Doors:
+Terminals are scattered throughout the game, with many linked to color-coded laser doors. Unlock terminals via a hacking mini-game to deactivate linked doors and access new areas. Some terminals aren't connected to doors but are still vital for the system purge. Hacking all terminals is crucial to complete the main objective.
+
+### Data Shards:
+Data shards are vital collectibles scattered throughout each level. Each shard restores 25 health points and awards 50 credits when collected. Gathering all data shards in a level is an optional objective.
+
+
+## Entities
+
+In Cortex Override, you'll encounter various entities, each with their own abilities and characteristics. Eliminating all entities in a level is an optional objective.
+
+### Corrupted Bots
+
+1. **Dervish**
+   - Ability: Machine Gun
+   - Health: 50
+   - Attack Range: 60
+   - Kill Value: 100 credits
+
+2. **Vanguard**
+   - Ability: Rifle Burst
+   - Health: 70
+   - Attack Range: 50
+   - Kill Value: 120 credits
+
+3. **Warden**
+   - Ability: Missile Hail
+   - Health: 100
+   - Attack Range: 70
+   - Kill Value: 200 credits
+
+### Cybernetic Monstrosities
+
+1. **Cyberseer**
+   - Abilities: Rifle Burst, Missile Hail
+   - Health: 160
+   - Attack Range: 80
+   - Kill Value: 300 credits
+
+2. **Quantum Cleric**
+   - Abilities: Machine Gun, Plasma Cannon
+   - Health: 170
+   - Attack Range: 70
+   - Kill Value: 320 credits
 
 ## Development
 
