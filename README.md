@@ -43,9 +43,9 @@ Complete the main objective to finish each mission. Optional objectives increase
 
 ## Development
 
-This game is developed using [PICO-8](https://www.lexaloffle.com/pico-8.php), a fantasy console for making, sharing, and playing tiny games and other computer programs. The game is still a work in progress, with ongoing development and feature additions.
+This game is developed using [PICO-8](https://www.lexaloffle.com/pico-8.php), a fantasy console for making, sharing, and playing tiny games and other computer programs.
 
-Currently, Cortex Protocol is contained within a single .p8 cartridge file. However, due to its size and complexity, it's not yet possible to save it as a .png cartridge.
+Title font: https://www.dafont.com/5x5-pixel.font
 
 ## Author
 
