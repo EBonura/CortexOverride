@@ -1,5 +1,5 @@
-cortex_protocol_alpha_*.p8
-cortex_protocol_beta_v0.1*
+cortex_override_alpha_*.p8
+cortex_override_beta_v0.1*
 compressed_mission_1_2.txt
 uncompressed_map.txt
 *.html
