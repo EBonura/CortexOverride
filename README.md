@@ -1,4 +1,4 @@
-# Cortex Protocol
+# Cortex Override
 
 ## Description
 
@@ -27,10 +27,12 @@ Optional Objectives:
 
 ## How to Play
 
-- Use arrow keys to move
-- Press X to use your selected ability
-- Press O to open the ability menu and switch between abilities
-- Interact with terminals using X when prompted
+Controls:
+- Arrow keys (⬆️⬇️⬅️➡️): Move and navigate menus
+- ❎ (Z or C): Use selected ability / Select menu option
+- 🅾️ (X or V): Previous menu
+- Hold 🅾️: Open ability menu
+- P or Enter: Pause menu
 
 Main Objective:
 - Activate all terminals and reach the extraction point
@@ -43,14 +45,14 @@ Complete the main objective to finish each mission. Optional objectives increase
 
 ## Development
 
-This game is developed using [PICO-8](https://www.lexaloffle.com/pico-8.php), a fantasy console for making, sharing, and playing tiny games and other computer programs.
+This game is developed as a single cartridge game using [PICO-8](https://www.lexaloffle.com/pico-8.php), a fantasy console for making, sharing, and playing tiny games and other computer programs.
 
-Title font: https://www.dafont.com/5x5-pixel.font
+Title font: https://www.dafont.com/vermin-vibes-1989.font?text=cortex+override
 
 ## Author
 
-Cortex Protocol is a passion project by Emanuele Bonura.
+Cortex Override is a passion project by Emanuele Bonura.
 
 - Itch.io: [https://izzy88izzy.itch.io/](https://izzy88izzy.itch.io/)
-- GitHub: [https://github.com/EBonura/CortexProtocol](https://github.com/EBonura/CortexProtocol)
+- GitHub: [https://github.com/EBonura/CortexOverride](https://github.com/EBonura/CortexOverride)
 - Instagram: [https://www.instagram.com/izzy88izzy/](https://www.instagram.com/izzy88izzy/)
