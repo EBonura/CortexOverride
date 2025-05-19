@@ -1050,7 +1050,6 @@ function entity.new(x, y, base_class, subclass)
     acceleration = 0.8,
     deceleration = 0.9,
     turn_speed = 0.3,
-    diagonal_factor = 0.7071,
 
     -- Entity type
     base_class = base_class,
@@ -1465,8 +1464,9 @@ function entity:control()
   local max_target_distance, target_speed = 32, 6
 
   if ix != 0 and iy != 0 then
-    ix *= self.diagonal_factor
-    iy *= self.diagonal_factor
+    -- Use a diagonal factor
+    ix *= 0.7071
+    iy *= 0.7071
   end
 
   self.target_x += ix * target_speed
@@ -1519,8 +1519,8 @@ end
 
 function entity:apply_physics()
   -- Apply deceleration
-  self.vx = abs(self.vx) < 0.05 and 0 or self.vx * self.deceleration
-  self.vy = abs(self.vy) < 0.05 and 0 or self.vy * self.deceleration
+  self.vx = abs(self.vx) < 0.01 and 0 or self.vx * self.deceleration
+  self.vy = abs(self.vy) < 0.01 and 0 or self.vy * self.deceleration
 
   -- Prepare new position
   local new_x, new_y = self.x + self.vx, self.y + self.vy
