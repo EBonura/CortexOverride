@@ -1342,6 +1342,16 @@ function entity:activate_ability(index)
         ability.current_cooldown = ability.cooldown * 3
       end
     else
+      -- QOL: Auto-switch to next weapon with ammo
+      for i = 1, #self.abilities do
+        local next_index = (index + i - 1) % #self.abilities + 1
+        if self.abilities[next_index].remaining_uses > 0 then
+          self.selected_ability = next_index
+          game_ability_menu.last_selected_ability = next_index
+          self:activate_ability(next_index)
+          return
+        end
+      end
       sfx(29)
     end
   end
@@ -1924,6 +1934,7 @@ player_hud = {
   shake_duration=0,
   alert_bar_height=4,
   credit_add_timer=0,
+  
 }
 
 function player_hud.new()
@@ -1969,7 +1980,7 @@ function player_hud:draw()
   end
   print_shadow(credits_text, start_x, cooldown_y + 12)
 
-  if self.show_interact_prompt then
+  if self.show_interact_prompt and not game_minigame.active and sin(time()) > 0 then
     print_shadow("❎ interact", cam_x + 4, cam_y + 120)
   end
   
