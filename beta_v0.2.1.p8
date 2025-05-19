@@ -1441,23 +1441,22 @@ end
 function entity:control()
   local ix = (btn(1) and 1 or 0) - (btn(0) and 1 or 0)
   local iy = (btn(3) and 1 or 0) - (btn(2) and 1 or 0)
-  local max_target_distance, target_speed = 32, 6
 
-  if ix != 0 and iy != 0 then
-    -- Use a diagonal factor
-    ix *= 0.7071
-    iy *= 0.7071
+  if ix == 0 and iy == 0 then
+    self.target_x += (self.x - self.target_x) * 0.3
+    self.target_y += (self.y - self.target_y) * 0.3
+    return
   end
 
-  self.target_x += ix * target_speed
-  self.target_y += iy * target_speed
+  self.target_x += ix * 6
+  self.target_y += iy * 6
 
   local dx, dy = self.target_x - self.x, self.target_y - self.y
 
-  if dist_trig(dx, dy) > max_target_distance then
+  if dist_trig(dx, dy) > 32 then
     local angle = atan2(dx, dy)
-    self.target_x = self.x + cos(angle) * max_target_distance
-    self.target_y = self.y + sin(angle) * max_target_distance
+    self.target_x = self.x + cos(angle) * 32
+    self.target_y = self.y + sin(angle) * 32
   end
 end
 
