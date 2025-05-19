@@ -1156,9 +1156,22 @@ function entity:update()
     self.poison_timer = 0
   end
 
-  if self.update_plasma then
-    self:update_plasma()
+  -- ADD THIS NEW SECTION HERE:
+  -- Handle plasma charging
+  if self.plasma_timer and self.plasma_timer > 0 then
+    self.plasma_timer -= 1
+    if self.plasma_timer == 0 then
+      local dx, dy = self:get_aim_direction()
+      local sx, sy = self.x + self.width/2, self.y + self.height/2
+      local proj = particle:new(sx, sy, dx * 5, dy * 5, 120, 4, 12, "plasma", self)
+      add(particles, proj)
+      sfx(10)
+      self.vx -= dx * 5.5
+      self.vy -= dy * 5.5
+      self.plasma_timer = nil
+    end
   end
+
 end
 
 function entity:player_update()
@@ -1282,7 +1295,6 @@ function entity:update_attack()
   local player = self:find_player()
   if not player or not self:can_see_player() then
     self.state = "alert"
-    self:reset_plasma_cannon()
     return
   end
 
@@ -1403,41 +1415,9 @@ function entity:missile_hail()
 end
 
 function entity:plasma_cannon()
-  self.plasma_charge = 0
-  self.is_charging_plasma = true
-  self.update_plasma = self.update_plasma_cannon
+  self.plasma_timer = 20
 end
 
-function entity:update_plasma_cannon()
-  if self.is_charging_plasma then
-    if self.plasma_charge < 20 then
-      self.plasma_charge += 1
-      sfx(6)
-    else
-      local dx, dy = self:get_aim_direction()
-      local sx, sy = self.x + self.width/2, self.y + self.height/2
-      local proj = particle:new(
-        sx, 
-        sy, 
-        dx * 5, 
-        dy * 5,
-        120, 4, 12, "plasma", self)
-      
-      add(particles, proj)
-      sfx(10)
-      self.vx -= dx * 5.5
-      self.vy -= dy * 5.5
-      
-      self:reset_plasma_cannon()
-    end
-  end
-end
-
-function entity:reset_plasma_cannon()
-  self.is_charging_plasma = false
-  self.plasma_charge = 0
-  self.update_plasma = nil
-end
 
 function entity:get_aim_direction()
   local target = self.targeting.target
@@ -1560,8 +1540,8 @@ function entity:draw()
   local hover_offset = is_preacher and sin(time() * .5) * 2 or 0
   
   -- Plasma charge circle
-  if self.is_charging_plasma and self.plasma_charge < 20 then
-    circ(x + w/2, y + h/2, 32 * (1 - self.plasma_charge / 20), 12)
+  if self.plasma_timer and self.plasma_timer > 0 then
+    circ(x + w/2, y + h/2, 32 * (self.plasma_timer / 20), 12)
   end
 
   -- Shadow
