@@ -483,7 +483,7 @@ function _init()
 
   trans = transition.new()
   player = entity.new(0, 0, "bot", "player")
-  change_state("gameplay", true)
+  change_state("intro", true)
 end
 
 
