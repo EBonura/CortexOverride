@@ -1,6 +1,7 @@
 alpha_*.p8
 beta_v0.1*
 compressed_mission_1_2.txt
+makefile
 uncompressed_map.txt
 *.html
 *.js
