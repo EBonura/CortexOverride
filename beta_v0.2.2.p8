@@ -1151,6 +1151,7 @@ function entity:update()
   
   -- Entity-specific behavior
   if self.subclass == "player" then
+    self.state = "idle"  -- Player is always in idle state for terminal interaction
     self:control()
     self:follow_target()
     
@@ -1182,6 +1183,7 @@ function entity:update()
       local dist = dist_trig(dx, dy)
       
       if dist <= self.attack_range then
+        self.state = "attack"  -- Set attack state
         self.facing_left = dx < 0
         self.last_direction = abs(dx) > abs(dy) and "horizontal" or (dy < 0 and "up" or "down")
         
@@ -1191,13 +1193,16 @@ function entity:update()
           self:activate_ability(ability.index)
         end
       else
+        self.state = "alert"  -- Set alert state
         self.vx, self.vy = dx / dist, dy / dist
       end
     elseif self.last_seen_player_pos.x then
+      self.state = "alert"  -- Set alert state when moving to last known position
       local dx, dy = self.last_seen_player_pos.x - self.x, self.last_seen_player_pos.y - self.y
       local dist = dist_trig(dx, dy)
       self.vx, self.vy = dist > 1 and dx / dist or 0, dist > 1 and dy / dist or 0
     else
+      self.state = "idle"  -- Set idle state
       -- Idle behavior
       self.idle_timer -= 1
       if self.idle_timer <= 0 then
