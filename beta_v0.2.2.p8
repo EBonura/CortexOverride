@@ -1822,12 +1822,15 @@ function minigame:end_game(success)
   local current_terminal  = self.current_terminal
 
   if success then
+    sfx(15)
     if current_terminal.target_door then
       current_terminal.completed = true
       current_terminal.target_door.is_open = true
     else
       current_terminal.completed = true
     end
+  else
+    sfx(29)
   end
   current_terminal = nil
 end
