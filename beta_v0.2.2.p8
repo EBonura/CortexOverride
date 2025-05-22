@@ -249,33 +249,34 @@ end
 function textpanel:draw()
   if not self.active then return end
   
-  local dx, dy, w = cam.x + self.x + self.x_offset - self.expand_counter, cam.y + self.y, self.width + self.expand_counter * 2
-  local dx2 = dx + w - 2
+  local dx = cam.x + self.x + self.x_offset - self.expand_counter
+  local dy = cam.y + self.y
+  local w = self.width + self.expand_counter * 2
   
   rectfill(dx - 1, dy - 1, dx + 2, dy + self.height + 1, 3)
-  rectfill(dx2, dy - 1, dx2 + 3, dy + self.height + 1, 3)
+  rectfill(dx + w - 2, dy - 1, dx + w + 1, dy + self.height + 1, 3)
   rectfill(dx, dy, dx + w, dy + self.height, 0)
   
   if self.selected then
-    line(dx + (self.line_offset % (w + 1)), dy, dx + (self.line_offset % (w + 1)), dy + self.height, 2)
+    local line_x = dx + (self.line_offset % (w + 1))
+    line(line_x, dy, line_x, dy + self.height, 2)
   end
   
   local display_text = self.reveal and sub(self.textline, 1, self.char_count) or self.textline
   local color = self.text_color or (self.selected and 11 or 5)
-  print(display_text, cam.x + self.x + self.x_offset + 2, dy + 2, color)
+  print(display_text, dx + 2, dy + 2, color)
 end
 
 function textpanel:update()
-  self.expand_counter = self.selected and min(3, self.expand_counter + 1) or max(0, self.expand_counter - 1)
+  self.expand_counter += self.selected and (self.expand_counter < 3 and 1 or 0) or (self.expand_counter > 0 and -1 or 0)
   
   self.x_offset += self.move_direction * self.max_offset / 5
-  if (self.move_direction < 0 and self.x_offset <= -self.max_offset) or
-      (self.move_direction > 0 and self.x_offset >= 0) then
+  if self.x_offset <= -self.max_offset or self.x_offset >= 0 then
     self.move_direction *= -1
   end
   
   self.line_offset = self.selected and (self.line_offset + 2) % (self.width + self.expand_counter * 2 + 1) or 0
-
+  
   if self.reveal and self.char_count < #self.textline then
     self.char_count += 2
   end
@@ -360,39 +361,34 @@ ability_menu = {
 function ability_menu:open()
   self.panels = {}
   for i, a in ipairs(player.abilities) do
-    local p = textpanel.new(
-      37, 
-      30 + (i - 1) * 16,
-      10,
-      54,
-      a.name
-    )
+    local p = textpanel.new(37, 30 + (i - 1) * 16, 10, 54, a.name)
     p.ability_index = i
     add(self.panels, p)
   end
   
+  add(self.panels, textpanel.new(13, 94, 20, 102, ""))
+  
   self.active = true
-  if #self.panels > 0 then
+  if #self.panels > 1 then
     self.panels[self.last_selected_ability].selected = true
   end
-
-  add(self.panels, textpanel.new(13, 94, 20, 102, ""))
 end
 
 function ability_menu:update()
   if not self.active then return end
-    local prev = self.last_selected_ability
-    local change = (btnp(⬇️) and 1 or btnp(⬆️) and -1 or 0)
-    if change != 0 then
-      self.last_selected_ability = (self.last_selected_ability + change - 1) % (#self.panels - 1) + 1
-      self.panels[prev].selected = false
-      self.panels[self.last_selected_ability].selected = true
-      player.selected_ability = self.panels[self.last_selected_ability].ability_index
-      sfx(19)
+  
+  local change = (btnp(⬇️) and 1 or btnp(⬆️) and -1 or 0)
+  if change != 0 then
+    self.panels[self.last_selected_ability].selected = false
+    self.last_selected_ability = (self.last_selected_ability + change - 1) % (#self.panels - 1) + 1
+    local current_panel = self.panels[self.last_selected_ability]
+    current_panel.selected = true
+    player.selected_ability = current_panel.ability_index
+    sfx(19)
   end
+  
   foreach(self.panels, function(p) p:update() end)
-
-  -- Update progress panel
+  
   self.panels[#self.panels].textline = 
   "dATA SHARDS LEFT:      " .. count_remaining_fragments() .. 
   "\niNFECTED UNITS LEFT:   " .. count_remaining_enemies() ..
@@ -404,9 +400,7 @@ function ability_menu:draw()
   for p in all(self.panels) do
     local ability = player.abilities[p.ability_index]
     if ability then
-      local has_uses = ability.remaining_uses > 0
-      local color = has_uses and (p.selected and 11 or 5) or 2
-      p.text_color = color
+      p.text_color = ability.remaining_uses > 0 and (p.selected and 11 or 5) or 2
     end
     p:draw()
   end
@@ -704,7 +698,7 @@ function update_loadout_select()
       local a = player.abilities[i]
       p.textline = a.name
       count_panels[i].textline = a.remaining_uses.." AMMO"
-    elseif i == 5 then
+    else
       p.active = has_weapon
     end
     p:update()
@@ -870,7 +864,6 @@ function particle:new(x, y, vx, vy, lifespan, size, color, behavior, owner)
     vx=vx, 
     vy=vy, 
     color=color, 
-    max_lifespan=lifespan, 
     lifespan=lifespan, 
     size=size,
     behavior=behavior or "default",
@@ -1092,23 +1085,17 @@ function entity.new(x, y, base_class, subclass)
 
   new_entity.targeting = targeting.new(new_entity)
 
-  local ability_data = [[
-    15,100,rIFLE bURST,fIRE A BURST OF MEDIUM-DAMAGE BULLETS,rifle_burst,20|
-    30,200,mACHINE gUN,rAPID-FIRE HIGH-VELOCITY ROUNDS,machine_gun,25|
-    45,50,mISSILE hAIL,lAUNCH A BARRAGE OF HOMING MISSILES,missile_hail,50|
-    60,25,pLASMA cANNON,fIRE A DEVASTATING PLASMA PROJECTILE,plasma_cannon,75
-  ]]
-  
+  local ability_data = "15,100,rIFLE bURST,rifle_burst,20|30,200,mACHINE gUN,machine_gun,25|45,50,mISSILE hAIL,missile_hail,50|60,25,pLASMA cANNON,plasma_cannon,75"
+
   for i, a in ipairs(stringToTable(ability_data)) do
     add(new_entity.abilities, {
       index = i,
       cooldown = a[1],
       name = a[3],
-      description = a[4],
-      action = new_entity[a[5]],
+      action = new_entity[a[4]],
       current_cooldown = 0,
       remaining_uses = subclass != "player" and a[2] or 0,
-      cost = a[6]
+      cost = a[5]
     })
   end
 
@@ -1132,80 +1119,98 @@ function entity.new(x, y, base_class, subclass)
 end
 
 function entity:update()
-  if self.subclass == "player" then
-    self:player_update()
-  else
-    self:enemy_update()
-  end
+  -- Common updates for all entities
   self:apply_physics()
   self.targeting:update()
-
-  -- Update cooldowns
+  
+  -- Update cooldowns and poison in one pass
   for ability in all(self.abilities) do
     ability.current_cooldown = max(0, ability.current_cooldown - 1)
   end
-
-  -- Handle poison damage
+  
   if check_tile_flag(self.x, self.y, 2) and self.base_class != "preacher" then
-    self.poison_timer += 1
-    if self.poison_timer >= 5 then
-      self:take_damage(1)
-      self.poison_timer = 0
-    end
+    self.poison_timer = (self.poison_timer + 1) % 6
+    if self.poison_timer == 5 then self:take_damage(1) end
   else
     self.poison_timer = 0
   end
-
-  -- ADD THIS NEW SECTION HERE:
+  
   -- Handle plasma charging
   if self.plasma_timer and self.plasma_timer > 0 then
     self.plasma_timer -= 1
     if self.plasma_timer == 0 then
       local dx, dy = self:get_aim_direction()
       local sx, sy = self.x + self.width/2, self.y + self.height/2
-      local proj = particle:new(sx, sy, dx * 5, dy * 5, 120, 4, 12, "plasma", self)
-      add(particles, proj)
+      add(particles, particle:new(sx, sy, dx * 5, dy * 5, 120, 4, 12, "plasma", self))
       sfx(10)
       self.vx -= dx * 5.5
       self.vy -= dy * 5.5
       self.plasma_timer = nil
     end
   end
-
-end
-
-function entity:player_update()
-  self:control()
-  self:follow_target()
-
-  if btnp(❎) then
-    for t in all(terminals) do
-      if t.interactive then
-        game_minigame:start(t)
-        goto continue
+  
+  -- Entity-specific behavior
+  if self.subclass == "player" then
+    self:control()
+    self:follow_target()
+    
+    if btnp(❎) then
+      for t in all(terminals) do
+        if t.interactive then
+          game_minigame:start(t)
+          return
+        end
+      end
+      self:activate_ability(self.selected_ability)
+    end
+    
+    -- Fragment collection
+    for fragment in all(data_fragments) do
+      if dist_trig(fragment.x - self.x, fragment.y - self.y) < 8 and not fragment.collected then
+        self.health = min(self.health + 25, self.max_health)
+        player_hud:add_credits(50)
+        fragment.collected = true
+        sfx(7)
       end
     end
-    self:activate_ability(self.selected_ability)
-    ::continue::
-  end
-
-  for fragment in all(data_fragments) do
-    if dist_trig(fragment.x - self.x, fragment.y - self.y) < 8 and not fragment.collected then
-      self.health = min(self.health + 25, self.max_health)
-      player_hud:add_credits(50)
-      fragment.collected = true
-      sfx(7)
+  else
+    -- Enemy AI consolidated
+    if self:can_see_player() then
+      self.alert_timer = self.max_alert_time
+      local player = self:find_player()
+      local dx, dy = player.x - self.x, player.y - self.y
+      local dist = dist_trig(dx, dy)
+      
+      if dist <= self.attack_range then
+        self.facing_left = dx < 0
+        self.last_direction = abs(dx) > abs(dy) and "horizontal" or (dy < 0 and "up" or "down")
+        
+        local subclass_abilities = entity_abilities[self.subclass]
+        local ability = self.abilities[self:find_ability(subclass_abilities[flr(rnd(#subclass_abilities)) + 1])]
+        if ability and ability.current_cooldown == 0 then
+          self:activate_ability(ability.index)
+        end
+      else
+        self.vx, self.vy = dx / dist, dy / dist
+      end
+    elseif self.last_seen_player_pos.x then
+      local dx, dy = self.last_seen_player_pos.x - self.x, self.last_seen_player_pos.y - self.y
+      local dist = dist_trig(dx, dy)
+      self.vx, self.vy = dist > 1 and dx / dist or 0, dist > 1 and dy / dist or 0
+    else
+      -- Idle behavior
+      self.idle_timer -= 1
+      if self.idle_timer <= 0 then
+        self.idle_timer, angle, speed = 30, rnd(), rnd(1)
+        self.vx, self.vy = cos(angle)*speed, sin(angle)*speed
+      end
+    end
+    
+    self.alert_timer -= 1
+    if self.alert_timer <= 0 then
+      self.last_seen_player_pos.x, self.last_seen_player_pos.y = nil, nil
     end
   end
-end
-
-function entity:enemy_update()
-  local s = {
-    idle = self.update_idle,
-    alert = self.update_alert,
-    attack = self.update_attack
-  }
-  s[self.state](self)
 end
 
 function entity:take_damage(amount)
@@ -1249,69 +1254,6 @@ function entity:can_see_player()
   return false
 end
 
-function entity:update_idle()
-  self.idle_timer -= 1
-  if self.idle_timer <= 0 then
-    self.idle_timer,angle,speed = 30,rnd(),rnd(1)
-    self.vx, self.vy = cos(angle)*speed, sin(angle)*speed
-  end
-
-  if self:can_see_player() then
-    self.state = "alert"
-    self.alert_timer = self.max_alert_time
-  end
-end
-
-function entity:update_alert()
-  if self:can_see_player() then
-    self.alert_timer = self.max_alert_time
-    local player = self:find_player()
-    local dx, dy = player.x - self.x, player.y - self.y
-    local dist = dist_trig(dx, dy)
-    
-    if dist <= self.attack_range then
-      self.state = "attack"
-    else
-      -- Move towards player
-      self.vx, self.vy = dx / dist, dy / dist
-    end
-  elseif self.last_seen_player_pos.x then
-    local dx, dy = self.last_seen_player_pos.x - self.x, self.last_seen_player_pos.y - self.y
-    local dist = dist_trig(dx, dy)
-    
-    self.vx, self.vy = 0, 0
-    if dist > 1 then
-      self.vx, self.vy = dx / dist, dy / dist
-    end
-  end
-    
-  self.alert_timer -= 1
-  if self.alert_timer <= 0 then
-    self.state, self.last_seen_player_pos.x, self.last_seen_player_pos.y = "idle", nil, nil
-  end
-end
-
-function entity:update_attack()
-  local player = self:find_player()
-  if not player or not self:can_see_player() then
-    self.state = "alert"
-    return
-  end
-
-  local dx, dy = player.x - self.x, player.y - self.y
-  if dist_trig(dx, dy) <= self.attack_range then
-    self.facing_left = dx < 0
-    self.last_direction = abs(dx) > abs(dy) and "horizontal" or (dy < 0 and "up" or "down")
-
-    local subclass_abilities = entity_abilities[self.subclass]
-    local ability = self.abilities[self:find_ability(subclass_abilities[flr(rnd(#subclass_abilities)) + 1])]
-    if ability and ability.current_cooldown == 0 then
-      self:activate_ability(ability.index)
-    end
-  else
-    self.state = "alert"
-  end
-end
 
 function entity:find_ability(ability_name)
   for i, ability in ipairs(self.abilities) do
@@ -1335,14 +1277,10 @@ function entity:activate_ability(index)
   if ability.current_cooldown == 0 then
     if ability.remaining_uses > 0 then
       ability.action(self)
-      if self.subclass == "player" then
-        ability.current_cooldown = ability.cooldown
-        ability.remaining_uses -= 1
-      else
-        ability.current_cooldown = ability.cooldown * 3
-      end
+      ability.current_cooldown = self.subclass == "player" and ability.cooldown or ability.cooldown * 3
+      if self.subclass == "player" then ability.remaining_uses -= 1 end
     else
-      -- QOL: Auto-switch to next weapon with ammo
+      -- Auto-switch to next weapon with ammo
       for i = 1, #self.abilities do
         local next_index = (index + i - 1) % #self.abilities + 1
         if self.abilities[next_index].remaining_uses > 0 then
@@ -2012,13 +1950,12 @@ function player_hud:draw()
   end
 end
 
-function draw_bar(x, y, width, height, bg_color, fill_color, percentage)
-  rectfill(x, y, x + width - 1, y + height - 1, bg_color)
-  if percentage > 0 then
-    rectfill(x, y, x + max(1, flr(width * percentage)) - 1, y + height - 1, fill_color)
-  end
-  rect(x, y, x + width - 1, y + height - 1, 0)
+function draw_bar(x, y, w, h, bg, fill, pct)
+  rectfill(x, y, x + w - 1, y + h - 1, bg)
+  if pct > 0 then rectfill(x, y, x + max(1, flr(w * pct)) - 1, y + h - 1, fill) end
+  rect(x, y, x + w - 1, y + h - 1, 0)
 end
+
 
 function print_shadow(text, x, y, color)
   print(text, x + 1, y + 1, 0) 
