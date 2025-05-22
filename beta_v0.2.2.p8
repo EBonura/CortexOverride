@@ -1971,7 +1971,7 @@ function print_shadow(text, x, y, color)
 end
 
 function player_hud:add_credits(amount)
-  self.credit_add_timer += amount
+  self.credit_add_timer += amount 
 end
 
 
