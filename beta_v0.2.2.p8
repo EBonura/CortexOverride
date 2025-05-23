@@ -24,7 +24,6 @@ Optional Objectives:
 * Eliminate all enemy units
 ]]
 
--- bug to fix, info terminals shouldn't count as terminals for the endgame
 
 -- MAIN
 ----------------------
@@ -58,7 +57,6 @@ function _init()
   
   -- -- Load map 1 for Intro
   decompress_current_map()
-
   SWAP_PALETTE, SWAP_PALETTE_DARKER, SWAP_PALETTE_DARK, INTRO_MAP_ARGS, STATE_NAMES = unpack(stringToTable[[
     0,0,0,0,0,0,5,6,2,5,9,3,1,2,2,4|
     0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0|
@@ -94,7 +92,7 @@ function _init()
 
   trans = transition.new()
   player = entity.new(0, 0, "bot", "player")
-  change_state("intro", true)
+  change_state("gameplay", true)
 end
 
 function _update()
@@ -508,8 +506,6 @@ end
 ability_menu.new = function() return setmetatable({}, {__index = ability_menu}) end
 ability_menu.close = function(self) self.active = false end
 
-
-
 -- INTRO
 ----------------------
 function init_intro()
@@ -546,7 +542,7 @@ function update_intro()
         intro_text_panel.textline = intro_pages[intro_page]
         intro_text_panel.char_count = 0
       else
-        change_state("mission_select")
+        change_state("intro")
       end
     end
   end
@@ -726,7 +722,7 @@ function init_gameplay()
   decompress_current_map()
   music(0)
   player_hud = player_hud.new()
-  entities, particles, terminals, doors, barrels, data_fragments, ending_sequence_timer = {}, {}, {}, {}, {}, {}, 1000
+  entities, particles, terminals, doors, barrels, data_fragments, ending_sequence_timer, win_lose_timer = {}, {}, {}, {}, {}, {}, 1000, 0
 
   local mission_entities = {
     [[0,0,bot,player|448,64,bot,dervish|432,232,bot,vanguard|376,272,bot,vanguard|426,354,bot,dervish|356,404,bot,warden|312,152,bot,vanguard|232,360,bot,dervish|40,100,bot,dervish|200,152,bot,dervish|32,232,bot,warden|88,232,bot,vanguard|248,248,preacher,cyberseer]],
@@ -856,12 +852,19 @@ function draw_gameplay()
       message, color, prompt = "mission failed", 8, "PRESS 🅾️ TO CONTINUE"
     end
 
+    -- Increment timer
+    win_lose_timer += 1
+
     draw_shadow(player.x - cam.x, player.y - cam.y, -10, SWAP_PALETTE)
     print_centered(message, player.x, player.y - 6, color)
-    print_centered(prompt, player.x, player.y + 2, 7)
     
-    if btnp(🅾️) then 
-      change_state("mission_select") 
+    -- Only show prompt after timer threshold (0.1 seconds = 6 frames at 60fps)
+    if win_lose_timer > 30 then
+      print_centered(prompt, player.x, player.y + 2, 7)
+      
+      if btnp(🅾️) then 
+        change_state("mission_select") 
+      end
     end
   end
 end
@@ -1118,7 +1121,7 @@ function entity.new(x, y, base_class, subclass)
     15,dervish,50,50,60,100|
     13,vanguard,70,70,50,120|
     1,warden,100,100,70,200|
-    7,player,400,400,70,0|
+    7,player,4,4,70,0|
     11,preacher,80,80,80,280|
     6,cyberseer,160,160,80,300|
     1,quantumcleric,170,170,70,320
