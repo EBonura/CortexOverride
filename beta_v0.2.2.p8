@@ -477,7 +477,7 @@ function _init()
 
   trans = transition.new()
   player = entity.new(0, 0, "bot", "player")
-  change_state("gameplay", true)
+  change_state("loadout_select", true)
 end
 
 
@@ -763,11 +763,18 @@ function init_gameplay()
     end
   end 
 
-  if current_mission == 1 then
-    add(terminals, terminal.new(32, 32, nil, "MOVE: ⬅️➡️⬆️⬇️"))
-    add(terminals, terminal.new(120, 80, nil, "ATTACK: ❎"))
-    add(terminals, terminal.new(200, 120, nil, "WEAPONS: 🅾️"))
-  end
+    local tutorial_terminals = {
+      [[128,32,MOVE: ⬅️➡️⬆️⬇️|120,80,ATTACK: ❎|200,120,WEAPONS: 🅾️]],
+      "",  -- No tutorials for mission 2
+      "",  -- No tutorials for mission 3
+      ""   -- No tutorials for mission 4
+    }
+    
+    if tutorial_terminals[current_mission] != "" then
+      for args in all(stringToTable(tutorial_terminals[current_mission])) do
+        add(terminals, terminal.new(args[1], args[2], nil, args[3]))
+      end
+    end
 
   local door_terminals = {
     [[444,130,472,80,red|354,66,248,368,green]],
@@ -1735,9 +1742,10 @@ function terminal.new(x, y, target_door, tutorial_msg)
     tutorial_msg = tutorial_msg
   }, {__index = terminal})
   
-  -- Create panel for ALL terminals
+  -- Create panel at fixed screen position (will be adjusted with camera in draw)
   local msg = tutorial_msg or "❎ INTERACT"
-  t.panel = textpanel.new(x-10, y + 65, 10, 90, msg, true)
+  local panel_width = max(40, #msg * 4 + 12)  -- Adjust width based on message length
+  t.panel = textpanel.new(64 - panel_width/2, 40, 10, panel_width, msg, true)
   t.panel.selected = true
   
   return t
