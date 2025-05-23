@@ -166,14 +166,14 @@ function gamecam.new()
   return setmetatable({
     x = 0,
     y = 0,
-    lerpfactor = 0.2
   }, gamecam)
 end
 
 function gamecam:update()
-  self.x += (player.x - self.x - 64) * self.lerpfactor
-  self.y += (player.y - self.y - 64) * self.lerpfactor
+  self.x += (player.x - self.x - 64) * 0.2
+  self.y += (player.y - self.y - 64) * 0.2
 
+  -- shaking effect
   if count_remaining_terminals() == 0 then
     self.x += rnd(4) - 2
     self.y += rnd(4) - 2
@@ -200,26 +200,25 @@ function transition:start()
 end
 
 function transition:update()
-  if not self.active then return false end
-  
-  self.t += self.closing and 1 or -1
-  
-  if self.closing and self.t == self.duration then
-    self.closing = false
-    return true
-  elseif not self.closing and self.t == 0 then
-    self.active = false
+  if self.active then
+    self.t += self.closing and 1 or -1
+    
+    if self.closing and self.t == self.duration then
+      self.closing = false
+      return true
+    elseif not self.closing and self.t == 0 then
+      self.active = false
+    end
   end
-  
-  return false
 end
 
 function transition:draw()
-  if not self.active then return end
-  local size = max(1, flr(16 * self.t/self.duration))
-  for x = 0, 127, size do
-    for y = 0, 127, size do
-      rectfill(x, y, x+size-1, y+size-1, pget(x, y))
+  if self.active then
+    local size = max(1, flr(16 * self.t/self.duration))
+    for x = 0, 127, size do
+      for y = 0, 127, size do
+        rectfill(x, y, x+size-1, y+size-1, pget(x, y))
+      end
     end
   end
 end
@@ -273,15 +272,11 @@ function textpanel:update()
   self.expand_counter += self.selected and (self.expand_counter < 3 and 1 or 0) or (self.expand_counter > 0 and -1 or 0)
   
   self.x_offset += self.move_direction * self.max_offset / 5
-  if self.x_offset <= -self.max_offset or self.x_offset >= 0 then
-    self.move_direction *= -1
-  end
+  if self.x_offset <= -self.max_offset or self.x_offset >= 0 then self.move_direction *= -1 end
   
   self.line_offset = self.selected and (self.line_offset + 2) % (self.width + self.expand_counter * 2 + 1) or 0
   
-  if self.reveal and self.char_count < #self.textline then
-    self.char_count += 2
-  end
+  if self.reveal and self.char_count < #self.textline then self.char_count += 2 end
 end
 
 -- TARGETING
@@ -302,12 +297,10 @@ end
 function targeting:update()
   local closest_dist, closest_target = self.owner.attack_range, nil
   for e in all(entities) do
-    if e != self.owner then
-      if self.owner.subclass == "player" != (e.subclass == "player") then
-        local dist = dist_trig(e.x - self.owner.x, e.y - self.owner.y)
-        if dist < closest_dist and self:has_line_of_sight(e) then
-          closest_dist, closest_target = dist, e
-        end
+    if e != self.owner and self.owner.subclass == "player" != (e.subclass == "player") then
+      local dist = dist_trig(e.x - self.owner.x, e.y - self.owner.y)
+      if dist < closest_dist and self:has_line_of_sight(e) then
+        closest_dist, closest_target = dist, e
       end
     end
   end
@@ -335,7 +328,7 @@ function targeting:has_line_of_sight(t)
   local step = max(abs(dx), abs(dy))
   
   for i=0,step do
-    if check_tile_flag(x+dx*i/step, y+dy*i/step) then return false end
+    if check_tile_flag(x+dx*i/step, y+dy*i/step) then return end
   end
   return true
 end
@@ -346,9 +339,7 @@ function targeting:draw()
 
   for i = 0, 3 do
     local angle = self.rotation + i * 0.25
-    local cos1, sin1, cos2, sin2 = cos(angle), sin(angle), cos(angle + 0.25), sin(angle + 0.25)
-    line(x + cos1 * half_size, y + sin1 * half_size,
-         x + cos2 * half_size, y + sin2 * half_size, 3)
+    line(x + cos(angle) * half_size, y + sin(angle) * half_size, x + cos(angle + 0.25) * half_size, y + sin(angle + 0.25) * half_size, 3)
   end
 end
 
@@ -561,20 +552,20 @@ function update_intro()
   controls_text_panel:update()
 end
 
--- function draw_intro()
---   reset_pal(true)
---   map(unpack(INTRO_MAP_ARGS))
---   draw_shadow(128,128,0, SWAP_PALETTE_DARK)
+function draw_intro()
+  reset_pal(true)
+  map(unpack(INTRO_MAP_ARGS))
+  draw_shadow(128,128,0, SWAP_PALETTE_DARK)
 
---   if sin(t()) < .9 then circfill(63,64, 3, 2) end
+  if sin(t()) < .9 then circfill(63,64, 3, 2) end
 
---   local y_logos = intro_text_panel.active and 0 or 30
---   display_logo(x_cortex, x_protocol, y_logos)
+  local y_logos = intro_text_panel.active and 0 or 30
+  display_logo(x_cortex, x_protocol, y_logos)
 
---   intro_text_panel:draw()
---   controls_text_panel:draw()
---   if intro_counter > 60 then print("PRESS ❎ TO CONTINUE", 24, 118, 11) end
--- end
+  intro_text_panel:draw()
+  controls_text_panel:draw()
+  if intro_counter > 60 then print("PRESS ❎ TO CONTINUE", 24, 118, 11) end
+end
 
 -- MISSION SELECT
 ----------------------
@@ -939,8 +930,6 @@ function particle:check_collision_and_damage()
       return true
     end
   end
-
-  return false
 end
 
 function particle:update()
@@ -1272,31 +1261,24 @@ end
 
 function entity:can_see_player()
   local player = self:find_player()
-  if not player then return false end
+  if not player then return end
   
   if dist_trig(player.x - self.x, player.y - self.y) <= self.attack_range and self.targeting:has_line_of_sight(player) then
     self.last_seen_player_pos.x, self.last_seen_player_pos.y = player.x, player.y
     return true
   end
-  
-  return false
 end
 
 
 function entity:find_ability(ability_name)
   for i, ability in ipairs(self.abilities) do
-    if ability.name == ability_name then
-      return i
-    end
+    if ability.name == ability_name then return i end
   end
-  return nil
 end
 
 function entity:find_player()
   for e in all(entities) do
-    if e.subclass == "player" then
-      return e
-    end
+    if e.subclass == "player" then return e end
   end
 end
 
@@ -1892,8 +1874,7 @@ function minigame:draw()
   seq_start_x = center_x - seq_width / 2
   
   for i, dir in pairs(self.current_input) do
-    local color = dir == self.sequence[i] and 11 or 8
-    print(dir, seq_start_x, center_y, color)
+    print(dir, seq_start_x, center_y, dir == self.sequence[i] and 11 or 8)
     seq_start_x += 12
   end
   
