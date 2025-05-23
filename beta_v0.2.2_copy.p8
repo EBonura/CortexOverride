@@ -49,10 +49,12 @@ function decompress_to_memory(compressed_data, dest_address)
       poke(dest_index, byte)
       dest_index += 1
     else
-      local distance, length = dest_index - read_bits(12) - 1, read_bits(4) + 1
+      local distance = dest_index - read_bits(12) - 1
+      local length = read_bits(4) + 1
       for _ = 1, length do
         poke(dest_index, peek(distance))
-        distance, dest_index = distance + 1, dest_index + 1
+        distance += 1
+        dest_index += 1
       end
     end
   end
@@ -252,19 +254,19 @@ function textpanel:draw()
   local dx = cam.x + self.x + self.x_offset - self.expand_counter
   local dy = cam.y + self.y
   local w = self.width + self.expand_counter * 2
+  local dy2 = dy + self.height
   
-  rectfill(dx - 1, dy - 1, dx + 2, dy + self.height + 1, 3)
-  rectfill(dx + w - 2, dy - 1, dx + w + 1, dy + self.height + 1, 3)
-  rectfill(dx, dy, dx + w, dy + self.height, 0)
+  rectfill(dx - 1, dy - 1, dx + 2, dy2 + 1, 3)
+  rectfill(dx + w - 2, dy - 1, dx + w + 1, dy2 + 1, 3)
+  rectfill(dx, dy, dx + w, dy2, 0)
   
   if self.selected then
     local line_x = dx + (self.line_offset % (w + 1))
-    line(line_x, dy, line_x, dy + self.height, 2)
+    line(line_x, dy, line_x, dy2, 2)
   end
   
   local display_text = self.reveal and sub(self.textline, 1, self.char_count) or self.textline
-  local color = self.text_color or (self.selected and 11 or 5)
-  print(display_text, dx + 2, dy + 2, color)
+  print(display_text, dx + 2, dy + 2, self.text_color or (self.selected and 11 or 5))
 end
 
 function textpanel:update()
@@ -396,13 +398,14 @@ function ability_menu:update()
 end
 
 function ability_menu:draw()
-  if not self.active then return end
-  for p in all(self.panels) do
-    local ability = player.abilities[p.ability_index]
-    if ability then
-      p.text_color = ability.remaining_uses > 0 and (p.selected and 11 or 5) or 2
+  if self.active then
+    for p in all(self.panels) do
+      local ability = player.abilities[p.ability_index]
+      if ability then
+        p.text_color = ability.remaining_uses > 0 and (p.selected and 11 or 5) or 2
+      end
+      p:draw()
     end
-    p:draw()
   end
 end
 
@@ -558,20 +561,20 @@ function update_intro()
   controls_text_panel:update()
 end
 
-function draw_intro()
-  reset_pal(true)
-  map(unpack(INTRO_MAP_ARGS))
-  draw_shadow(128,128,0, SWAP_PALETTE_DARK)
+-- function draw_intro()
+--   reset_pal(true)
+--   map(unpack(INTRO_MAP_ARGS))
+--   draw_shadow(128,128,0, SWAP_PALETTE_DARK)
 
-  if sin(t()) < .9 then circfill(63,64, 3, 2) end
+--   if sin(t()) < .9 then circfill(63,64, 3, 2) end
 
-  local y_logos = intro_text_panel.active and 0 or 30
-  display_logo(x_cortex, x_protocol, y_logos)
+--   local y_logos = intro_text_panel.active and 0 or 30
+--   display_logo(x_cortex, x_protocol, y_logos)
 
-  intro_text_panel:draw()
-  controls_text_panel:draw()
-  if intro_counter > 60 then print("PRESS ❎ TO CONTINUE", 24, 118, 11) end
-end
+--   intro_text_panel:draw()
+--   controls_text_panel:draw()
+--   if intro_counter > 60 then print("PRESS ❎ TO CONTINUE", 24, 118, 11) end
+-- end
 
 -- MISSION SELECT
 ----------------------
@@ -765,7 +768,7 @@ function init_gameplay()
   end 
 
     local tutorial_terminals = {
-      [[112,48,MOVE: ⬅️➡️⬆️⬇️|192,48,ATTACK: ❎|40,-8,FRAGMENTS RESTORE HP|264,-2,WEAPONS MENU: 🅾️|368,-2,DEFEAT ENEMY]],
+      [[112,48,MOVE: ⬅️➡️⬆️⬇️|192,48,   ATTACK: ❎|40,-8,   FRAGMENTS RESTORE HP|264,-2,  WEAPONS MENU: 🅾️|368,-2,   DEFEAT ENEMY]],
       "",  -- No tutorials for mission 2
       "",  -- No tutorials for mission 3
       ""   -- No tutorials for mission 4
@@ -1189,7 +1192,7 @@ function entity:update()
     for fragment in all(data_fragments) do
       if dist_trig(fragment.x - self.x, fragment.y - self.y) < 8 and not fragment.collected then
         self.health = min(self.health + 25, self.max_health)
-        player_hud:add_credits(50)
+        player_hud.credit_add_timer += 50
         fragment.collected = true
         sfx(7)
       end
@@ -1246,7 +1249,7 @@ function entity:take_damage(amount)
 end
 
 function entity:on_death()
-  player_hud:add_credits(self.kill_value)
+  player_hud.credit_add_timer += self.kill_value
   self:spawn_death_particles()
   del(entities, self)
   sfx(30)
@@ -1478,15 +1481,15 @@ function entity:apply_physics()
   local new_x, new_y = self.x + self.vx, self.y + self.vy
 
   -- Check tile collision
-  -- if self:check_tile_collision(new_x, new_y) then
-  --   if not self:check_tile_collision(new_x, self.y) then
-  --     new_y = self.y
-  --   elseif not self:check_tile_collision(self.x, new_y) then
-  --     new_x = self.x
-  --   else
-  --     new_x, new_y = self.x, self.y
-  --   end
-  -- end
+  if self:check_tile_collision(new_x, new_y) then
+    if not self:check_tile_collision(new_x, self.y) then
+      new_y = self.y
+    elseif not self:check_tile_collision(self.x, new_y) then
+      new_x = self.x
+    else
+      new_x, new_y = self.x, self.y
+    end
+  end
 
   -- Check laser door collision
   for door in all(doors) do
@@ -1689,17 +1692,11 @@ function laser_door:draw()
   end
 end
 
-function laser_door:check_collision(ex, ey, ew, eh)
-  if self.is_open then return false end
-  
-  for beam in all(self.laser_beams) do
-    if (ey + eh > beam.start_y and ey < beam.end_y) and
-       (ex < beam.start_x and ex + ew > beam.start_x) then
-      return true
-    end
+function laser_door:check_collision(ex,ey,ew,eh)
+  if self.is_open then return end
+  for b in all(self.laser_beams) do
+    if ey+eh>b.start_y and ey<b.end_y and ex<b.start_x and ex+ew>b.start_x then return true end
   end
-  
-  return false
 end
 
 -- DATA FRAGMENT
@@ -1744,7 +1741,7 @@ function terminal.new(x, y, target_door, tutorial_msg)
   }, {__index = terminal})
   
   -- Create panel at fixed screen position (will be adjusted with camera in draw)
-  local msg = tutorial_msg or "❎ INTERACT"
+  local msg = tutorial_msg or "   INTERACT: ❎"
   local panel_width = max(40, #msg * 4 + 12)  -- Adjust width based on message length
   t.panel = textpanel.new(64 - panel_width/2, 114, 10, panel_width, msg, true)
   t.panel.selected = true
@@ -1829,7 +1826,6 @@ function minigame:start(terminal)
   timer = time_limit
   current_input = {}
   current_terminal = terminal
-
 end
 
 function minigame:update()  
@@ -1885,7 +1881,6 @@ function minigame:draw()
   rectfill(center_x - 35, center_y - 20, center_x + 35, center_y + 20, 0)
   rect(center_x - 35, center_y - 20, center_x + 35, center_y + 20, 3)
   
-  -- Calculate total width of sequence
   local seq_width = #self.sequence * 12 - 4
   local seq_start_x = center_x - seq_width / 2
   
@@ -1894,7 +1889,6 @@ function minigame:draw()
     seq_start_x += 12
   end
   
-  -- Reset seq_start_x for current input
   seq_start_x = center_x - seq_width / 2
   
   for i, dir in pairs(self.current_input) do
@@ -1903,10 +1897,8 @@ function minigame:draw()
     seq_start_x += 12
   end
   
-  -- Center the timer text
   local timer_text = "time: "..flr(self.timer / 30)
-  local timer_width = #timer_text * 4  -- Assuming each character is 4 pixels wide
-  print(timer_text, center_x - timer_width / 2, center_y + 10, 8)
+  print(timer_text, center_x - #timer_text * 2, center_y + 10, 8)
 end
 
 
@@ -1989,6 +1981,11 @@ function player_hud:draw()
     end
     ending_sequence_timer -= 1
   end
+
+  local mx,my,px,py=cam.x+112,cam.y+112,flr(player.x/8),flr(player.y/8)
+  for i=0,255 do local tx,ty=i%16-8,flr(i/16)-8
+  pset(mx+tx+8,my+ty+8,fget(mget(px+tx,py+ty),0)and 1 or 5)end
+  pset(mx+8,my+8,7)
 end
 
 function draw_bar(x, y, w, h, bg, fill, pct)
@@ -2001,10 +1998,6 @@ end
 function print_shadow(text, x, y, color)
   print(text, x + 1, y + 1, 0) 
   print(text, x, y, color or 7)
-end
-
-function player_hud:add_credits(amount)
-  self.credit_add_timer += amount 
 end
 
 
