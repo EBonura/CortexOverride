@@ -24,6 +24,109 @@ Optional Objectives:
 * Eliminate all enemy units
 ]]
 
+-- MAIN
+----------------------
+function _init()
+  cam = gamecam.new()
+  
+  -- Missions
+  MISSION_BRIEFINGS = {
+    "PROTOCOL ZERO:\n\nFACILITY ALPHA-7\nOVERRUN BY \nBARRACUDA\n\nINITIATE LOCKDOWN\nPROTOCOLS AND\nSECURE VITAL DATA\nBEFORE EXTRACTION",
+    "SILICON WASTELAND:\n\nBARRACUDA SPREADS\nTO CITY OUTSKIRTS\n\nNAVIGATE HAZARDOUS\nTERRAIN, \nNEUTRALIZE INFECTED \nSCAVENGERS,\nSECURE DATA NODES",
+    "METROPOLIS SIEGE:\n\nVIRUS INFILTRATES\nURBAN MAINFRAME\n\nBATTLE THROUGH\nCORRUPTED DISTRICTS,\nLIBERATE TERMINALS,\nDISRUPT BARRACUDA",
+    "FACILITY 800a:\n\nFINAL STAND AT\nNETWORK NEXUS\n\nINFILTRATE CORE,\nINITIATE CORTEX\nPROTOCOL, PURGE\nBARRACUDA THREAT"
+  }
+  
+  mission_data, credits, current_mission = stringToTable("0,0,0|0,0,0|0,0,0|0,0,0"), 5000, 1
+  
+  v = 2040
+  -- Load compressed map from map data
+  map_data = {
+    -- 4 Levels
+    pack(peek(0x2000, v)),
+    pack(peek(0x2000 + v, 1585)),
+    pack(peek(0x1000, 1788)),
+    pack(peek(0x1000 + 1788, 1402)),
+    -- Logo
+    pack(peek(0x1000 + 1788 + 1402, 243)) 
+  }
+
+  -- Decompress Logo
+  decompress_to_memory(map_data[5], 0x1C00)
+  
+  -- -- Load map 1 for Intro
+  decompress_current_map()
+
+  SWAP_PALETTE, SWAP_PALETTE_DARKER, SWAP_PALETTE_DARK, INTRO_MAP_ARGS, STATE_NAMES = unpack(stringToTable[[
+    0,0,0,0,0,0,5,6,2,5,9,3,1,2,2,4|
+    0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0|
+    0,1,0,0,0,0,0,2,0,0,0,0,0,0,0,0|
+    4,37,0,0,128,48|intro,mission_select,loadout_select,gameplay]])
+
+  entity_abilities = {
+    dervish = {"mACHINE gUN"},
+    vanguard = {"rIFLE bURST"},
+    warden = {"mISSILE hAIL"},
+    cyberseer = {"rIFLE bURST", "mISSILE hAIL"},
+    quantumcleric = {"mACHINE gUN", "pLASMA cANNON"}
+  }
+
+  entity_colors = {
+    dervish = 15,
+    vanguard = 13,
+    warden = 1,
+    player = 7,
+    preacher = 11,
+    cyberseer = 6,
+    quantumcleric = 1
+  }
+
+  states = {}
+  for name in all(STATE_NAMES) do
+    states[name] = {
+      init = _ENV["init_" .. name],
+      update = _ENV["update_" .. name],
+      draw = _ENV["draw_" .. name]
+    }
+  end
+
+  trans = transition.new()
+  player = entity.new(0, 0, "bot", "player")
+  change_state("intro", true)
+end
+
+function _update()
+  if trans.active then
+    if trans:update() then
+      current_state = next_state
+      current_state.init()
+      next_state = nil
+    end
+  else
+    current_state.update()
+  end
+end
+
+function _draw()
+  current_state.draw()
+  trans:draw()
+  printh("mem: "..tostr(stat(0)).." | cpu: "..tostr(stat(1)).." | fps: "..tostr(stat(7)))
+end
+
+function change_state(new_state_name, skip_transition)
+  local new_state = states[new_state_name]
+
+  if skip_transition ~= true and not trans.active then
+    sfx(20)
+    next_state = new_state
+    trans:start()
+  else
+    current_state = new_state
+    current_state.init()
+  end
+end
+
+
 -- MAP COMPRESSION
 ----------------------
 function decompress_to_memory(compressed_data, dest_address)
@@ -49,10 +152,12 @@ function decompress_to_memory(compressed_data, dest_address)
       poke(dest_index, byte)
       dest_index += 1
     else
-      local distance, length = dest_index - read_bits(12) - 1, read_bits(4) + 1
+      local distance = dest_index - read_bits(12) - 1
+      local length = read_bits(4) + 1
       for _ = 1, length do
         poke(dest_index, peek(distance))
-        distance, dest_index = distance + 1, dest_index + 1
+        distance += 1
+        dest_index += 1
       end
     end
   end
@@ -164,14 +269,14 @@ function gamecam.new()
   return setmetatable({
     x = 0,
     y = 0,
-    lerpfactor = 0.2
   }, gamecam)
 end
 
 function gamecam:update()
-  self.x += (player.x - self.x - 64) * self.lerpfactor
-  self.y += (player.y - self.y - 64) * self.lerpfactor
+  self.x += (player.x - self.x - 64) * 0.2
+  self.y += (player.y - self.y - 64) * 0.2
 
+  -- shaking effect
   if count_remaining_terminals() == 0 then
     self.x += rnd(4) - 2
     self.y += rnd(4) - 2
@@ -198,26 +303,25 @@ function transition:start()
 end
 
 function transition:update()
-  if not self.active then return false end
-  
-  self.t += self.closing and 1 or -1
-  
-  if self.closing and self.t == self.duration then
-    self.closing = false
-    return true
-  elseif not self.closing and self.t == 0 then
-    self.active = false
+  if self.active then
+    self.t += self.closing and 1 or -1
+    
+    if self.closing and self.t == self.duration then
+      self.closing = false
+      return true
+    elseif not self.closing and self.t == 0 then
+      self.active = false
+    end
   end
-  
-  return false
 end
 
 function transition:draw()
-  if not self.active then return end
-  local size = max(1, flr(16 * self.t/self.duration))
-  for x = 0, 127, size do
-    for y = 0, 127, size do
-      rectfill(x, y, x+size-1, y+size-1, pget(x, y))
+  if self.active then
+    local size = max(1, flr(16 * self.t/self.duration))
+    for x = 0, 127, size do
+      for y = 0, 127, size do
+        rectfill(x, y, x+size-1, y+size-1, pget(x, y))
+      end
     end
   end
 end
@@ -252,34 +356,30 @@ function textpanel:draw()
   local dx = cam.x + self.x + self.x_offset - self.expand_counter
   local dy = cam.y + self.y
   local w = self.width + self.expand_counter * 2
+  local dy2 = dy + self.height
   
-  rectfill(dx - 1, dy - 1, dx + 2, dy + self.height + 1, 3)
-  rectfill(dx + w - 2, dy - 1, dx + w + 1, dy + self.height + 1, 3)
-  rectfill(dx, dy, dx + w, dy + self.height, 0)
+  rectfill(dx - 1, dy - 1, dx + 2, dy2 + 1, 3)
+  rectfill(dx + w - 2, dy - 1, dx + w + 1, dy2 + 1, 3)
+  rectfill(dx, dy, dx + w, dy2, 0)
   
   if self.selected then
     local line_x = dx + (self.line_offset % (w + 1))
-    line(line_x, dy, line_x, dy + self.height, 2)
+    line(line_x, dy, line_x, dy2, 2)
   end
   
   local display_text = self.reveal and sub(self.textline, 1, self.char_count) or self.textline
-  local color = self.text_color or (self.selected and 11 or 5)
-  print(display_text, dx + 2, dy + 2, color)
+  print(display_text, dx + 2, dy + 2, self.text_color or (self.selected and 11 or 5))
 end
 
 function textpanel:update()
   self.expand_counter += self.selected and (self.expand_counter < 3 and 1 or 0) or (self.expand_counter > 0 and -1 or 0)
   
   self.x_offset += self.move_direction * self.max_offset / 5
-  if self.x_offset <= -self.max_offset or self.x_offset >= 0 then
-    self.move_direction *= -1
-  end
+  if self.x_offset <= -self.max_offset or self.x_offset >= 0 then self.move_direction *= -1 end
   
   self.line_offset = self.selected and (self.line_offset + 2) % (self.width + self.expand_counter * 2 + 1) or 0
   
-  if self.reveal and self.char_count < #self.textline then
-    self.char_count += 2
-  end
+  if self.reveal and self.char_count < #self.textline then self.char_count += 2 end
 end
 
 -- TARGETING
@@ -300,12 +400,10 @@ end
 function targeting:update()
   local closest_dist, closest_target = self.owner.attack_range, nil
   for e in all(entities) do
-    if e != self.owner then
-      if self.owner.subclass == "player" != (e.subclass == "player") then
-        local dist = dist_trig(e.x - self.owner.x, e.y - self.owner.y)
-        if dist < closest_dist and self:has_line_of_sight(e) then
-          closest_dist, closest_target = dist, e
-        end
+    if e != self.owner and self.owner.subclass == "player" != (e.subclass == "player") then
+      local dist = dist_trig(e.x - self.owner.x, e.y - self.owner.y)
+      if dist < closest_dist and self:has_line_of_sight(e) then
+        closest_dist, closest_target = dist, e
       end
     end
   end
@@ -333,7 +431,7 @@ function targeting:has_line_of_sight(t)
   local step = max(abs(dx), abs(dy))
   
   for i=0,step do
-    if check_tile_flag(x+dx*i/step, y+dy*i/step) then return false end
+    if check_tile_flag(x+dx*i/step, y+dy*i/step) then return end
   end
   return true
 end
@@ -344,9 +442,7 @@ function targeting:draw()
 
   for i = 0, 3 do
     local angle = self.rotation + i * 0.25
-    local cos1, sin1, cos2, sin2 = cos(angle), sin(angle), cos(angle + 0.25), sin(angle + 0.25)
-    line(x + cos1 * half_size, y + sin1 * half_size,
-         x + cos2 * half_size, y + sin2 * half_size, 3)
+    line(x + cos(angle) * half_size, y + sin(angle) * half_size, x + cos(angle + 0.25) * half_size, y + sin(angle + 0.25) * half_size, 3)
   end
 end
 
@@ -396,13 +492,14 @@ function ability_menu:update()
 end
 
 function ability_menu:draw()
-  if not self.active then return end
-  for p in all(self.panels) do
-    local ability = player.abilities[p.ability_index]
-    if ability then
-      p.text_color = ability.remaining_uses > 0 and (p.selected and 11 or 5) or 2
+  if self.active then
+    for p in all(self.panels) do
+      local ability = player.abilities[p.ability_index]
+      if ability then
+        p.text_color = ability.remaining_uses > 0 and (p.selected and 11 or 5) or 2
+      end
+      p:draw()
     end
-    p:draw()
   end
 end
 
@@ -410,107 +507,6 @@ ability_menu.new = function() return setmetatable({}, {__index = ability_menu}) 
 ability_menu.close = function(self) self.active = false end
 
 
--- MAIN
-----------------------
-function _init()
-  cam = gamecam.new()
-  
-  -- Missions
-  MISSION_BRIEFINGS = {
-    "PROTOCOL ZERO:\n\nFACILITY ALPHA-7\nOVERRUN BY \nBARRACUDA\n\nINITIATE LOCKDOWN\nPROTOCOLS AND\nSECURE VITAL DATA\nBEFORE EXTRACTION",
-    "SILICON WASTELAND:\n\nBARRACUDA SPREADS\nTO CITY OUTSKIRTS\n\nNAVIGATE HAZARDOUS\nTERRAIN, \nNEUTRALIZE INFECTED \nSCAVENGERS,\nSECURE DATA NODES",
-    "METROPOLIS SIEGE:\n\nVIRUS INFILTRATES\nURBAN MAINFRAME\n\nBATTLE THROUGH\nCORRUPTED DISTRICTS,\nLIBERATE TERMINALS,\nDISRUPT BARRACUDA",
-    "FACILITY 800a:\n\nFINAL STAND AT\nNETWORK NEXUS\n\nINFILTRATE CORE,\nINITIATE CORTEX\nPROTOCOL, PURGE\nBARRACUDA THREAT"
-  }
-  
-  mission_data, credits, current_mission = stringToTable("0,0,0|0,0,0|0,0,0|0,0,0"), 5000, 1
-
-  -- Load compressed map from map data
-  map_data = {
-    -- 4 Levels
-    pack(peek(0x2000, 2005)),
-    pack(peek(0x2000 + 2005, 1585)),
-    pack(peek(0x1000, 1788)),
-    pack(peek(0x1000 + 1788, 1402)),
-    -- Logo
-    pack(peek(0x1000 + 1788 + 1402, 243)) 
-  }
-
-  -- Decompress Logo
-  -- decompress_to_memory(map_data[5], 0x1C00)
-  
-  -- -- Load map 1 for Intro
-  -- decompress_current_map()
-
-  SWAP_PALETTE, SWAP_PALETTE_DARKER, SWAP_PALETTE_DARK, INTRO_MAP_ARGS, STATE_NAMES = unpack(stringToTable[[
-    0,0,0,0,0,0,5,6,2,5,9,3,1,2,2,4|
-    0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0|
-    0,1,0,0,0,0,0,2,0,0,0,0,0,0,0,0|
-    4,37,0,0,128,48|intro,mission_select,loadout_select,gameplay]])
-
-  entity_abilities = {
-    dervish = {"mACHINE gUN"},
-    vanguard = {"rIFLE bURST"},
-    warden = {"mISSILE hAIL"},
-    cyberseer = {"rIFLE bURST", "mISSILE hAIL"},
-    quantumcleric = {"mACHINE gUN", "pLASMA cANNON"}
-  }
-
-  entity_colors = {
-    dervish = 15,
-    vanguard = 13,
-    warden = 1,
-    player = 7,
-    preacher = 11,
-    cyberseer = 6,
-    quantumcleric = 1
-  }
-
-  states = {}
-  for name in all(STATE_NAMES) do
-    states[name] = {
-      init = _ENV["init_" .. name],
-      update = _ENV["update_" .. name],
-      draw = _ENV["draw_" .. name]
-    }
-  end
-
-  trans = transition.new()
-  player = entity.new(0, 0, "bot", "player")
-  change_state("loadout_select", true)
-end
-
-
-function _update()
-  if trans.active then
-    if trans:update() then
-      current_state = next_state
-      current_state.init()
-      next_state = nil
-    end
-  else
-    current_state.update()
-  end
-end
-
-function _draw()
-  current_state.draw()
-  trans:draw()
-  printh("mem: "..tostr(stat(0)).." | cpu: "..tostr(stat(1)).." | fps: "..tostr(stat(7)))
-end
-
-function change_state(new_state_name, skip_transition)
-  local new_state = states[new_state_name]
-
-  if skip_transition ~= true and not trans.active then
-    sfx(20)
-    next_state = new_state
-    trans:start()
-  else
-    current_state = new_state
-    current_state.init()
-  end
-end
 
 -- INTRO
 ----------------------
@@ -725,7 +721,7 @@ end
 -- GAMEPLAY
 ----------------------
 function init_gameplay()
-  -- decompress_current_map()
+  decompress_current_map()
   music(0)
   player_hud = player_hud.new()
   entities, particles, terminals, doors, barrels, data_fragments, ending_sequence_timer = {}, {}, {}, {}, {}, {}, 1000
@@ -764,7 +760,7 @@ function init_gameplay()
   end 
 
     local tutorial_terminals = {
-      [[112,48,MOVE: ⬅️➡️⬆️⬇️|192,48,ATTACK: ❎|40,-8,FRAGMENTS RESTORE HP|264,-2,WEAPONS MENU: 🅾️|368,-2,DEFEAT ENEMY]],
+      [[112,48,MOVE: ⬅️➡️⬆️⬇️|192,48,   ATTACK: ❎|40,-8,   FRAGMENTS RESTORE HP|264,-2,  WEAPONS MENU: 🅾️|368,-2,   DEFEAT ENEMY]],
       "",  -- No tutorials for mission 2
       "",  -- No tutorials for mission 3
       ""   -- No tutorials for mission 4
@@ -935,8 +931,6 @@ function particle:check_collision_and_damage()
       return true
     end
   end
-
-  return false
 end
 
 function particle:update()
@@ -1188,7 +1182,7 @@ function entity:update()
     for fragment in all(data_fragments) do
       if dist_trig(fragment.x - self.x, fragment.y - self.y) < 8 and not fragment.collected then
         self.health = min(self.health + 25, self.max_health)
-        player_hud:add_credits(50)
+        player_hud.credit_add_timer += 50
         fragment.collected = true
         sfx(7)
       end
@@ -1245,7 +1239,7 @@ function entity:take_damage(amount)
 end
 
 function entity:on_death()
-  player_hud:add_credits(self.kill_value)
+  player_hud.credit_add_timer += self.kill_value
   self:spawn_death_particles()
   del(entities, self)
   sfx(30)
@@ -1268,31 +1262,24 @@ end
 
 function entity:can_see_player()
   local player = self:find_player()
-  if not player then return false end
+  if not player then return end
   
   if dist_trig(player.x - self.x, player.y - self.y) <= self.attack_range and self.targeting:has_line_of_sight(player) then
     self.last_seen_player_pos.x, self.last_seen_player_pos.y = player.x, player.y
     return true
   end
-  
-  return false
 end
 
 
 function entity:find_ability(ability_name)
   for i, ability in ipairs(self.abilities) do
-    if ability.name == ability_name then
-      return i
-    end
+    if ability.name == ability_name then return i end
   end
-  return nil
 end
 
 function entity:find_player()
   for e in all(entities) do
-    if e.subclass == "player" then
-      return e
-    end
+    if e.subclass == "player" then return e end
   end
 end
 
@@ -1688,17 +1675,11 @@ function laser_door:draw()
   end
 end
 
-function laser_door:check_collision(ex, ey, ew, eh)
-  if self.is_open then return false end
-  
-  for beam in all(self.laser_beams) do
-    if (ey + eh > beam.start_y and ey < beam.end_y) and
-       (ex < beam.start_x and ex + ew > beam.start_x) then
-      return true
-    end
+function laser_door:check_collision(ex,ey,ew,eh)
+  if self.is_open then return end
+  for b in all(self.laser_beams) do
+    if ey+eh>b.start_y and ey<b.end_y and ex<b.start_x and ex+ew>b.start_x then return true end
   end
-  
-  return false
 end
 
 -- DATA FRAGMENT
@@ -1743,7 +1724,7 @@ function terminal.new(x, y, target_door, tutorial_msg)
   }, {__index = terminal})
   
   -- Create panel at fixed screen position (will be adjusted with camera in draw)
-  local msg = tutorial_msg or "❎ INTERACT"
+  local msg = tutorial_msg or "   INTERACT: ❎"
   local panel_width = max(40, #msg * 4 + 12)  -- Adjust width based on message length
   t.panel = textpanel.new(64 - panel_width/2, 114, 10, panel_width, msg, true)
   t.panel.selected = true
@@ -1828,7 +1809,6 @@ function minigame:start(terminal)
   timer = time_limit
   current_input = {}
   current_terminal = terminal
-
 end
 
 function minigame:update()  
@@ -1884,7 +1864,6 @@ function minigame:draw()
   rectfill(center_x - 35, center_y - 20, center_x + 35, center_y + 20, 0)
   rect(center_x - 35, center_y - 20, center_x + 35, center_y + 20, 3)
   
-  -- Calculate total width of sequence
   local seq_width = #self.sequence * 12 - 4
   local seq_start_x = center_x - seq_width / 2
   
@@ -1893,19 +1872,15 @@ function minigame:draw()
     seq_start_x += 12
   end
   
-  -- Reset seq_start_x for current input
   seq_start_x = center_x - seq_width / 2
   
   for i, dir in pairs(self.current_input) do
-    local color = dir == self.sequence[i] and 11 or 8
-    print(dir, seq_start_x, center_y, color)
+    print(dir, seq_start_x, center_y, dir == self.sequence[i] and 11 or 8)
     seq_start_x += 12
   end
   
-  -- Center the timer text
   local timer_text = "time: "..flr(self.timer / 30)
-  local timer_width = #timer_text * 4  -- Assuming each character is 4 pixels wide
-  print(timer_text, center_x - timer_width / 2, center_y + 10, 8)
+  print(timer_text, center_x - #timer_text * 2, center_y + 10, 8)
 end
 
 
@@ -1988,6 +1963,11 @@ function player_hud:draw()
     end
     ending_sequence_timer -= 1
   end
+
+  local mx,my,px,py=cam.x+112,cam.y+112,flr(player.x/8),flr(player.y/8)
+  for i=0,255 do local tx,ty=i%16-8,flr(i/16)-8
+  pset(mx+tx+8,my+ty+8,fget(mget(px+tx,py+ty),0)and 3 or 11) end
+  pset(mx+8,my+8,7)
 end
 
 function draw_bar(x, y, w, h, bg, fill, pct)
@@ -2000,10 +1980,6 @@ end
 function print_shadow(text, x, y, color)
   print(text, x + 1, y + 1, 0) 
   print(text, x, y, color or 7)
-end
-
-function player_hud:add_credits(amount)
-  self.credit_add_timer += amount 
 end
 
 
@@ -2072,54 +2048,60 @@ e577777ee577777e05777770e577707ee00000ee766666666666666d00005555e0eee1eee0ee1eee
 5535353303030300551555555555515500155555555551005555555501dddd2063336666666366666666666661dddd2655555110011555556366366d6366366d
 53353535000000005155555555555515001155555555110055555555001222006636666666336666666666666612226655555511115555556366336d6336366d
 3333353500000000155555555555555100011115511110005555555500000000663666666636666666666666666666665555555115555555636dd3dd663d3ddd
-74b6060606060606060606060606c62636b606060606060606b6f6a7a7f6a7a7a7f6a7a740b70694740640c1c1a7f6a7a7a7a7a7a7a7a7f603e503e6e5f60696
-70707070707070177070707070b4050515701770656765450505050505053706f6a7a7f6b60606060606060606c6f6a7a7d6a7f6a7a7a7a7f6a7a7a7a7f60695
-b50404046466440404040404040404c5b5040404646644043606f6a7a7a7f6f6f6a7a7a740f606947406f6a7a7a7a7a7a7a7a7a7a7a7a7a7a7b7a7a7a7b006a5
-7017707070707070707070707075c606062565350607060606060606060606c6f6a7a7f6f6f6f6f6f6f6f6f6f6f6f6a7a7d6f6d6a7a7a7d4e4f6a7a7a7f606a6
-b405050505050515671505050505050505050505050505053706f6a7a7a7a7a7a7a7a7a7f64006947406f6a7a7a7a7a7a7a7a7a7a7a7d4e6e603f6a7b0b20694
-7070707070a27070a2707070707034f6f6f6f6f6f6f6f640f6f640f6f64003c0c0b2c0a7a7a7a7a7a7a7a7a7a7a7a7a7a7d6f6d5e6e2f2e5d5f6e6e6e6e60696
-74c60606060606060606060606060606060606060606060606c6f6a7a7a7a7a7a7a7a7a7a7f606947406f6a7a7a7a7a7a7a7a7a7a7a7d6a7a7f6a7b0b2b20694
-7070707070705161707070c2d0d0d0f6a7a7a7a7a7a740a7a7a7a740a74003b1b2b1c1a7a7a7a7a7b0c0a7a7a7a7a7a7d4d5f6a7a7e3f3a7a7f6a7a7a7400696
-7406f6b1b2b2c1f6d6f6f6f6f6f6f6d6f6f6f6f6f6f6f6f6f6f6f6f6a7a7a7a74040a7a7f6f606947406f6a7a7a7a7a7a7a7a7a7a7a7d6a7a7a7a7b140400695
-7070707070705262707070d1701700f6a7a7a7a7a7a7a7a7a740a7a7a7a74003c1a7a7f6f6f6f6b0b2b2c0f6f6f6d4e6e5a7f6a7a7d6a7a7a7f6a7a7a7400694
-7406f6b1b2b2c1a7d6a7a7a7a7a7a7d6a7a7a7a7f6f6f6f6f6f6f6f6f6f6f6f64040f6f6f6f606947406f6f6f6f6f6f6404040f6f6f6d6f6f6f6b0b2404006a5
-7070707070a27070a2d0d0d3707035f6f6f6f6f6f6f6f6f640f6f64040f6f603f6a787f6c60606060606060606b6e5a7a7a7a7f6e6e5a7a7f6a7a7a7a7f60695
-8406f6a7b1c1f6f6d6f6f6f6f6f6d4e5f6f6a7a7a7f6c6060606060706060606060606060606c69475b6b6f6f7c606060606060606060606060606060606c694
-7070707070707070707070707085b606060606060606060606060606060606b6f6a797f606260404040404043606f6a7a7a7d4e5f6f6f6f6a7a7d4e6e6e60696
-8416f6a7a7f6f6a7d5e4a7a7a7a7d6a7a7f6f6a7a7f60626046644040404040404040404040404c5176416f6f6062614646454040464664404045466044404c5
-70700000000000000000000000b5040404646444542444040404040404043606e797a7f706957070d17070707406f6a7a7a7d5e4a7a7a7a7a7a7d6a7a7f606a5
-7406f6a7f6f6a7a7a7d6a7a7a7a7d6a7a7a7f6f6a7f60694b4050555050505551570706567701770008606f6e7069400000000001700007017707070d11770a2
-a2000000000000000000000000b405050505050505c47000d170707000007416e7a7a7f624707070d17070177506f6a7a7a7a7d6a7a7a7a7a7a7d6a7a7f60696
-7506e6e6e6e6e4a7a7d5f6f6f6f6e5a7a7a7a7f6a7f6069474c6060606060606062535060735567077701640e7062715771770707070707070707070d1707070
-b405051567156567654505050537c60606060606b694700077a2707070007516f7a7a7e725707070a2a270707606f6f6a7a7a7d6a7a7a7a7a7a7d6a7f6f60696
-7406f6a7f6a7d6a7a7f6a7a7a7a7f6a7a7a7a7f6a7f606948406f6f6f6d6f6e7f7f6f640404006a57046c640f6b60606072567350607567070707000a2a27070
-74c6060606060607060606060606c6f640f6b7f606940000a2a2707070001786e78797f7a6701770a2a270708506f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f606a5
-7406f6a7f6a7d6a7f6d6a7a7a7a7a7f6a7a7a7f6a7f606947406e7b7a7d6a7a7a7d4e6e6e6e606a67034f6f6f6f6f6f7f6e7f6404040f47070707000a2a27070
-7406f6f6f6f6f6f6f6d6f6f6f6f6f6f6a74040f60694000000d1001770707047240000345700707070d1707074b606070606060606060706060606060606c694
-7406f6a7f6a7d6a7f6d5e6e2f2a7d4f6e6e6e6e6e6e606948406e6e5a7d6f6f6f6e5b0c0c0f616941785f687a7a7a7a7a7a7a7a797e770707017700070d17070
-7506f6a7a7a7a7a7a7d6a7a7a7a7a7a7a7a740f606940000a2a2000000700000000000000000707070d17070b5040404040404040404040404040404040404c5
-7406f6a7f6d4d5e6f6a7a7e3f3e6e5f6a7a7a7a740400694750640a7a7f6a7a7a7f6b1b2c1f706a47084408797a7a7a7a79797a7a7a7707070707000c2d37070
-8606e6e6e6e4f6f6f6e5b0c0a7d4e6e6e6e6e5f606947000a2a20000007070007070707070177070a2a27070b4051565656715701770656765051567150505c4
-7406e6e6e6e5a7a7f6a7a7d6a7a7a7f6a7a7a7f640400694860640a7f6d6a703a7a7f6b1c1f606a670864040f6f6f6f7f6f6e7f6e7f6c77070707000d1707070
-8616f6a7a7f6a7a7b0f6b1c0a7d6a7a7b0c0a7f606967070c3d0d2007070707070177070707070c2a2a2707075c606060606062565350607060606060606b694
-7506f6a7f6a7a7a7a7f6e6e5a7a7f6a7a7a7a7f6a7f606948616f7a7f6d5039703d4e6e6e6e616967047246466346664340706060606577070707000a2a27070
-7606f6a7f6d6c003b1c0f6c1a7d6a7b0b2b2b2f6f470707070a2a2707017707070707070707070d1707070707034f6f7e7f6404040f6e74040f640f6e7f60694
-76064040f6a7a7a7d4e5f6f6f6f6a7a7d4e6e6e6e6e606948606f6a7f6a7a70397e5f6a7a7f606967070177070707070706664666464001770707000a2a27070
-7606f6a7f6d503a703e6e6e6e6e5b0b2b2b2c1a77070177070a2a2707070707070707070707070d1707070700000e7a7a7a7a7a787a7a7a7a7a7a740b7f60695
-86064040f6f6a7a7d5e4a7a7a7a7a7a7d6a7f6f6b0c006948506f6a7a7f6e6e5a7e7a7a7a7f7f470707070707070707070707070700000707070707070d17070
-8506f6a7f6a7a703a7a7f6a7a7a7b1c1b1c1a7a77070000000d100000046256535560000001700c3a2a200000000f687a7a7a7a7a7a7a7a7a7a7a7a7d5e60694
-76064040a7f6f6a7a7d6a7a7a7a7a7a7d6f6f6b0b2c106948406f6a7d4e5f6f6f687a7a787977070177070701770707070707017700000707070170070d17070
-7406f6c0a7f6e6e5a7f6a7a7a7a7a7a7a7a7a7a77070000000c3d2000086e7e7f7a6000000000000a2a200001700f6a7a7a7a7a7a7a7a7a7a7a7a7a7a7a70695
-8506f6a7a7a7f6f6f6d6f6f6f6f6f6f6d6f6a7b0c1f606948416c0a7d6a7a7a7a7a7a7a7a7a770707070707070000000000000707070a2707070000070d17070
-7506f6b2d4e5f6f6f6a7a7b0b0c0a7f6f6f6f6f6c77070707070d1707076f7b7f6a670007070707070d170700000f6c0a787a7a7a7a7a7a7a7a7a7a7a7a70696
-7406f6b7a7a7d4e6e6e5a7b0b0c0a7a7d5e4b0c1b7f606947406b2c0d6a797a7a7a7a7a7a79770707070707070c2a2d0d0d0d2707070d17070a2a27070d17070
-7606f6c1d6a7a7a7a7a7b0c1b1b1c0f6a740404006a57070a2a2d3177086f7e7e72570007070a2a270d170707000e7b1c0a7a7b7e4a7a7a7a7a7a740a7f606a5
-7406f6f6f6f6d6f6f6f6b0b2b2b2c0f6f6d6b1f6f6f606947506b2c1d6f6e7f6f6f6f7e7f7e7c7707070a2d0d0d370707070c3a2d0d0d3d0d0a2a2d0d0777070
-8506f6f6d6f6f6f6f6b0c1f6f6f6f6f64040404006947070a2a2707070472417345770007070a277d0d370707035f7f6e7f7f6f6d6f6e7f6f6f6e7f640f60694
-74b60606060606066606060606060606060606060606c69470470606060706060606060706065770707070707070177070707070707017707070707070707070
-74b6060606060606060606060606060606060606c69470707070707070707070707070707070d1707070707085b606060606060606060606060606060606c694
-b504040404040414174414666664644454244404040404c5177034246464666466641464666470a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2
-b50404040404040404646444542444040404040404c5a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2b5040404646444542444040404040404040404c5
+5249a052361b05ba0025b2d1a8502698a51044058251a403902606aa00e0b4081b41a450264880411a007962100ef370269a6490d64021b314010ac05a20ca41
+a470f2604ba20c95024405422216c18d0603c1e0608000c740416d94300c00380b40024090ec40fb20305104480ea464381628809a406b08a51c9506bb09f18b
+0391c10cf60850e1f8748a7083018040738990023dcbf10dee00328902020434860180e673b1dc6e8d0192eb4050706e302902e8077184724b20ee20fb708203
+14cfd87c2b47d1a80094703f08351cdf16ef7801830fb1704fd3b10625482d4fc0e0105c70af3289f47c8af043706d507480c2382204580ae36a3f97483df02f
+d371940dbf1608c261c048352c97d013f72814683278705f489224c22a65070234c896c0ea06f3e1f8038485f74b25ecb378c16a38ff2cd7c04089b24ad32d00
+6eb1511800091887f291aaf36ea2f891a912e4050e836dc9f3a8f06eb718308c9080663f1c6e82d02145735c45d86e30112000a036182fe11a4d0df9381062a0
+7ea04b62390a01048baf092703271678af14df32eb05e3832842962a40d0014030e906cf1fe985761a0839333779139c99325c07f9349062a07e212b71b0bc5c
+3d17a3f17e709ec3f91aef78910812c12ce673314a04482d1f63454ed47304001eef1d18349c4edf918e68179c434aeb3771933711ea965a4021c81b0c861acd
+1bfb23c3578cedd573f0782f9f82c641f1a6f0fe8350789f5c4fd86c1e07cbabe50813715ae70b0a951c1a0e1f402771b00e24768a761967319e535f0321b417
+2835c68029d1dce02ff89f54cf5ec11d85989c91af935a536e0a107ccfbc6a3e978eb9a04929bd81d039f70893c42f87f3e9f8057c8310cbf34d0cf6d3b9cc70
+821cc2f60dc7f3630c97d81bff86b691a7109ef025c995f99a824492924171c845a260f846ff113093c9c1eb2db466c5f8be69c0703e4c8c85bdf02ad9905ccf
+6eeb663d97ca0c073aa4f458d00b7c82f0926bf35ed237625c1372ca3480bb128e61b0038188439f234271a8f59a503ff8adb4ce7aa545303317083b133b3abf
+a972ef170082f3d931228650d42fe92f645292cb07a9a453caf38c3d5027d30c546a8b74394c1b8461b2513de5a6af080793c27e733f3a1c245a36ef47c1329b
+6cf01f135f28ae2519d42f1aa3f2998e71643a88a4258eae5d408d12d9f5ec6afa5525d3e152ae148bf34b5d69f0ae7463b1b2a345dba7d55a7080b3f05f4a10
+2982ef0515a35ec4d125f14eb0517966071590a4f7cd704d3d13380b4e7c0d084eb36449598e87d27a108d991635743b5774a0f0def54f8a9f559fba9413f704
+8d27697c6539d919541f2acd3dff92c81100a8143311884c264210ac9d884402914aea17083c54f5091600b00361cac265efa50c5974acecb5a643f8aa8d0e18
+2790b454d78ba07edee155384a9ce592df09203b97683b78183f3baf1d08eafd751d3646f18d61b24994545af2726a8cf3cff1effb8cd0603806ff6fb7235dd5
+7d00b24137fa9509c44c304300cc880402117ae307ff05cd4ba40954106808df0ecf0a0c372ec342ca51e2033931fcaa9d292a5568341b8dbc23279ce249a031
+73b34d5a02b8d2b24953ac333102ef6904a53a4b06e3b21dc8a9ab96b5ee23204c3397ce4dd0604eb923ca68ac935202b8325b39eff85e2c116e1b91f585e9c4
+55c46c063c9d0e17f2c355ff361faf5f4a7503b9fc9d05a2120133121f04308c784e5ac86089f3cf0af3b0eeb42da751a45c264a5531f166a559452e80dc6ecf
+6199c0ffc9342a11f581fa017c0aedd429085af3cc2aa186cfec23cf9f00e7733df49f5124738936ff5a83f38ac12f87cc9c165133e504b43d69d8fc539c0066
+081a660f1b0c1df7c92a49837d17aec4497209fc6c3f9fcfedf74dbd94df6eff503810cfff705fc31caa57a5548e60cd127ac111533c793e29636cbdf8d2cbc9
+0cbfb45e9a8efc9eb6ceec43ff3b4ff3cd1f65b53d4a84845f300bff881b1c08ede77892d68ede1005f78df544f3bdf7cc459389f01fff2499bf035ee1ca8d3b
+8494467201f7df3612e0c19670ffec2f495e0b15d7e220f9c0453c9c3c51b65fc0c9b7b2f469baa44f4c97c3745c321f012b86a04611095f6c303a54080011b3
+e204fa614295f42d611ec7daf4c7aec4d77af3490df673f9fc6c3f1f8ab58136d3e136ee178f34cde9f26850027d50280e43050183fbee07bc0878db5838aa57
+5f78080d96c6085402918846251041c864aa9dde85de64d7e73593cfcfe7f354cf78597a326f1271a984b0603083e9b70389b04328894fd6f9af1fc06f680de7
+c32869ef35f0b296f94ceb3cefc044211389ae7000c5c9d87ece235410f8bb5c9cb6084b5fc1deef57672a99eb0190fb69789a85479e930ff78efc990aedf793
+41e45ca3ff19329d93def74f55a17e6347fff612eb09bcf9a3703058245d79de7f4cf3bd35a8f6f305c6aaef7760b7485b1ca520f1c541e99189d40251100e00
+462b1845aa0582c1cc30800011ae0040f603a10ae2081782a900be0065830c6374080d96cde070181fc9046e3897af0040f7189921ac50211b45ca458241a450
+2618859a50238259a80d21229885de005c081a4102e3442c9308ed4038132954248a0499c18d0683c1c0603016cb4f402024000808341062216ec2489ea0580b
+188c5447f2498e068381d0663f974ae0c242b1c001b08200c4202eb05c10975369846e318701804038cf2c830ac1643fc7f38090013438af7804014083f3cf44
+e672ac000011c06630978f4dd0e11cc52a61648fe2010c65b25178022a05208353012c008af673b934094132108ae80620e16801ff84f2196cf07e713608b1e1
+260307f72a95040a05a249360517158350413525b28cc438bf109c60319fcf2d703059cc703e1c6e83724127d078222905650502e6a3aeb0d3b136eb643f906a
+f24e03d3c0d06c30c4f1ccf0302db89c14aff4728ff74e76a4c240253018ac17a583104a858d7da12609a959cc628ff389c16887c3e112493c00c51049915231
+d09cc51806148523e05af136f89fe16c708a3f41f16ee48ef673f9dc7e8ff30c2ff366c3608c0b0ae276391cef92de5152d81784993620293892951a0e5f0150
+d3200e6d05080942e1a4f04ec1e034cf2eef175994f30943b70321438112840834c7f8880c246892b1020b1bbf85e8495c842f97681c3cd45644170c329768f0
+aea2389ff90aef7c394d044161b238bf4cd12200141b850761b08896b1cc602993ea4588c6f89fd4019c6010c59405ed061301803319231227f04f8609ae7cc5
+1c07729561439889558336331cdf2eef0e8b57c1162d04b8d349d0bc4d183967229d0028642211844a204ef10d457403a84e850505986f449fa0004284499e94
+1238268b0495cb0c274911b0104b443314cffd343392b94eef17c1828f49a2498003381984403ee107f712c5dd883d5338d9afa08a6a041045f34e3964b33ab8
+e40b6ab301080cc515846d94d920d9f06c3f8ac1e08503f15eaf2be7839a8a0106b0e024141a00160bcddf884d001abf3dcf0c11ff82f79bac8950a44ba9ac7c
+df76b3153c82494a348580b203219a48455c024000a096704376389a600eef1da593ea5c75c43cf04f9a1f14df46ef074535c758291a745339ba3d7cdf3a200d
+e7991701ca6506b99a2d400aef6a3840e5e8f68ab1d3685c177f98a5c3d8a9f15e725838bf6182ef3db59940952a379ac0b1c8d6655a166f17a295c8c102a1a5
+76c56f786f54dfc2690bffa6f7de6665f474f55b489ef492462965e1931cc334053c7435839cd38c6e8153dc04619cbe3498ca19899023f7baa6d1f5ecb19f85
+40837dde8aef59ac83f35a472d081b276978cf7d22aea0498db5b4dc9becf0be472df8bfad832adb492292e8caaae058d8d647baaca1cea56d3ca25e598ee658
+64f63b9f452ac60f743add61c028643311c84c94bf1981cc04e2d4ef0700196b83f36f00c010d2260c9f618c4a209240cc04181e01804c805019e8c65856489a
+174d5a5a55703edd15210f3ba04c68a71e710eff559d899942538a108043cb549dca9aef6e2210205a72734b6934f11a6d07da8677596ea0e3b4634fdbec1647
+7e005be886dad28a7902d06894db2446558476bf179acb0c958c2bfcce7e40597d3248446bdb72f1425ca65620281a96f39cc60854225c881ea5272304e50671
+d2de093660ad1a33a16da8b2ce99cb2ca5cc213cefb0176a3253f8315374a93ed209b24d159fb2824113bda3d2d94a3abf542813e267bbb4405577accb5230cc
+4ba516029c85a782b2e6b6f774fb9077b8bf9e165c78d772e954bc627654764d2ed13e65a960d71491c4ffe26303213aba6373ab6c51563575f54afa78dff49a
+4a012f6ddc29e1188a1bb73c3da2b43f06ffabd986b3eff8eb7cba0075d896d49a52ca05818a219720171b20b50875f45706f30f320f7704300e120f028f81c7
+01e3a0f160f038782c301e120f0a8f85c703e3a1f1e0f07848f01a4f388300019f6cee918b0e0109d08240c2306a40f6108a18c1bb783c83f14b20e170ff30ff
+28641c4dd93c831441b1a4c07c9055382814cf1a4315b98740c1b1e411961097581d04d316c6054a8ff14af22e70fee03c28210cce7c0dcd83f1ca20e070efe3
+18ff0cff0ef705cb8886c954a4717ed09338cf0c5a12f71bf7854cc345e41358205ab8ff1c151a9d11f384fdc927637172c12ec81f6cff3e2607ff8701c1d52a
+243b6174b8cec47806d20bf38f904369a8a33372f5b9f8ec700efc3f1a9f8dcf0fe731f3e3f1f9e8080000000000000000000000000000000000000000000000
 __label__
 00000000000000000000000000000000001101000000000000000000000000000000000000000000000000000011010000000000000000000000000000000000
 02000000020000002000020000000000001001100000000000000000000000000000000000000000000000000010011000000000000000000000000000000000
@@ -2254,38 +2236,35 @@ __gff__
 0000000041000100000004040400000000000000000000000000000404000000000000000000800000000104000011010100000000000000010101010000010103030303030303030303030303000001030303030303030003030303030000010101030301010303030303010100000001000303010103200000002001050000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __map__
-07072a2a2a072a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a07075376765107712a0007567656545176505107712a000756505551565676505055505055504c4b505051765107075451565676505050504c4b505051565676517651070754504c072a2a2a2a2a2a2a2a2a2a2a2a004b5156567655505050555050555050504c
-072a0707072a0707070700001d07070707071d070707070707646060706060522a002a536070606070606060522a002a53606060606060606060707060606b49476c60706060527660606060606060606b49476c60606060607060605276606b492a07070707710000001d0000002a576c606060607070606060606070606b49
-2a07070700000007070700003c0d0d2a2d072a0771000771075f046f6f7e6f6f6f7f6f1b2b0404046f6f6f7e6f6f6f6f6f6f6f6f6f6f6d6f6f6f6f046f7b604947606e4e6f6f6d6f6f6f6d6f6f6f6d6f60494760046f046f6f6f6f6f04046f605907077107000000002c3d0000000007437e04787f6f6f7e6d7e6f7f7e6f604a
-2a07077100000007070700000707070715163d070700070707077e787a7a797a78797a7a1b1c6f6f7f797a7a7a7a7a7a787a7a7a7a7a6d7a7a7a6f040404605947606f7b7a7a6d7a7a7a6d7a7a7a7b6f604947606f7b04047a7a7a7a04046f606907077707000000001d007100000007077f79797a7a784d5e7a7a7e7b6f6149
-2a07770d0d2d07070707000007710707252607070700070707077f797a786f6f6f6f7a7a7a7a7a7a7a7a7a6f6f6f7f6f7a787a7a7a7a6d7a7a7a6f6f6d6f606957606f7a7a7a5d6f6f6f5e7a7a7a7a6f604947606f6d7a7a6f6f6f7a7a7a6f605a0d0d3d07000071072a2a0000000007536f787a7879786d787879797f7e6049
-2a070707071d0707070700000707072a0d3d2a7107000707077d7e7f6f6f7e04046f6f6f6f7f6f6f7f6f6f7e0404046f0b0c6f7a7a7a5d4e7a7a7a7a6d6f605a68606f7a7a7a6f7a7a7a7a6f4d6e6e6e604947606f6d7a6f047a7a6f7a046f604907710707000000072a2a0000000058617e7a7a7a7a6f6f6f7a0b797a7f604a
-2a070707071d07070707000000002a3c2d070707070071072a7460606060607060604266464666437060606060606070606b6f047a7a6f6f6f6f7a0b5d6e604a68616f4d4e6f6d7a7a7a4d6e5e7a7a04604947606f5d6f7a7a307a046f4d6e60725050515654504c07071d0000710047607f797a7a6f7a6d7a6f1b7a786f6149
-2a070771071d070707070000002a072a1d0707070700072a0707664646664440404107070771070744414666664445406361047a7a7a6f7a7a6f7a1b0c6f604947606e5e6d6f5d6e2e2f5e7a6f7a7a04604947606f7a6f04307a306e6f5e6f6b6060606060606b4907071d0000000047606f787a6f7a7a307a7a6f797a6f604a
-4b505050517651505050505050505050505050505050505050505050505050505050505050505050505050507656545073606f7a7a7a6f7a7a6f6f6f6f6f605947606f7a5d6f7a7a3e3f7a7a6f7a7a6f604947606f7a6f6e6e3004046f7a0404046f6f6f6f6f6049072a2a0000070748617e797a6f7a3079304e7a79786f6049
-476c60606060606060606060606060606060606060606060606060706060606060606070606060606060706060606070606c6f7a7a7a6f6f6f6f7a7a7a6f606a47606f7a7a6f7a7a6d7a7a7a6f4d6e6e604957606f7a7a6f046d7a6f047a6f6f6f046f6f7a6f60492c2a2a0000070747606f787a6f7a7a30795d6f6e6e6e614a
-57606f6f6d6f6f7a0b2b046f6f6f6f6f6f6f6f0404046f6f6f6f6f6f6d6f6f1b1c6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f7a7a7a7a7a6f6d7a307a4d606a47606f7a7a7a6f6e5e7a7a6f7a6d7a6f604968606f7a7a046f6d6f7a7a7a6f6c60606b047a6f60493d07077100000047607f787a7a6f7a5d4e7e7a797a6f6059
-68606f7b5e7a7a7a0b2b1c047a7a7a04047a7a0b0c7a7a7a7a7a7a4d5e7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f5d307a305e605a47606f7a7a4d5e6f6f6f6f7a4d5e7a6f604968616f7a7a7a7a6d7a7a7a7a6f60626360047a6f60725107070707544c47606f797a7a7a6f6f6f787a797a6f6069
-68616f7a7a7a7a0b2b1c7a7a7a7a6f04046f0b2b0c6f6f7a7a6f6f6d6f6f6f6f6f6f6f0b0c6f6f7a7a6f6f6f6f6f6f6f6f6f6f7a7a7a7a7a6f7a7a307a7a604947606f6f7a6d7a7a7a7a7a7a6d7a7a6f604947606f6f7a4d6e5e7a7a046f6f604947606f7a6f6b6060520707536b49486079797a7a7a7a7a6d7a7a7a7978605a
-68606f7a7a7a7a1b1c7a7a7a7a6f6c6060606060606b6f7a7a6f6c606060606070606060606b6f7a7a6f6c6060606060606b6f6f7a6f6f04046f6e5e7e7e604a47606f6f6f6d6f6f6f6f6f6f6d6f6f6f604947606f6f6f6d6f6f6f6f6f6f6f604947606f7a6f6f04047e6f7f6f605947607878797a78797a6d787a787979614a
-58606f7b4e7a7a7a7a7a7a047a6f60624040404063606f7a7a6f6062404040404040404063606f7a7a6f606240404040636b6b6f7a6f6c606060606060606c49476b60606060606060606060606b6f6f6049476b60606060606060606060606c4947606f7a7a7a04047a787b6f606948606f78046f6f6f7e6d7f7e6f6f7f604a
-48606f6f6d6f6f6f6f6f6f6f046f60494b50505073606f7a7a6f60725050504c4b50505073606f7a7a6f60725050504c5b63606f7a0b6162404146444045405c5b404040404646444542444063606f6f60495b404646444542444040404040405c47606f7a7a7a7a7a7a7a7a7f605a476b6070606060606b6f6f6c6060606c49
-476b6060606060606060606060606c49476c6060606c6f7a7a6f6b6060606b49476c6060606c6f7a7a6f6b6060606b494b73616f7a1b6072505051565450504c00000007070707070707545073606f6f607250505050505050505050505050505073606e6e6e6e4e7a7a04046f60495b4040404040456360046f60624040405c
-5b40404046664440404040404040405c47600404046f6f7a7a6f6d6f0404604947600404046f6f7a7a6f046f6f6f6049476c6c6f7a6f6b606060606060606b49077700076452565653537060606c6f6f6b60606060606060606060606060606060606c6f7a7a7a6d7a7a7a046f6072515656765050507360046f60725050504c
-4b50505050505050505050517651505073600404046f7a7a7a7a5d6e0404604948606f7a7a7a7a7a7a7a7a047b6f604947606f6f7a6f6f6f6f042b2b04046049001d0007436f6f6f6f6f6f6f6f6f6f6f6f6f1b1c6f6f6f0404046f6f6f6f6f6f307a7a7a7a7a7a6d7a7a7a7a6f6b6060606060606060606c6f6f6b6060606b49
-476c6060606060606060606060606060606c6f6f6f6f7a7a7a7a7a6f0b0b604948616f7a7a7a7a7a7a7a7a7a5d6e604957606f7a7a7a7a7a7a7a1b2b2b0c6059071d0007077a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a6f0404046f7a7a7a7a04307a7a7a7a7a7a6d7a7a7a7a6f6f6f6f6f0404046f6f6f6f6f6f6f6f6f6f6149
-47606f6f6f6f6f04046f6d6f6f6f6f6f6f6f6f7a7a7a7a7a7a7a7a0b2b2b604947606f7b4e7a7a7a7a7a7a047a6f604968600c7a7a7a7a7a7a7a7a1b2b6f6049073c2d07077a7a7a7a7a7a047a047a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a30047a7a7a7a7a045d4e7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7b6f614a
-47606f7b7a7a7a7a7a7a6d7a7a6f6f6f6f6f6f6f6f6f6f6f6f6f6f0b2b2b604957606f6f6d6f6f6f6f6f6f6f046f604968612b0c6f6f6f6f6f6f6f7a1b1c604907711d07536f6f6f6f6f0404046f6f6f6f6f6f6f6f0b0c6f6f6f6f6f6f6f6f306f7a7a6f6f6f04046d6f6f6f6f6f6f6f6f6f6f6f6f0404046f6f6f6f6f6f604a
-47606e6e6e6e6f6f6f6f5e7a7a6f6c6060606060606060606060606060606c49586b6060607060606060706060606c49586b606060706060606b6f7a7a6f604907001d077470606060706060606060606060606060606060606b6f04606263606f7a7a6f6c606060606060606060606060606060606060606042000043606c49
-48606f7a7a307a7a7a7a307a7a6f60624040404046664440404040404040405c5b40406644404040404040404040405c5b4040404040404063600c7a7a6f605907001d0707664644404040404040404040404040404040406361046f605947606f7a7a6f6062404040464644454244404040404040404040410707710044405c
-48606f7a6f6d7a7a7a7a7a6f7a6f60494b505050505176515050505050505050505050505050504c4b5050505051077107567656545050507360040c7a6f606a07071d07070707073c0d0d0d2d000000000000000000000073606f6f6a004760047a7a6f604900072a2a0000000000000000710000000000000000000000072a
-48616f7a6f5d6e6f6f7a4d6e6e6e6049476c60606060606060606060606060606060606060606b49476c6060606052565360706060606060606c1c7a7a6f606907001d0707070707070707071d6452765352765656765360606c046f60655760047a7a6f604900072a2a0000000071000000000000000071000000000000072a
-47606f7a6f7a7a6f6f6e5e6f7a6f604947600404046f6f6f6f6f6f6f6f0404046f6f6f6f6f6f604947606f6f04046f6f6d6f6f6f0404046f6f6f6f7a7a0b606907711d0707070707070707071d430404047e6f7f6f7e6f6d7f6f7a04044207436f7a7a6f60490007071d00004b5051565676505051765150505050505050504c
-57606f7a6f7a7a6d7a7a7a6f7a6f6072736004047a7a7a7a7a306f6f7a7a7a7a7a7a7a7a6f6f604947606f7a0b0c7a7a6d7a7a7a7a7a7a7a7a7a7a7a7a1b604907001d0707070771070707071d686f7a79787a7a04787a6d797a7a7a04072c0d6f7a7a6f60490071071d0000476c607060606060606070606060606070606b49
-68616f7a7a306e5e7a7a307a7a6f6b60606c6f7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a0b6f604947606f7a7a1b0c6f5e7a7a7a7a7a7a7a7a4d6e6e6e6e60490d0d3d0707070707070707071d437f7a7b7a7a0479787a5d6e6e7b7a6f0d3d076f7a046f60490007772a000047600404046f6d6f6f6f6f6f6f6d6f6f6f6f6059
-68606f7a4d5e6f6f6f6f7a7a7a6f6f6f6f6f6f7a7a7a7a7a7a7a7a7a7a7a6f6f6f7a7a0b2b6f604947606f7a6f301b306f0c7a7a7a7a7a7a7a6d7a7a7a6f60490707070707070707070707071d677e786d7a0404787a7a797a7a78797e5207536f7a7a6f6049002c2a2a000047600404047a6d7a7a7a7a7a4d5e7a7a6f6f6049
-58606f7b6d7a7a7a7a7a7a7a7a6f6f6f6f6f6f7a7a7a7a7a7a306f7a7a6f7a7a7a6f7a0b2b1c604947606e6e6e6e7b0b2b1c7a7a7a7a7a7a7a6d7a7a7a6f60490707070707070707077107073c537f6f6d6f6f6f7f7e6f6f7f7e6f7f7f6a58606f7a7a6f6049001d0707000047606f7a7a7a5d4e7a7a7a7a6d7a7a7a7a6f6049
-48606f6f6d6f6f6f6f6f6f6f04046c60606b6f6f6f6f6f6f6f6f6f7a7a6f7a6f7a6f7a1b1c0460494760041b0c6f306f1c7a7a7a7a7a7a7a6f6d6f7a4d6e606907070707070707070707070707744246436646434246466643426646437547606f7a7a6f607250505050505073606e6e6e4e7a5d6f6f6f6f5e7a7a7a7a6f6049
+0381c542a15400ce005e070394cec762881ce22a0001cac762b150a2762840318a05528958ac7628140ab00232612ca05028c09880e5480a2942022b020280aa9409905bc0012e0767039281eac0b480f0682801a01c00000ec018c0f005503990c06038180c0521500054538041c02ca018d00073840788d649239b204c8768
+0b3c045203c90154359260b6871004174a00642a2bc07120747022480f2c070a0fe83c06834542d84811c400073881cbe04379bcfc6f379bcfe6f0d8ac0804806140352004c6d8051810de7b301248e603713a01eb0035808981203450204021bcc05983e14180c002c1ec014c0e433f010f07f82c91b4fc6f3f9f8de6025459
+ca13870ff488298542c3d8851443ccfc783d1e8f27a3c1e4f47a0d87210c500728009c050a01046d80614178808602c91cc06f3dc03d602667b83fa1bcf6040240b4e0fe6690381cef07f40e8020cea7f3cc1448f04d2f1e8f47e3d9bcc311e23b8341a2d8bfac3d480e25134628e31e707123c43c4e0eeb07038861c20160fe
+90ed33495cc102032ec4a0a0a25094283fa4278a070a6f301681a0d1ec7688e3266287fa14cde7886991e0da783c1e4f27f3f18233cb1f848c220a81a3d1544bca42647d3f4498e2f0918328011c0308086f058320de84e882a41788d107f485221bc9a6e371ba0fec6f88011bcf517f224c350e3c0707f52c184fd0ca63d02c
+f27a3fc5fd20ff121f21e4429615c474922b908cc46231988723159191c169208085d371809468309bc9a4e87819e89a6e8a990122fe85d89a10c20fa44d37180e530d3983181e4fe4710011cc11c8337c7008de1b8af145fce4d6507f79c414429662a7076322100804195f181c0e4420918cc6622114806330c768e32846f3
+d06c1926d437178da6f2e9b85c2f2f4414e0feb21b2181e8606e37978de6b98abc1fd00107f28bf942750f46f3cc6b48953bf29e01cee4e007f013f2850188a0738b7bcc3124fe91fd23d1e87c3f84aac1fd8dc6e184ccca502530958c3147fcc0e0724184fd07623d0c0f230271e8f2789969ceb56009f3c16803dcecd0e060
+36495d24bce6a8769c7f8e622920023012652286f02480d274a910e2301245907f587fc1e4bb0a3237184952bf29e699e8162b9d9aced92014d3e529bd1c007e618a6d8f091360fed0ef29a7947550c049948a01284453a33a4591ae10c46024cf54a90871ff29eb144c889c7e9ee15078a57e47b99c982c561c9d99cee0c160
+c9f52ce8ce003f38c92ec7848bc602d43fd09a5e9d424f50a0fe6619d925088e71c462319820fe672ad11569089942e2a241d35c8f107f434c0b5a0fc53e249b098ac193f43a7235404a6e451ef787fd490d28da92cd3a4abd1fd6114530c48fc1ca39250c452b2811ac92483051f8e982c793c4efde9c45461490631ae5be75
+c68807e4dfca5bc555a337178fc7e3012a0fe70a97aca9c2456177130e6ac5155bca55c94782aaa19b690c67930928b153f2a26254b8a25c640800118e4a6900b5807f98cd709c2853b980d84923cd85a136f6112808dc080aa40959023c56708d2489bf9592d0db5fd237d1fca02051688a571ce3ce6c691b32ba6b403f0b70
+9c305984c44020918884022900b85b85819188c4422908890b73b3f916e01cf0be42e4a816c7887f91711ae2a2f16b485ff433ce02c945f3a1d1dd35a01f44b39c9788374d6728132e76b25c4a0d9c2d5689b6733056548dd5af2b869c270a2c064594a145ad617e94e7485745db126c0773f2ba6a403daf04742f3a0015359e
+9ae6770001cc8522b158a653c1691b0df01988c155b04ee60778d23962958e707f38afc53f1aa0c90192a5c1db4ccdd07f38d815c01c0975d693f9dff48578162301270ac40721d08f286494438ab414e36645730a96c56c42bae8c500b05c1fca79ab7fc4b3795375701481b158ac1985e283f901e84ff81b4bdc2581ca0ff5
+4ddcc66998665ab8aa49f73dfc20162b15e135663f54dd2a4eb4200eebc7731399fbe1d529698308092812f60b4cfec3f94efcf17e543d7ab6641fd2b3ed31f83418693c758750d872fbc61dc2994363a962717e6b54a810090dd8af0e50fce53c79d93ae09da33cd8492c5d04ecf4d00fca51a6178b56a474d4e1dab5e81720
+4abe1d2e6add1a42000008743f292fa48912f24747f5987dcf7ca63b332f6a51ad894b4bc7b35333502ca001d8272bceb5355a82974e42c2b11c40044201725be78be4ca21d1fdb021f3278e07170312682a0cbbf9eebdf67640d16eb9ce006d40b33563b8b30e73252cff36c20f71670287038aa5be78be2b19266f5301ffbd
+5c2915b818957a4b5816b78f86adc39432148ec53291db93a5c252366df08ca5783ff41ee2108c071564b535b666e2f609d28fed227fb73a7014f7f278d56bda16d78a4fe507f821f0a0acce67e379b76524040210a83450ff6cff192fa30996fc266cfcf17cf7a73a3f9cce576f337467c0c1dda9a804d27f5d10af4e48d06f
+caa16fdc8f07a36f0b8c0807160360feda632cfe174ad32b53cff3c16a0c35747a123d171657d30f1a0bceab69c4f1271b6c3db696f78e1ff27f3d723080908322e9b8dc7b3d1bf7f45b8450001cefbfe2aedadeb2b1feb8be7c31be396e2ca94673d6aa0c0363037d1f9fa049bde28005074ce7e3c1b79ea5d384e9c91f8a5c
+6e293fae7f92cb698ac6e801ea5ceffe71538a7fdd0e538b4999a2ef3a71748f7927683ffee8d478533ff8652fb49ddf23f9ab0ba52ff5f6d16df139773d2d6bffe01345c7a67a94d1d398ee0ebbef2181be0fcfa5f3e2f17778a2034742111886662310c85cb03e5b110ceb3ff6bc9b5e2909ddac4ed6c0239acc1000a36188
+c700f7359bcf47a8011400cc087b301248e600207039010480121bc605e181b8bc6f301a40f000538c01d09650281460144563b158a85080021ccc1045383141b20a646d8222c0114c0592d900804023198890052801217201ee6381c99e8de6f8411810df07f383dc420d4f709b205980b50796843295cd86030148ac53301c
+21a130c53800541fc8de6d86a91349d0db4301aa16450aa3289d8a30b15802bc2e521d8e0483ff934dc6e181bcf40b15980930ff41540092214443835b812004a3006030560c85be9b4de5d370b85e5e2e9bcdd0002301a48f0b22800fc4ae22db10fff861141f8e0fee070a85a30e42c068341b1a06024011408300d8ac361c
+8d9a02e10cc4d2ec75c87c3f8eda8120fe4603786c562b0e1bcdb1255803344b1e3f6504a237c5ffe0fe67a3d06c0804301663fea2513481c83a0738802349308251841f4a2fe70ab206473089a6e2f4950e302707f58eb9c1fce0a2b05868d85812292507f6807b4040e15a60b15c1fc8b517f8068347a070394e06f303a58d
+291e0df16283597a5769084293fc12254241b0e43e1c9a5e938240c5648b26036124ae6b359bcff1abf80b949f680e072c4d33268ac7937980c52de5969ac18ce5ac724328ff9120c32a143d1749d1d779bb9c0c4a6273317438918c31862311048c4622ccc188a6620110805c0381c0100099a621188845214d3dcc6603f1e4
+f47f8d2987675053435834ac90d4c05a9ab9cd9123a4919848081180933ca22acf0c8aa5103cf38a7bc40034180de7e301260d8871000027e081d3881c542a83f5002698c502601c0106f3000008e613f511488521c4039c4af3c358f54d0fc8ae609839c3f08bb3a638cfacbbd262ee529e7114cca073b81cc2043f180e4513
+bcfbea1a6747233b1468e2c739a629ac9207001de7206002b984fe7a3d1f8a53a239d1919e486507fb96b94bfce9cc534f4a4ac4dbce42e530d33f1fe4e494672321b0094c8338148ed45f232d3d8c0105339dfb51c58d93f823dd2b480101b403800e2683f1e0f27f355478a0fe658961b524262fed51439802d5c569de87e3
+dcd99244c66e301aa8b4c7f379fa60464f83fcc14de780d3b0283fa0003a00ac999d084000010cea008c02d7acaa32d520736555d20fe949533d13692a9497287f94ea8a82865e05830186f30924e258379e2bf8e793f57c500125438e9b47562b5ab0ff394b94a6e2400b5eb380171724fe84d2e9ba92a96512a39a98092573
+051e0ecfe61b15870fe602501c90043c1e60f890053b3aa000593f123448fcc9d0a75895ada54a3fe507f585195a75a3fe64b28144ac563b5a85abe4a4c23c9fce81eb4957a399180926883f958a486108030e589c80e68a44a48388fd18223e47fd26a66689dfa5a288de1b065658eace571541e0345b07b8acd9c9fced3c72
+d13b50c9ae1ce527f3a4aed7bccd12b923797460791847fd0c2698e49118cc4333118876db43ac9fe25a6523b2060c0360c37d510ec2642b37c87525e0771b99ff1da78cff23e4379faaac50052bab919cc15612a4af47fce7dc57fe3181e632477e74bb431988c662311a4b6907f92e8c0f4308bd241f8c3919d28b834eab69
+52540d2c291492180932922cc59cae565495bb161030c049995956a5606467f977a5fa264a0945458139c29cf158a1b0e5bb8ea2681da8b9193018465a5820f2950b2c39c6419765ce50ff3ab9a5a01ed5661c9ffa56a565ea4783ce38170d4d50c29a819c65fe989728f895b597238f59341e0b40000341f8fc7f35567d6a50
+771ebca42980b30e74c739de020f40b937912490619272414621eed34c6a6e24dfdc576514c86949ecf1d8729d4af8999cfe7b379aa606d600287f90322f8f07f6bff9e524b19e45e81fa5a1c8161ca60991cc02b061b4f537149f8167958597652068b6b9ab55038311980de1cbdda82c381b942160c0af2a82a150f4e20734
+1fcfd57c2a3e955f4ac2087e99211e8f768069b0159fd2f9f182343686efde857300ac3957e2a7919f8fe7e9b79df8566b257ea306834557f123bd54d717691352c0fb66b4a4fcc74211c4867583fa1de076853a9f15740a0aeb5482d2b9ebfd8cd7d7f3a6006349a536f4900ce9d2b67fb815f9bf6e07bf0ae75136209c4884
+1334d60af76e5c3881c8642234da88cc4620cdc0aece5001f808b554e2fef65c8177c0ae703d9b6f20000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __sfx__
 151000000c0730000000000000000c013000000000000000266550d0000e625000000e615000000e615000000c0730000000000000000c013000000c07300000266550d0000e625000000e615000000e61500000
 d1100000021450e14502115021450212502115021450e11502145021250211502145021250211502145021150f145031250311503145031250f1150314503115021450e1250211502145021250e1150214502115
