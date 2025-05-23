@@ -92,7 +92,7 @@ function _init()
 
   trans = transition.new()
   player = entity.new(0, 0, "bot", "player")
-  change_state("gameplay", true)
+  change_state("intro", true)
 end
 
 function _update()
@@ -542,7 +542,7 @@ function update_intro()
         intro_text_panel.textline = intro_pages[intro_page]
         intro_text_panel.char_count = 0
       else
-        change_state("intro")
+        change_state("mission_select")
       end
     end
   end
@@ -1121,7 +1121,7 @@ function entity.new(x, y, base_class, subclass)
     15,dervish,50,50,60,100|
     13,vanguard,70,70,50,120|
     1,warden,100,100,70,200|
-    7,player,4,4,70,0|
+    7,player,400,400,70,0|
     11,preacher,80,80,80,280|
     6,cyberseer,160,160,80,300|
     1,quantumcleric,170,170,70,320
