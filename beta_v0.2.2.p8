@@ -722,7 +722,7 @@ function init_gameplay()
   decompress_current_map()
   music(0)
   player_hud = player_hud.new()
-  entities, particles, terminals, doors, barrels, data_fragments, ending_sequence_timer, win_lose_timer = {}, {}, {}, {}, {}, {}, 1000, 0
+  entities, particles, terminals, doors, barrels, data_fragments, ending_sequence_timer = {}, {}, {}, {}, {}, {}, 1000
 
   local mission_entities = {
     [[0,0,bot,player|448,64,bot,dervish|432,232,bot,vanguard|376,272,bot,vanguard|426,354,bot,dervish|356,404,bot,warden|312,152,bot,vanguard|232,360,bot,dervish|40,100,bot,dervish|200,152,bot,dervish|32,232,bot,warden|88,232,bot,vanguard|248,248,preacher,cyberseer]],
@@ -839,8 +839,6 @@ function draw_gameplay()
 
   -- check mission status
   if player.health <= 0 or (count_remaining_terminals() == 0 and dist_trig(player.x - player_spawn_x, player.y - player_spawn_y) <= 32) then
-    local message, color, prompt
-
     if player.health > 0 then
       message, color, prompt = "collection ready", 11, "PRESS 🅾️ TO EVACUATE"
       
@@ -852,20 +850,12 @@ function draw_gameplay()
       message, color, prompt = "mission failed", 8, "PRESS 🅾️ TO CONTINUE"
     end
 
-    -- Increment timer
-    win_lose_timer += 1
-
     draw_shadow(player.x - cam.x, player.y - cam.y, -10, SWAP_PALETTE)
     print_centered(message, player.x, player.y - 6, color)
     
     -- Only show prompt after timer threshold (0.1 seconds = 6 frames at 60fps)
-    if win_lose_timer > 30 then
-      print_centered(prompt, player.x, player.y + 2, 7)
-      
-      if btnp(🅾️) then 
-        change_state("mission_select") 
-      end
-    end
+    print_centered(prompt, player.x, player.y + 2, 7)
+    if btnp(🅾️) then change_state("mission_select") end
   end
 end
 
