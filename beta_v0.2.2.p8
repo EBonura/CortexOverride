@@ -477,7 +477,7 @@ function _init()
 
   trans = transition.new()
   player = entity.new(0, 0, "bot", "player")
-  change_state("intro", true)
+  change_state("gameplay", true)
 end
 
 
@@ -763,6 +763,12 @@ function init_gameplay()
     end
   end 
 
+  if current_mission == 1 then
+    add(terminals, terminal.new(32, 32, nil, "MOVE: ⬅️➡️⬆️⬇️"))
+    add(terminals, terminal.new(120, 80, nil, "ATTACK: ❎"))
+    add(terminals, terminal.new(200, 120, nil, "WEAPONS: 🅾️"))
+  end
+
   local door_terminals = {
     [[444,130,472,80,red|354,66,248,368,green]],
     [[808,252,712,48,green|824,252,952,56,red|840,252,568,376,blue]],
@@ -823,6 +829,12 @@ function draw_gameplay()
   player_hud:draw()
   game_ability_menu:draw()
   game_minigame:draw()
+
+  for t in all(terminals) do
+    if t.interactive and not game_minigame.active then
+      t.panel:draw()
+    end
+  end
 
   -- check mission status
   if player.health <= 0 or (count_remaining_terminals() == 0 and dist_trig(player.x - player_spawn_x, player.y - player_spawn_y) <= 32) then
@@ -1157,7 +1169,7 @@ function entity:update()
     
     if btnp(❎) then
       for t in all(terminals) do
-        if t.interactive then
+        if t.interactive and not t.tutorial_msg then  -- Skip tutorials
           game_minigame:start(t)
           return
         end
@@ -1708,10 +1720,10 @@ end
 ----------------
 terminal = {}
 
-function terminal.new(x, y, target_door)
-  local pulse_colors = target_door and target_door.color_map[target_door.color].terminal_sequence or {7, 6, 13, 6}  -- Default pulse colors if no door
+function terminal.new(x, y, target_door, tutorial_msg)
+  local pulse_colors = target_door and target_door.color_map[target_door.color].terminal_sequence or {7, 6, 13, 6}
 
-  return setmetatable({
+  local t = setmetatable({
     x = x,
     y = y,
     interactive = false,
@@ -1719,8 +1731,16 @@ function terminal.new(x, y, target_door)
     pulse_timer = 0,
     target_door = target_door,
     pulse_colors = pulse_colors,
-    completed = false
+    completed = false,
+    tutorial_msg = tutorial_msg
   }, {__index = terminal})
+  
+  -- Create panel for ALL terminals
+  local msg = tutorial_msg or "❎ INTERACT"
+  t.panel = textpanel.new(x-10, y + 65, 10, 90, msg, true)
+  t.panel.selected = true
+  
+  return t
 end
 
 function terminal:update()
@@ -1729,13 +1749,26 @@ function terminal:update()
     return
   end
 
-  self.interactive = true
-  for e in all(entities) do
-    if e.state != "idle" or dist_trig(player.x-self.x, player.y-self.y) >= 32 then
-      self.interactive = false
-      self.pulse_index, self.pulse_timer = 1, 0
-      return
+  local dist = dist_trig(player.x-self.x, player.y-self.y)
+  
+  if self.tutorial_msg then
+    -- Tutorial: simply show when close
+    self.interactive = dist < 24
+  else
+    -- Original terminal logic
+    self.interactive = true
+    for e in all(entities) do
+      if e.state != "idle" or dist >= 32 then
+        self.interactive = false
+        self.pulse_index, self.pulse_timer = 1, 0
+        return
+      end
     end
+  end
+
+  -- Update panel animation when interactive
+  if self.interactive then
+    self.panel:update()
   end
 
   self.pulse_timer = (self.pulse_timer + 1) % 6
@@ -1743,6 +1776,7 @@ function terminal:update()
     self.pulse_index = self.pulse_index % #self.pulse_colors + 1
   end
 end
+
 
 function terminal:draw()
   if self.completed then
@@ -1888,13 +1922,7 @@ function player_hud.new()
 end
 
 function player_hud:update()
-  self.show_interact_prompt = false
-  for terminal in all(terminals) do
-    if terminal.interactive then
-      self.show_interact_prompt = true
-      break
-    end
-  end
+
   self.shake_duration = max(self.shake_duration - 1, 0)
   if self.credit_add_timer > 0 then
     credits += 5
@@ -1925,10 +1953,6 @@ function player_hud:draw()
     credits_text ..= " +"..self.credit_add_timer
   end
   print_shadow(credits_text, start_x, cooldown_y + 12)
-
-  if self.show_interact_prompt and not game_minigame.active and sin(time()) > 0 then
-    print_shadow("❎ interact", cam_x + 4, cam_y + 120)
-  end
   
   local alert_x, alert_y = cam_x + self.x_offset, cam_y + 127 - self.alert_bar_height
   
