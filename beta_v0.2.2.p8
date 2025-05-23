@@ -24,6 +24,8 @@ Optional Objectives:
 * Eliminate all enemy units
 ]]
 
+-- bug to fix, info terminals shouldn't count as terminals for the endgame
+
 -- MAIN
 ----------------------
 function _init()
@@ -256,7 +258,7 @@ function count_remaining_enemies()
 end
 
 function count_remaining_terminals()
-  return count_remaining(terminals, function(t) return t.completed end)
+  return count_remaining(terminals, function(t) return t.completed or t.tutorial_msg end)
 end
 
 
@@ -1954,6 +1956,8 @@ function player_hud:draw()
     elseif ending_sequence_timer > 0 then
       print_shadow("EVACUATE IN: " .. flr(ending_sequence_timer), cam_x + 30, cam_y + 90)
       print_shadow("FOLLOW THE RED DOT", cam_x + 26, cam_y + 100)
+      print_shadow("BACK TO SPAWN POINT", cam_x + 26, cam_y + 108)
+
       -- Spawn point indicator
       local angle = atan2(player_spawn_x - player.x, player_spawn_y - player.y)
       circfill(player.x + cos(angle) * 20, player.y + sin(angle) * 20, 1, 8)
