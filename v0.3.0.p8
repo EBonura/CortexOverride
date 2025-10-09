@@ -179,8 +179,8 @@ function entity:approach(current,target,step)
 end
 
 function entity:apply_physics()
-  self.vx=abs(self.vx)<0.01 and 0 or self.vx*self.deceleration
-  self.vy=abs(self.vy)<0.01 and 0 or self.vy*self.deceleration
+  self.vx=abs(self.vx)<0.01 and 0 or self.vx
+  self.vy=abs(self.vy)<0.01 and 0 or self.vy
   self.x+=self.vx
   self.y+=self.vy
 end
