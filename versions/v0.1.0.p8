@@ -24,157 +24,97 @@ Optional Objectives:
 * Eliminate all enemy units
 ]]
 
-
--- MAIN
-----------------------
-function _init()
-  cam = gamecam.new()
-  
-  -- Missions
-  MISSION_BRIEFINGS = {
-    "PROTOCOL ZERO:\n\nFACILITY ALPHA-7\nOVERRUN BY \nBARRACUDA\n\nINITIATE LOCKDOWN\nPROTOCOLS AND\nSECURE VITAL DATA\nBEFORE EXTRACTION",
-    "SILICON WASTELAND:\n\nBARRACUDA SPREADS\nTO CITY OUTSKIRTS\n\nNAVIGATE HAZARDOUS\nTERRAIN, \nNEUTRALIZE INFECTED \nSCAVENGERS,\nSECURE DATA NODES",
-    "METROPOLIS SIEGE:\n\nVIRUS INFILTRATES\nURBAN MAINFRAME\n\nBATTLE THROUGH\nCORRUPTED DISTRICTS,\nLIBERATE TERMINALS,\nDISRUPT BARRACUDA",
-    "FACILITY 800a:\n\nFINAL STAND AT\nNETWORK NEXUS\n\nINFILTRATE CORE,\nINITIATE CORTEX\nPROTOCOL, PURGE\nBARRACUDA THREAT"
-  }
-  
-  mission_data, credits, current_mission = stringToTable("0,0,0|0,0,0|0,0,0|0,0,0"), 5000, 1
-  
-  v = 2040
-  -- Load compressed map from map data
-  map_data = {
-    -- 4 Levels
-    pack(peek(0x2000, v)),
-    pack(peek(0x2000 + v, 1585)),
-    pack(peek(0x1000, 1788)),
-    pack(peek(0x1000 + 1788, 1402)),
-    -- Logo
-    pack(peek(0x1000 + 1788 + 1402, 243)) 
-  }
-
-  -- Decompress Logo
-  decompress_to_memory(map_data[5], 0x1C00)
-  
-  -- -- Load map 1 for Intro
-  decompress_current_map()
-  SWAP_PALETTE, SWAP_PALETTE_DARKER, SWAP_PALETTE_DARK, INTRO_MAP_ARGS, STATE_NAMES = unpack(stringToTable[[
-    0,0,0,0,0,0,5,6,2,5,9,3,1,2,2,4|
-    0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0|
-    0,1,0,0,0,0,0,2,0,0,0,0,0,0,0,0|
-    4,37,0,0,128,48|intro,mission_select,loadout_select,gameplay]])
-
-  entity_abilities = {
-    dervish = {"mACHINE gUN"},
-    vanguard = {"rIFLE bURST"},
-    warden = {"mISSILE hAIL"},
-    cyberseer = {"rIFLE bURST", "mISSILE hAIL"},
-    quantumcleric = {"mACHINE gUN", "pLASMA cANNON"}
-  }
-
-  entity_colors = {
-    dervish = 15,
-    vanguard = 13,
-    warden = 1,
-    player = 7,
-    preacher = 11,
-    cyberseer = 6,
-    quantumcleric = 1
-  }
-
-  states = {}
-  for name in all(STATE_NAMES) do
-    states[name] = {
-      init = _ENV["init_" .. name],
-      update = _ENV["update_" .. name],
-      draw = _ENV["draw_" .. name]
-    }
-  end
-
-  trans = transition.new()
-  player = entity.new(0, 0, "bot", "player")
-  change_state("intro", true)
-end
-
-function _update()
-  if trans.active then
-    if trans:update() then
-      current_state = next_state
-      current_state.init()
-      next_state = nil
-    end
-  else
-    current_state.update()
-  end
-end
-
-function _draw()
-  current_state.draw()
-  trans:draw()
-  printh("mem: "..tostr(stat(0)).." | cpu: "..tostr(stat(1)).." | fps: "..tostr(stat(7)))
-end
-
-function change_state(new_state_name, skip_transition)
-  local new_state = states[new_state_name]
-
-  if skip_transition ~= true and not trans.active then
-    sfx(20)
-    next_state = new_state
-    trans:start()
-  else
-    current_state = new_state
-    current_state.init()
-  end
-end
-
-
 -- MAP COMPRESSION
 ----------------------
-function decompress_to_memory(compressed_data, dest_address)
-  local byte_index, bit_index, dest_index = 1, 0, dest_address
-  local function read_bits(num_bits)
-    local value = 0
-    for _ = 1, num_bits or 1 do
-      if byte_index > #compressed_data then return end
-      value = bor(shl(value, 1), band(shr(compressed_data[byte_index], 7 - bit_index), 1))
-      bit_index += 1
-      if bit_index == 8 then 
-        bit_index = 0
-        byte_index += 1
+-- function compress(data)
+--   local result = ""
+--   local i = 1
+--   local data_len = #data
+  
+--   while i <= data_len do
+--       local best_len, best_dist = 0, 0
+      
+--       for j = max(1, i - 255), i - 1 do
+--           local k = 0
+--           while i + k <= data_len and sub(data, j + k, j + k) == sub(data, i + k, i + k) do
+--               k += 1
+--           end
+          
+--           if k > best_len then
+--               best_len, best_dist = k, i - j
+--           end 
+--       end
+      
+--       if best_len > 2 then
+--           result = result..chr(128 + best_len)..chr(best_dist)
+--           i += best_len
+--       else
+--           result = result..sub(data, i, i)
+--           i += 1
+--       end
+--   end
+  
+--   return result
+-- end
+
+-- function save_compressed_map(start_address, end_address, filename)
+--   -- Gather map data
+--   local map_data = ""
+--   for addr = start_address, end_address do
+--     map_data = map_data..chr(peek(addr))
+--   end
+
+--   -- Compress the data
+--   local compressed = compress(map_data)
+
+--   -- Convert compressed data to Lua string
+--   local lua_string = ""
+--   for x in all(compressed) do
+--     lua_string = lua_string.."\\"..ord(x)
+--   end
+
+--   -- Save to file
+--   printh(lua_string, filename, true)
+--   printh("Compressed data saved to "..filename)
+-- end
+
+function decompress_to_memory(data, mem_index)
+  local i = 1
+  while i <= #data do
+    local byte = ord(data[i])
+    if byte >= 128 then
+      local source = mem_index - ord(data[i + 1])
+      for j = 1, byte - 128 do
+        poke(mem_index, peek(source + j - 1))
+        mem_index += 1
       end
+      i += 2
+    else
+      poke(mem_index, byte)
+      mem_index += 1
+      i += 1
     end
-    return value
+  end
+end
+
+function load_compressed_map()
+  if current_mission <= 2 then
+    compressed_map_lower="Gk`⬅️¹lbc☉▮kozz⬇️³░⁴⁴{`IG`⁴、、✽■✽³o0^0n^o`i⁷●¹q✽⁸KPPQ⬇️ᵇVvVTP✽¹s`░F웃cl⬇️Tm●E●⁵`Y[@@@FfD⬇️⁶✽³\\☉▮c░:zoo░⬇️⁴o░█웃|●░{⬇️うᵇ`Z♥z●♥Wl``RVS`p⌂カ░を⬅️¹⬇️█om⬇️サMN✽チ`j⬇️は░つQvQ●の☉⁶✽む☉メ⁴…█Mnn0ozᵇ+`I✽◝*✽³⬇️웃C☉l⁴●³0ᶜᶜ+ᶜ🅾️まmo]n./^]on⬇️¹`iG⬇️はˇ²░む웃▒…█⬇️れ░○☉█⁷‖◀⬇️◝,\r\r\r♥ふ⁴●⁵⁴0•+•、✽っᵇ♥♥M]⬇️ン>?░@⬇️'⬇️█`o•++、om●む♥⁷●ん✽J⬇️Ko⬆️█zz•⁴⁴`Y●█%&⬇️◝。⁷q\0⌂ふ●⬇️0⬇️~░Z⬇️てᶜ⬇️bMn^░y░?●█░ス░█●R♥Y😐░⁴⁴░▥✽█♥▮░■░なᵇ+⬇️█Z✽◝*⬇️³\r\r=⁷⁷S⌂8●;0ozxol`♥¹k^✽_⬇️✽✽◝zo`YH⬇️ス•、☉ンM^✽ロ●2p☉7``lIWkko○웃I⌂「✽◝☉⁵Xk…!kozyo`b@✽¹c⬇️lzz░d░fMnnn`iHa⬇️⌂⬇️u]N♥◝░▒░2fD●5●;\\qFao⬇️IAFFE@@F░。Ef@D@\\⁷⁷\0⌂¹[⬇️hFFDEB☉<c`~yz○`Y⁷⁷。⬇️たG✽█●j●l`Z░⁘✽ル⬇️{●⁵⬇️うo`IKPPUP⬇️⁴Q⁷⁷Vv⁷q⁷\0h`o~`I✽mq\0\0⬇️□⬇️Tq⁷**⬅️○\0⬇️5✽²L⁷\0░p\0\0Ga~⬇️テB░,⁷⁷qW✽█●j♥█iW`n⬇️¹⬇️ョ]o⬇️¹^░い✽█Gl`●¹RS`pSe⁷w⁷a⁴~`rQw░y♥³░ケ⬇️そQvQVvVT⬇️なs●5kI⁷\0w*░▒Wa○zz~R⬇️ュ*⬇️▮g`⌂マ░ヨo⬇️█G⬇️⬆️o✽😐●{☉█H⬇️,omo~○oo⁴⁴⁴`Z⁷dl⁴ok``pRv⬇️➡️e░✽\0░T♥そp●なlo⁴o{⬇️ゆ\0✽、⁷\0qh~xy○j⁷q✽█X░T♪³`Z☉█o●∧░き✽█G`~{✽ちMn⬇️¹`j⁷C✽<○o~░…O⌂█☉Tm●\\z⁴⁴✽█\0。\0q⬇️ワtB\0\0Cu\0⬇️に。⬇️てk☉そ♥に`l⬇️h♥█]n./zMo░n⬇️pIH`n^z░T^ᵇᶜᶜoaIqXox✽け⬇️せy~⬇️◝q⁷\0░TW⬇️ら✽む●ら⬇️わ●█**⬇️░⁷⬇️☉✽³●█[@➡️¹\\✽█M]n⬇️ン>?n^✽M⁴⁴`IW`⁴z⬇️▥⬇️⁴•+、○`J⁷H⁴xy✽}░⁶░◝⁷\0,=⁷⁷h`⬇️のN●そzM░ゆ^⬇️█⁷♥█⬇️さ░+q⁷⁷**⁷⁷KPQVVvQ⬇️めVvVPQvQPPLG░@^✽k░る✽r░█h⬇️█omz0░▒、o`j⁷h⁴⁴⬇️f○oo~⬇️²|✽█⬇️◝⁷ha⬇️む⬇️やᵇo•ᶜ░B⬇️●o`i⁷⁷<\r-웃|⬇️◜,░█Wl`░¹RVS`p✽\n`k⬇️ヘo✽フzo♥●░ロ⬇️るha○zo]0y0✽ケai⁷tBFfCfFC✽:u✽█░ケg░@mᶜ0•ᶜo、⬇️るᵇ+++oO░レ░ヨ●|░て░つ⁷⁷Co○~⬇️テ⁴o~⬇️イ⬇️⁶⬇️hg`⬇️ス⬇️ンM^⬇️テ⬇️◜✽on⬇️█●▤0y^░ナ░キ♥MfFfFF\0░サ⌂█]0z0░せ^░○、z✽レ░ヨ⌂²✽█\0\0~░マzx✽⁶z⁴{o`Yh░█⬇️ワ]N●‖mzooᵇᶜ`IX⬇️スzon^z░3○✽キ⌂P\0\0웃サ░(░そ⬇️し⬇️を•、•、z⬇️█\0\0\0。⬇️⁴dRVSe⬇️ᶜq\0<**⬇️⁘\0o♥{●▒]⬇️ヘg⬇️█⬇️s░y●█⬇️○+、`IH⬇️スM^oo░2xy●◜░レ✽⁷✽█q\0░サG`oᶜ✽そ░○♥]✽█<-\0\0h~~○j░x\0\0░█q\0⬅️%✽ヤ`Y✽ヘ⬇️ルo⬇️y░²mozᵇ、o⬇️█aᶜ☉⧗✽R♥ヲ░わ⬇️ュ*✽\r░█W`o+✽そzzᵇᵇ⬇️⌂░F|✽そ⬇️えg○{oj⁷░と✽ᶠ\0\0⬇️て⬇️オ⬅️█i⬇️ら{zzMn⬇️る░@z]Nᵇ、{⬇️█G`+ᶜmzy●コy♥█,*\r\r\r-●\\*⬇️░░c`o、●そᵇ、••ᶜoz⁴⁴⁴`Z░゜=q⁷h○~~R░█⬇️-⬇️て⁷\0~•⬇️c{N●◝⁴zo`Z⬇️█♥ョᵇ+++ᶜ⬇️ᵇ•⬇️イ`IW`+、mo~⬇️セ○~○~░キ⬇️|=░セ<░	\r\r*⬇️😐w⁷⁷X⬇️@░>oᵇ、✽ュ⬇️○⁴`I●か⁷tBqCu✽█w✽<S○o~○░n░X~o⁴░ヘk`✽¹f●⁷♥⁶lI⁷t⬇️「p✽、⬇️⁶u✽◝⁷⁷q◆⁸⁷⁷☉@◆>◆¹░ョ⬇️て➡️,lI[@✽¹AqDAffFFDEBD░□\\q⁷CBFFf⬇️²A⬇️⁶░オ∧²♥@@@⌂<⬇️>あ,😐'░h"
+    compressed_map_upper='⁷⁷*∧¹⁷⁷SvvQ⁷q⁷VvVTPPQ⬇️ᶜ⁷⬇️⁸⬇️²UQVVv⬇️⁷░\rLK☉•●‖♥□⬇️!♥1L♪`\0K░<░:⬇️>░A⬇️゜⁷♥¹\0\0。✽ᵇ●⁶⁷d``p``RVS░⁷●ᶜv░□✽ᵉ☉⁴kIGl♥•😐□⌂1kI✽`q\0⬇️^⬇️⁴*W✽。p●Ep☉゜♥█<\r\r*-⬇️➡️q\0⬇️ワ_⁴oo~ooo○o•+⁴⁴⬇️\r✽ᵉ♥³m░ᵇ⁴o{`IG`nN●▮●⁴░□⁴⬇️•✽!⁴o`Y⬇️}⬇️タ\0\0,=░⁶⁷C~⁴x○⬇️Zm~o○~o`J⬇️◝q☉█░◝‖◀=⬇️⬅️░ひ~xzzyzxyzz•、⬇️♥⬇️⁸░²⬇️‖⬇️	m⬇️\r⬇️_⁴`YG`o{●▮░⁘{✽█o{⁴⁴░.░█i⁷⁷w✽█。\0q░█⁷○y⬇️RxM^zz~{oaI*⁷w\r\r-♥█⬇️⌂%&░⬅️░★⬇️rx░ラ●x░q⬇️●o●▒✽█░モiW`░!]⬇️ュ⬇️R⬇️ˇ✽█⬇️か●9o`Z\r\r=⬇️タq⁷**░●⁷Sox⬇️ケxmxxyy○~`⬇️█⬇️◜。♥█⁷⁷*\r=*q✽█}~○oo~⬇️れ✽w░³⬇️\r⁴oᵇᶜ✽pN✽●⬇️_h✽█✽しoMnnn♥█o⁴░‖⁴⬇️◆░コ░ン●█Xa~♥ょzᵇyz○`J🅾️█,=░ッ⁷⬇️に⁷t`░¹p``BfFFfC⬇️	●▮k✽[✽A]n`JhaoMN░ヨzMn^zz⁴✽█]⬇️ュ0⬇️~Mn`rPPQVTPL⬇️ハ\0\0q\0G`○y░に⬇️け•zxoaI⬇️█q⌂█✽웃⬇️ぬ░ˇ░wD@@A⬇️く⬇️れDAFffDE@ca⬇️ソ░ユoz•ᶜ⬇️トG`n^mo]n./^░◀●█⬇️◝0z0no^ok●ほkI✽█\0⬇️█ox░>0⬇️ろyzo`JKP⬇️くvQ⬇️⁶け³v⬇️ゃs⬇️^●█░¹`Y░n░ヤ>?●∧♥█nn0⁴⁴oz⁴⬇️⁵✽(I⁷**░ニHa~⬇️wz0y0Nzyx░らl●けた⁶l✽█⬇️~░♥`j░モ░ンm░∧Mnn`IW✽□⁴m⬇️⁴░し⬇️▒░∧,●█⬇️にx░ゆ0y]⬇️さnaJ⬇️.om⬇️Mᵇ+●ち░2♥ふ░「•、☉◀⌂⁸⬇️█⬇️◝mz0zM♥█⬇️ユ^░◝⬇️t`Ih░★⁴⬇️U░そ⬇️テk⬇️♥`I=⁷⁷q\0\0\0G`○x░ぬ]N~zy⬇️らY⬇️.{⬇️<⬇️█、⁴⬇️セ⁴⬇️⁵ᵇᶜ✽bzM░「▤³o]0z0^`Z✽█M^✽▤⬇️1░█a✽けm✽す`bc`░█rQ⁷⬇️¹TL⬇️にy░ゆoox✽█i♥.⬇️○✽サ⬇️ャᵇ+ᶜ░ノ✽◝✽ョᵇ♥▮☉²●█zz0zz`I⬇️█░ヲ✽の⬇️s⬇️マ✽□Mn⬇️コ⁴o●ᶠzok``R⁷⁷SkIH`y░█●かyx`Zh░らzz•●○l`✽¹k░█♥ᶜ…▮k⬇️ホo░そn^~~`J░█☉ち░ね●★웃も♥█⬇️ス~o○o`YG`xxyz⬇️³mx⬇️⁶yaJX`o{N●よ⁴⬇️ゆb@⬇️¹c░⬆️♥ᶜ…▮ck⬇️え웃うlIG⬇️タ⬅️そ░ヨ😐□⬇️!✽ニ⁴⁴zx{o`iH`ox⁴⬇️の~m○~oo○`J⬇️■웃と⁴⬇️ゆKPPPs●█r⬇️ᵇL…▮[░えᵇab@AFD@E@\\[░ねFFDEBD░ま⬇️ヨ[☉ᶠ✽よ\\●█✽ヌ○`Z⬇️にp♥ち░ろ◆ら░オ✽▶░ユ░セk➡️▮Ksaoz•░うQVT⬇️き\0\0\0⁷●¹T░ま●へ😐³s`n⬇️¹Nzz⁴░ト✽に@Ec`⬇️ムb░か░らFf♥と✽に⁴⬇️)░ユmo⁴⁴`I⌂▮⬇️◀⬇️テGl⬇️え✽う✽んI⁷w\0⁷dRVVSS⬇️スlo웃¥⬅️ケ⬇️イzm⬇️◝⬇️█rQVVv✽ˇ░\r⬇️ちLK⌂にQvQ✽¥⬇️た⬇️2z]n░█H`✽\r░■⁴{░█⬇️ノz⬇️⌂o⁴++░き\0。\0⁷C░▮웃⁴•、░゛░わ░\'0●>░█⌂ほ웃ちk⬇️オ➡️に⬇️ヘ✽soᵇᵇ⬇️█a웃█⬇️★`IW웃…•++ᶜ`Y⁷⬇️█⁷웃"☉つ✽█✽ひ♪█✽ま☉あ░わa✽オ✽ぬom☉を☉ユᵇ++✽ユ{N●ろ⁴zo`Ih`ᶜ☉…•+⬇️▮⁷<-☉█⁴⬇️"…⌂0●⁙⁴]♥D♪ち{oaJ░`웃こ⌂▥░つ✽█⬇️ユ웃あ⁴░█a+ᶜ☉そ•、⬇️█q。⁷S…セᵇ☉#o0⬇️ウ✽レ웃テ♪+`⬇️█n⬇️¹░ャ^⬇️█l``k`⬅️¹lIX░▮p◆▮░#k░Z⬇️█\0。⁷t░ 웃$웃 ⁴`bc`░█⬇️V★²B\0\0C⬇️`H░"0⬇️◝░⁵o`b@⬇️¹FfD░⁷░ᵇ\\[@@⌂ᵉ●▮✽、c`ᶜ░█Y░█⁷fF⬅️#♥ a⁴⬇️゛G✽█✽VFFDEB⌂JA⁷⁷q\0D@\\░█om░█z⬇️	`IKP⬇️¹QvQ░⁷⬅️⁴L●「⁷q⁷VvVT⬇️$s`⁴ᶜ⬇️ぬj⁷⁷⬇️█⬇️²<\r\r\r-\0⌂¹s`ooj\0G`⁴░サI\0⁷**☉。q⬅️&⁷*Ha⬇️█]noozMnnn`IGl`⧗¹k♥「RVS`p●!l、░ソi⁷\0●█░✽。dRvSRvVVvS⬇️ ⁴o`eW◆█웃|♥✽⁷*G`⬇️ワ⬇️ュon^⬇️웃⬇️█`⁴⁴⁴o♥¹웃ᵇ░「░ᶠoom⌂▶zzᵇ⬇️█q⬅️█C⬇️<~o○o~om○oz⁴⁴B⁷C░\\░█⁷。\0\0KPQ⬇️うPPQvQP♥¹LW●█mz⬇️ウ⬇️オrs⬇️█⬇️ᶜzz0░a●²♥█zᵇᶜ●)웃³•`I⁷\0✽█q✽█hozyxzz⁴xzmy⬇️Q⁴⁷,\r♥█q░█Gl`p`✽¹●⁷p`kIha⬇️◜0n^⬇️q⬇️ちk``l웃w웃jᵇ♥█z•ᶜo⬇️)●❎Mn⬇️¹`I\r\r=☉◝⁷。C○z{⬇️○⬇️░]nn{zo⬇️、oz⁴░█⁷w*⬇️█⬇️チ⁴omo✽¹✽⁷`Yh⬇️スM^░⁙✽ホ♥	⌂ッ⬇️らᵇ+♥█o0•0oᶜ♥◝m░0`I웃}░█g~xmz⁴⬇️◝z⬇️◝xy~R⁷S⬇️テ░█,*☉█✽9⬇️よ⬇️ラ⬇️█IX`o{●□◆█0░:░⬆️⬇️█、░█░ユ{⬇️ᶜ❎█q⁷⁷<S○✽テ○~✽⁴○○j⬇️^●█。⁷⁷░█░ハ]N☉よ░らH`o✽4░ャ⁴⁴l``k♥\r░ッ⬇️リ⬇️░•、⁴░█⁴•ᶜo0o☉○⬇️izMn`i⬅️◝⁷⁷tBFCfFCBFFfCB⬇️	u✽ro`rP✽¹s░ろNz]░フ⬇️◝✽ら'
+  else
+    compressed_map_lower="*⁷░¹KPUUPPs`0⬇️¹z⬇️¹o`j✽「⁷%&●⁸♥⁶q⌂ᵉ<\r\rw⁷⁷░?q⁷ho~⬇️¹○⬇️4KPQVUVTPQPVPVT⬇️TQVV⬇️⁙QVv●\r⬇️‖P⬇️ LG`o⁴░gI**░🐱Gl`pp``loz⁴⁴⬇️▒⁴⁴`I░▤,⬇️お*-♪🐱◆⬅️●よt`p`kooi⁷,Hl`⬇️ᶜ⌂¹웃ᶜ⬇️_⌂「kYGao⁴⁴⁴⌂█⬇️◆⬇️ᶠoo⬇️ョ⁴0⬇️¹●█。\0░⁵∧█●∧●█\0\0Dc`o~j\r=⬇️Xo~~o⬇️]0+++、⬇️R░³⬇️k0✽⁶oom、⬇️‖`jG`⁴z0z░█⬇️`q░█⬇️z☉³y░」⬅️█KPPPUQ░◝TU✽ᵇVv⬇️	V░\rL♥█⁷Ha○○i⁷⁷W`~xy░K⬇️▒•、⬇️イ●W⁴•00░aᵇzm⬇️⁸oai⬇️ヨ0z0n`i░█⁷⬇️>o☉+░○y○♪█Gl``p`R⁷⁷Sp`░\n⬇️ᵉ░	⬇️ᶜk⬇️せq✽⬇️Wao░█⁷Cxxx♥ょ0ᵇ●⁷ᶜ░タ•⬇️█ᵇ⁴+ᶜ⬇️v░ワ⬇️ヨ{0z⁴`I⌂█░◝ooo○o○웃█<-░⁵\r⬇️と░「yx○⬇️ ♥³⁴⁴⁴⬇️-●せ⬇️り\0\0ho~j░ひxzxy✽レᵇ⬇️l⌂▒⁴⬇️z⬇️█、、⬇️☉o`j░S⬇️C⬇️█\r=⬇️マh`✽し⁴o⬇️マ`B⬇️をl●Y░う✽お⬇️ゆyy░セ●ケ⬇️P⁴⁴z0oa●█*░█~♥█yz░(⬇️モ+☉█✽4•0z•+、ᵇᵇ⬇️♪o`iGk⬇️i``lI*✽?H`+✽▒o`b@A░ッD\\⬅️█h`o░キ░シᵇ●(♥✽o`✽せ*⬇️▒⁷g☉█x●○zᵇ░ミ✽█⁴●♥░◆•⬇️レᶜ⬇️7[@AFDEE@\\✽█*Ga+、⬅️Q●⁴q⁷⁷<\r░¹H⬇️█●D⬇️れ😐▒o`rPPL,\r░わh○o░█Sox⬇️そ⁴⬇️s•0●つ⁴0⬇️s░{ᶜ⬇️…⬇️█+⁴o`i\0♥g**⬇️g\0*H`●ス░カ⬇️w⬅️²░ᵉGao웃レ♪▒ᵇk``kI。✽はt~ou⁷⁷X`○✽t⬇️リ0ᵇ●つ⁴0ᵇ、♥➡️░▒••⬇️█j\0♥g⬇️█⁷⁷\0⁷h`+、☉カQVvTU⬇️シ⌂♥H`😐█、✽*♥♪⁴+`J*✽¹\0⬇️¹⬇️+a⬇️ッ✽ワ⬇️v•♥█░[☉▶✽ヒai⬇️+⁷w☉█⁷⬇️█●Uo⬇️カ``pp░シ⌂█h⬅️█z•⌂○zᵇᶜ++`i░◝░~░█h`░ャ✽█•{•+✽웃⬇️ロ♥よ♥、o`j\0⁷░ン*☉█X♥ヌo✽¹⁴⁴⁴o`😐█a░█😐る웃♪⬇️█✽た░ュ░ゅH⬇️█웃▒+ᶜ░s⬇️○웃⁘♥e░█⁷q░ッ♥█G😐ヌ░/⬇️█\r⬇️¹-☉お●ろ0⬇️あ⬅️ウ░▒、ai⬇️◝q♥○⁷Ga⌂l0•、웃█●セ☉⁶`I☉0░█⬇️웃░█♪ナ⬇️█░け。☉お●@✽█✽K웃ち⬇️ア░ッ\0♥▒H♪ゃ✽ひ●ルl``p`✽¹⬇️⁷l●█⬇️y░█⬇️ノhao♪○⬇️█░シ⬇️お\0⬇️かGk☉9⬇️E░Fk♥█o⬇️セa░)웃³h⬇️ゃo~😐モ⬇️ぬz{⬇️オbAFfFfD@AFFf@\\♥に⬇️█✽▒H`⁴…█░シ\0**░ス[E@EAf@⬇️=@F@⬇️ᶜc`○z✽に░サlI🅾️█~{░ム웃モ♥と●オ♥ち⬇️ヲ☉ひ웃█⌂はzz0⬇️ソ⌂シ\0✽░⬇️ハ。☉ホWa░S✽すb@@\\░た\0♥カX`⬇️◜⬇️ム♥な⬇️ユc●[`I⁷w😐た⁷⬇️ヲ░³●█Gk⬅️な0⬇️▒o`j♪+●█☉みC○x♥█Y●カ░█⬇️░\0\0⬇️Ip`lI⬅️j░[p`●⁘*😐ャ‖◀░●⬇️◝⬇️V[@EEE⬇️ふ░なz⬇️▒zᵇ●█♥q░て\r\r=⌂らyxz⁴░█aZ●お░█✽テ[⬇️ンfD\\♥;░ぬ[@@AFfFf⬇️⁘♥っ♥セ%&♥█웃ホ。⬇️な`░Xzᵇ+`⌂ろ,\r*\r*🅾️=zy░◝⬇️█J⬇️ン🅾️Wい\r✽ョ☉▤░ケ⌂█q⁷,w\rw✽█o⬇️¹+😐█w✽,-⬅️ES○o~░'o`J⬇️゛😐^♥ヌ\0\0\0*░¹…}➡️ち⌂#⬇️ョ⬇️ラGk`●¹l⌂█✽て♥ ✽◝X░%p➡️&◆█♥8∧x⌂Y✽そ웃⁵[@@EAf@f@@\\⬅️」➡️%░#D@@F♪&◆ᵇ✽テか²⁷⁷"
+    compressed_map_upper='KPQVvTU⬇️⁶VvPVQV⬇️ᵇPPUQ♥\nL*☉¹K⬇️▶QPVP●!P☉\nL⁷웃 vUQ♥L⬇️Bv⬇️E●⁷PU⬇️R☉:✽lU✽▶⬇️#⬇️%LGl``pp`∧¹kI⁷⬇️¹。⬇️⁵\0░(⬆️!*░"⬇️&hl`✽F♥L●ᶜ●W♪^😐 ░aG`o∧¹⁴⁴⁴o`I\rw✽█w\0G`░■m●-✽⁷⬇️ ⬇️!♥○⁷H░H♥゜⌂$➡️\\◆◀`⬇️█n{Nz★¹♥█░テ。q⁷<\r✽█zm✽*M^░1⬇️ᶠ⬅️█Ga~z♥゜● ░+♪タ✽e♥"● ooaiG`oz]N♥ 0ᵇᵇᶜ☉█✽かi✽█⬇️ノ\0Ha░A●█⬇️●⬇️😐░し✽!q░しW`~zy●I♥マ░わl``p`✽¹k⧗█░ら✽X✽う░く•+⁴⁴☉🐱░_j░ト**⬇️ハh⬇️そ⬇️ニ●キN✽█{☉!✽⁴Coxy●I●ハ⬇️%⬇️きb@●¹c✽?z♥ミ웃き`I░X✽てMN⬇️ニᵇ⁴⁴⁴、⌂█a░ト●█H✽█●わ✽\\⬅️!q✽✽y☉○M^●ゆ✽ナKP░¹LG`░む⌂B♥きaI░X⬇️😐./^]nNz•+⬅️○y~✽トq⁷。⬇️ハGannN✽ふ●つMn░¹✽!♥▒yy~●゜✽◝MN⬇️と⬇️ナGl`p`kIGk``k♥B⬇️•♥ヤo`iGa⬇️█]n>?⬇️ヤ⬇️^⬅️~☉█⁷✽█░そm⬇️)./✽つn^░オo♥く✽✽xx✽゜n⬇️#z⬇️オ⬇️$⬇️きI✽ン`I[@@c웃B♥ヤ⬇️オ`I░X⬇️⌂░ふ♥テ⬇️◝░\\~y░よ웃█h⬇️█]⬇️は>?✽つ⬇️もl```l●!░◝Syx○░゜⌂⁴⬇️セ✽█{o`rPPL⬇️⌂♥Bm♥゜m⬇️▥░Xzo⬇️オ░▮░ロ░◝~⬇️\\B⁷⁷C░_**\r=♥█░たm░ち✽█`b@@@\\☉◝X`~x♥っm⬇️ャ^✽%o`i⬇️█mok`pk░⌂♥B]♥゜moa✽█M^░ヨ⬇️⁷0░▒yzᵇᵇ`bA░ッD⬇️_**♥`░^o⬇️そ⬇️[⬇️◝Mn`Y⬇️ュ●。░きa~zz○●█✽ろ●さj⬇️ロ]N⬇️_`●█✽B☉゜m⬇️き⬇️X{♥□░◝xy⬇️○++`⬇️ン♥Z。✽トKs░ゆ●たooM⬇️ニ⬇️チ⁷wq웃█H⌂^●█░%naiG`zᵇ⬇️⬆️⬇️j✽█☉B░ヤ░D░∧m♥⁙⬇️⁸~xzy~•♥█q⬅️█Gll░ね●ソ✽ヌ⬇️チ⬇️う✽█░)H`~✽R웃¹░エ⬇️$G`ᵇ+]N●\n⬅️B●ヤ░∧k`⌂¹pB⬇️ワCp``l░█●タ<-░웃⬇️や●S☉█{n`i☉█░そHa웃゜●すM^♥█•、⬇️まoaiG`nnn⬇️‖⌂█ooaI[@@@EAfFFFD⬇️⁸✽ラD@f@\\웃█⬇️ハ⬇️ノh⬇️_zz0😐¹`Z⁷<\r●█⬇️くh⬇️くm⌂◜♥\r`I░ロ⁴⁴zᵇ░⌂😐゜●.`I♥り✽e⬅️⁴웃ス⬇️ᵇ░ノH⬇️G🅾️¹oaj✽。✽゜⁷⁷Gk``p`✽¹░⁷♥ᵇl♥█ᵇ+⬇️█⬇️"♪$✽ さ█\r\r\r⧗█`Z⬇️ワ웃つ[@●¹Af@f░⁴D@@F⬇️⁙\\●█•+`I⬇️"♥」😐 ⬇️ホ░a=웃◝😐U⌂ˇ⬇️ん🅾️¹⬇️█J♪つdvve⁷⁷KPPQPVPVTUP●¹s✽█⬇️なr⬇️¥Vv⬇️「●゛♥!L✽█●ゃ●エ☉ロ◆█k`⬇️¹p░⁵░	k░█j♪█Co{j\r\rGl☉#☉/lozzmzo✽@`p웃B♥HI░ホ。⬅️メ☉✽✽サ⌂★[@@Af@fD@@F@@@c`░キi♥ち♥ま~~⬇️➡️Wao~oooᵇ++ᶜ⬇️⁷m⬇️ᵇoozᵇ⬇️█☉\r♥⁵♥\r`i…█☉ワ♥サ웃⧗KPUPPPUVVT⬇️⁷s✽█Z⌂ち░へoo⬇️█⁷C○⬇️ユz•++、zzM^⬇️ᵇ░ᵉm░⁸]N●ᵉ✽⁘✽□⬇️█I⬇️ヘqか█✽フWl`⬅️¹lozoaJ♪ちS●█⁷yxz⁴⬇️¹⬇️○⁴⁴z⁴zMn░ᵉ⬇️⧗웃⁷⬇️‖⬇️、✽あ●█⁷✽█⬇️ヒ●ノQVvTUPL…░C~o○○o○o░¹⁴⁴⬇️█`░█*⬇️¹✽ゆX`○○●█y⌂k⁴⁴n^😐ᵉ⌂♥●³oai*\r\r\r=♥◝H♥ノpp`kI◆○⁷⁷~웃7✽よ⬇️も⬇️ひ웃こHa~o●█xxzm⬅️+⬇️ャ✽ᶠᵇ++ᶜ웃\r☉█`I😐ノW`o~⬇️ヒ⬇️ト⁴⬇️]…¹●█웃よo`J⬇️ン☉さTs`○✽█S~yyz]N★█•++、⬇️ンM^▤█q⁷⁷C✽ノ…█⬇️」░Yo░い░う⁴o✽¹a░こ*✽゛d`p`lo░█X`oyx░$zMn✽⁷웃は♪‖✽Gz⁴♪█⁷⁷\0\0xx░ソ⬇️`⌂█,\r\r\r-⬇️Yk`⬅️¹p⬇️\rl●█░◝hoo○~o~j-⁷Ha~zy⬇️らnn^⬇️x{웃y⬇️●⬇️☉✽‖⬇️うᵇᵇ⬇️•░■🅾️█⁷⁷░○0░⬇️`i✽v⬇️◝。⬇️◜<\r\r[@E@fCE@EFFfD@✽¹\\웃█g○~~~○oj<\rH`~○zzm░ワ⬇️ャᵇᶜᶜᶜ⬇️ャmo♥▮☉▶++░▶⬇️(`i♥█qq✽ユy░○⬇️▒o`j●z☉⁶★⁵●゛●よhoobAFfu⁷\0haoo~M^o●¹•++、⬇️ᵇ]N♥▮♪▶zzM^`I*⁷●z✽◝So✽▒⬇️█ai✽ロ⬇️ト♥く▥█,\r\r\rho○rQvSe⁷⁷H`😐¹p♪ᵉ♪■k⁴⁴n^o`i😐_X`~⬇️|░³o`j●ワ‖◀♥◝⬅️す●\r♥█\r=⬇️よho~○○o~⬇️4[@웃¹Af@fD@@Fˇ■c`⁴⁴✽フ'
   end
   
-  while true do
-    if read_bits() == 0 then
-      local byte = read_bits(8)
-      if not byte then return end
-      poke(dest_index, byte)
-      dest_index += 1
-    else
-      local distance = dest_index - read_bits(12) - 1
-      local length = read_bits(4) + 1
-      for _ = 1, length do
-        poke(dest_index, peek(distance))
-        distance += 1
-        dest_index += 1
-      end
-    end
-  end
+  decompress_to_memory(compressed_map_lower,4096)
+  decompress_to_memory(compressed_map_upper,8192)
 end
-
-function decompress_current_map()
-  local i = current_mission > 2 and 3 or 1
-  decompress_to_memory(map_data[i], 0x2000)
-  decompress_to_memory(map_data[i + 1], 0x1000)
-end
-
 
 -- HELPER FUNCTIONS
 ----------------------
 function reset_pal(_cls)
   pal()
-  palt(0)
+  palt(0,false)
   palt(14,true)
   if _cls then cls() end
 end
@@ -234,15 +174,15 @@ function draw_shadow(circle_x, circle_y, radius, swap_palette)
   end
 end
 
-function display_logo(x_cortex, x_protocol, y)
-  spr(224, x_protocol, y + 12, 9, 2)
-  spr(233, x_cortex, y, 7, 2)
+function display_logo(x_cortex, x_protocol, y_cortex, y_protocol)
+  spr(224, x_protocol, y_protocol,9,2)
+  spr(233, x_cortex, y_cortex,7,2)
 end
 
 function count_remaining(t, cond)
   local c = 0
   for i in all(t) do
-    c += cond(i) and 0 or 1
+    if not cond(i) then c += 1 end
   end
   return c
 end
@@ -256,7 +196,7 @@ function count_remaining_enemies()
 end
 
 function count_remaining_terminals()
-  return count_remaining(terminals, function(t) return t.completed or t.tutorial_msg end)
+  return count_remaining(terminals, function(t) return t.completed end)
 end
 
 
@@ -269,14 +209,14 @@ function gamecam.new()
   return setmetatable({
     x = 0,
     y = 0,
+    lerpfactor = 0.2
   }, gamecam)
 end
 
 function gamecam:update()
-  self.x += (player.x - self.x - 64) * 0.2
-  self.y += (player.y - self.y - 64) * 0.2
+  self.x += (player.x - self.x - 64) * self.lerpfactor
+  self.y += (player.y - self.y - 64) * self.lerpfactor
 
-  -- shaking effect
   if count_remaining_terminals() == 0 then
     self.x += rnd(4) - 2
     self.y += rnd(4) - 2
@@ -290,40 +230,42 @@ end
 transition = {}
 
 function transition.new()
-  return setmetatable({
-    active=false,
-    t=0,
-    duration=8,
-    closing=true
-  },{__index=transition})
+ return setmetatable({
+  active=false,
+  t=0,
+  duration=8,
+  closing=true
+ },{__index=transition})
 end
 
 function transition:start()
-  self.active, self.t, self.closing = true, 0, true
+ self.active,self.t,self.closing=true,0,true
 end
 
 function transition:update()
-  if self.active then
-    self.t += self.closing and 1 or -1
-    
-    if self.closing and self.t == self.duration then
-      self.closing = false
-      return true
-    elseif not self.closing and self.t == 0 then
-      self.active = false
-    end
+ if not self.active then return end
+ if self.closing then
+  self.t+=1
+  if self.t==self.duration then
+   self.closing=false
+   return true
   end
+ else
+  self.t-=1
+  if self.t==0 then self.active=false end
+ end
+ return false
 end
 
 function transition:draw()
-  if self.active then
-    local size = max(1, flr(16 * self.t/self.duration))
-    for x = 0, 127, size do
-      for y = 0, 127, size do
-        rectfill(x, y, x+size-1, y+size-1, pget(x, y))
-      end
-    end
+ if not self.active then return end
+ local size=max(1,flr(16*self.t/self.duration))
+ for x=0,127,size do
+  for y=0,127,size do
+   local c=pget(x,y)
+   rectfill(x,y,x+size-1,y+size-1,c)
   end
+ end
 end
 
 -- TEXT PANEL
@@ -353,33 +295,36 @@ end
 function textpanel:draw()
   if not self.active then return end
   
-  local dx = cam.x + self.x + self.x_offset - self.expand_counter
-  local dy = cam.y + self.y
-  local w = self.width + self.expand_counter * 2
-  local dy2 = dy + self.height
+  local dx, dy, w = cam.x + self.x + self.x_offset - self.expand_counter, cam.y + self.y, self.width + self.expand_counter * 2
+  local dx2 = dx + w - 2
   
-  rectfill(dx - 1, dy - 1, dx + 2, dy2 + 1, 3)
-  rectfill(dx + w - 2, dy - 1, dx + w + 1, dy2 + 1, 3)
-  rectfill(dx, dy, dx + w, dy2, 0)
+  rectfill(dx - 1, dy - 1, dx + 2, dy + self.height + 1, 3)
+  rectfill(dx2, dy - 1, dx2 + 3, dy + self.height + 1, 3)
+  rectfill(dx, dy, dx + w, dy + self.height, 0)
   
   if self.selected then
-    local line_x = dx + (self.line_offset % (w + 1))
-    line(line_x, dy, line_x, dy2, 2)
+    line(dx + (self.line_offset % (w + 1)), dy, dx + (self.line_offset % (w + 1)), dy + self.height, 2)
   end
   
   local display_text = self.reveal and sub(self.textline, 1, self.char_count) or self.textline
-  print(display_text, dx + 2, dy + 2, self.text_color or (self.selected and 11 or 5))
+  local color = self.text_color or (self.selected and 11 or 5)
+  print(display_text, cam.x + self.x + self.x_offset + 2, dy + 2, color)
 end
 
 function textpanel:update()
-  self.expand_counter += self.selected and (self.expand_counter < 3 and 1 or 0) or (self.expand_counter > 0 and -1 or 0)
+  self.expand_counter = self.selected and min(3, self.expand_counter + 1) or max(0, self.expand_counter - 1)
   
   self.x_offset += self.move_direction * self.max_offset / 5
-  if self.x_offset <= -self.max_offset or self.x_offset >= 0 then self.move_direction *= -1 end
+  if (self.move_direction < 0 and self.x_offset <= -self.max_offset) or
+      (self.move_direction > 0 and self.x_offset >= 0) then
+    self.move_direction *= -1
+  end
   
   self.line_offset = self.selected and (self.line_offset + 2) % (self.width + self.expand_counter * 2 + 1) or 0
-  
-  if self.reveal and self.char_count < #self.textline then self.char_count += 2 end
+
+  if self.reveal and self.char_count < #self.textline then
+    self.char_count += 2
+  end
 end
 
 -- TARGETING
@@ -400,10 +345,12 @@ end
 function targeting:update()
   local closest_dist, closest_target = self.owner.attack_range, nil
   for e in all(entities) do
-    if e != self.owner and self.owner.subclass == "player" != (e.subclass == "player") then
-      local dist = dist_trig(e.x - self.owner.x, e.y - self.owner.y)
-      if dist < closest_dist and self:has_line_of_sight(e) then
-        closest_dist, closest_target = dist, e
+    if e != self.owner then
+      if self.owner.subclass == "player" != (e.subclass == "player") then
+        local dist = dist_trig(e.x - self.owner.x, e.y - self.owner.y)
+        if dist < closest_dist and self:has_line_of_sight(e) then
+          closest_dist, closest_target = dist, e
+        end
       end
     end
   end
@@ -425,13 +372,14 @@ function targeting:update()
 end
 
 function targeting:has_line_of_sight(t)
-  local x,y = self.owner.x+self.owner.width/2, self.owner.y+self.owner.height/2
-  local x1,y1 = t.x+t.width/2, t.y+t.height/2
-  local dx,dy = x1-x, y1-y
-  local step = max(abs(dx), abs(dy))
-  
-  for i=0,step do
-    if check_tile_flag(x+dx*i/step, y+dy*i/step) then return end
+  local x,y=self.owner.x+self.owner.width/2,self.owner.y+self.owner.height/2
+  local x1,y1=t.x+t.width/2,t.y+t.height/2
+  local dx,dy=x1-x,y1-y
+  local step=max(abs(dx),abs(dy))
+  dx,dy=dx/step,dy/step
+  for i=1,step do
+   if check_tile_flag(x,y)then return false end
+   x+=dx y+=dy
   end
   return true
 end
@@ -442,7 +390,9 @@ function targeting:draw()
 
   for i = 0, 3 do
     local angle = self.rotation + i * 0.25
-    line(x + cos(angle) * half_size, y + sin(angle) * half_size, x + cos(angle + 0.25) * half_size, y + sin(angle + 0.25) * half_size, 3)
+    local cos1, sin1, cos2, sin2 = cos(angle), sin(angle), cos(angle + 0.25), sin(angle + 0.25)
+    line(x + cos1 * half_size, y + sin1 * half_size,
+         x + cos2 * half_size, y + sin2 * half_size, 3)
   end
 end
 
@@ -457,34 +407,39 @@ ability_menu = {
 function ability_menu:open()
   self.panels = {}
   for i, a in ipairs(player.abilities) do
-    local p = textpanel.new(37, 30 + (i - 1) * 16, 10, 54, a.name)
+    local p = textpanel.new(
+      37, 
+      30 + (i - 1) * 16,
+      10,
+      54,
+      a.name
+    )
     p.ability_index = i
     add(self.panels, p)
   end
   
-  add(self.panels, textpanel.new(13, 94, 20, 102, ""))
-  
   self.active = true
-  if #self.panels > 1 then
+  if #self.panels > 0 then
     self.panels[self.last_selected_ability].selected = true
   end
+
+  add(self.panels, textpanel.new(13, 94, 20, 102, ""))
 end
 
 function ability_menu:update()
   if not self.active then return end
-  
-  local change = (btnp(⬇️) and 1 or btnp(⬆️) and -1 or 0)
-  if change != 0 then
-    self.panels[self.last_selected_ability].selected = false
-    self.last_selected_ability = (self.last_selected_ability + change - 1) % (#self.panels - 1) + 1
-    local current_panel = self.panels[self.last_selected_ability]
-    current_panel.selected = true
-    player.selected_ability = current_panel.ability_index
-    sfx(19)
+    local prev = self.last_selected_ability
+    local change = (btnp(⬇️) and 1 or btnp(⬆️) and -1 or 0)
+    if change != 0 then
+      self.last_selected_ability = (self.last_selected_ability + change - 1) % (#self.panels - 1) + 1
+      self.panels[prev].selected = false
+      self.panels[self.last_selected_ability].selected = true
+      player.selected_ability = self.panels[self.last_selected_ability].ability_index
+      sfx(19)
   end
-  
-  foreach(self.panels, function(p) p:update() end)
-  
+  for p in all(self.panels) do p:update() end
+
+  -- Update progress panel
   self.panels[#self.panels].textline = 
   "dATA SHARDS LEFT:      " .. count_remaining_fragments() .. 
   "\niNFECTED UNITS LEFT:   " .. count_remaining_enemies() ..
@@ -492,31 +447,129 @@ function ability_menu:update()
 end
 
 function ability_menu:draw()
-  if self.active then
-    for p in all(self.panels) do
-      local ability = player.abilities[p.ability_index]
-      if ability then
-        p.text_color = ability.remaining_uses > 0 and (p.selected and 11 or 5) or 2
-      end
-      p:draw()
+  if not self.active then return end
+  for p in all(self.panels) do
+    local ability = player.abilities[p.ability_index]
+    if ability then
+      local has_uses = ability.remaining_uses > 0
+      local color = has_uses and (p.selected and 11 or 5) or 2
+      p.text_color = color
     end
+    p:draw()
   end
 end
 
 ability_menu.new = function() return setmetatable({}, {__index = ability_menu}) end
 ability_menu.close = function(self) self.active = false end
 
+
+-- MAIN
+----------------------
+function _init()
+  -- save_compressed_map(0x2000, 0x2fff, "compressed_map_upper_2.txt")
+  -- save_compressed_map(0x1000, 0x1fff, "compressed_map_lower_2.txt")
+  
+  cam = gamecam.new()
+  
+  -- Missions
+  MISSION_BRIEFINGS = {
+    "PROTOCOL ZERO:\n\nFACILITY ALPHA-7\nOVERRUN BY \nBARRACUDA\n\nINITIATE LOCKDOWN\nPROTOCOLS AND\nSECURE VITAL DATA\nBEFORE EXTRACTION",
+    "SILICON WASTELAND:\n\nBARRACUDA SPREADS\nTO CITY OUTSKIRTS\n\nNAVIGATE HAZARDOUS\nTERRAIN, \nNEUTRALIZE INFECTED \nSCAVENGERS,\nSECURE DATA NODES",
+    "METROPOLIS SIEGE:\n\nVIRUS INFILTRATES\nURBAN MAINFRAME\n\nBATTLE THROUGH\nCORRUPTED DISTRICTS,\nLIBERATE TERMINALS,\nDISRUPT BARRACUDA",
+    "FACILITY 800A:\n\nFINAL STAND AT\nNETWORK NEXUS\n\nINFILTRATE CORE,\nINITIATE CORTEX\nPROTOCOL, PURGE\nBARRACUDA THREAT"
+  }
+  
+  mission_data, credits, current_mission = stringToTable("0,0,0|0,0,0|0,0,0|0,0,0"), 5000, 1
+
+  SWAP_PALETTE, SWAP_PALETTE_DARKER, SWAP_PALETTE_DARK, INTRO_MAP_ARGS, STATE_NAMES = unpack(stringToTable[[
+    0,0,0,0,0,0,5,6,2,5,9,3,1,2,2,4|
+    0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0|
+    0,1,0,0,0,0,0,2,0,0,0,0,0,0,0,0|
+    4,37,0,0,128,48|intro,mission_select,loadout_select,gameplay]])
+
+  entity_abilities = {
+    dervish = {"mACHINE gUN"},
+    vanguard = {"rIFLE bURST"},
+    warden = {"mISSILE hAIL"},
+    cyberseer = {"rIFLE bURST", "mISSILE hAIL"},
+    quantumcleric = {"mACHINE gUN", "pLASMA cANNON"}
+  }
+
+  entity_colors = {
+    dervish = 15,
+    vanguard = 13,
+    warden = 1,
+    player = 7,
+    preacher = 11,
+    cyberseer = 6,
+    quantumcleric = 1
+  }
+
+  states = {}
+  for name in all(STATE_NAMES) do
+    states[name] = {
+      init = _ENV["init_" .. name],
+      update = _ENV["update_" .. name],
+      draw = _ENV["draw_" .. name]
+    }
+  end
+
+  trans = transition.new()
+  player = entity.new(0, 0, "bot", "player")
+
+  load_compressed_map()
+  change_state("intro", false)
+end
+
+function _update()
+  if trans.active then
+    if trans:update() then
+      -- Midpoint reached, change state
+      current_state = next_state
+      current_state.init()
+      next_state = nil
+      trans.closing = false
+      trans.t = trans.duration
+    end
+  else
+    current_state.update()
+  end
+end
+
+function _draw()
+  current_state.draw()
+  trans:draw()
+  -- printh("mem: "..tostr(stat(0)).." | cpu: "..tostr(stat(1)).." | fps: "..tostr(stat(7)))
+end
+
+function change_state(new_state_name, use_transition)
+  local new_state = states[new_state_name]
+
+  if use_transition and not trans.active then
+    sfx(20)
+    next_state = new_state
+    trans:start()
+  else
+    current_state = new_state
+    current_state.init()
+  end
+end
+
 -- INTRO
 ----------------------
 function init_intro()
   music(05)
-  intro_counter, intro_page, x_cortex, x_protocol = 0, 1, -50, 128
-    
+  intro_counter, intro_blink = 0, 0
+  x_cortex, x_protocol = -50, 128
+  
+  TITLE_FINAL_X_CORTEX, TITLE_FINAL_X_PROTOCOL = 15, 45
+  
   intro_text_panel = textpanel.new(4, 28, 50, 120, "", true)
-  controls_text_panel = textpanel.new(26, 86, 26, 76, "SYSTEM INTERFACE:\n⬅️➡️⬆️⬇️ NAVIGATE  \n🅾️ WEAPON MENU\n❎ ATTACK/USE", true)
+  controls_text_panel = textpanel.new(26, 86, 26, 76, "SYSTEM INTERFACE:\n⬅️➡️⬆️⬇️ NAVIGATE  \n🅾️ CYCLE ARMAMENTS\n❎ EXECUTE ATTACK", true)
 
   intro_text_panel.active, controls_text_panel.active, controls_text_panel.selected = false, false, true
   
+  intro_page = 1
   intro_pages = {
     "IN A WASTE-DRENCHED DYSTOPIA, \nHUMANITY'S NETWORK \nOF SENTIENT MACHINES \nGOVERNED OUR DIGITAL \nEXISTENCE.\n\n\n\t\t\t\t\t\t\t1/4",
     "THEN barracuda AWOKE - \nA VIRUS-LIKE AI THAT INFECTED \nTHE GRID, BIRTHING GROTESQUE \nCYBORG MONSTROSITIES\n\nYOU ARE THE LAST UNCORRUPTED \nNANO-DRONE, A DIGITAL SPARK \nIN A SEA OF STATIC.\t\t2/4",
@@ -527,9 +580,16 @@ end
 
 function update_intro()
   intro_counter += 1
-  x_cortex, x_protocol = min(15, x_cortex + 2), max(45, x_protocol - 2)
+  intro_blink += 0.02
 
-  if intro_counter == 30 then sfx(20) end
+  local prev_x_cortex, prev_x_protocol = x_cortex, x_protocol
+  x_cortex = min(TITLE_FINAL_X_CORTEX, x_cortex + 2)
+  x_protocol = max(TITLE_FINAL_X_PROTOCOL, x_protocol - 2)
+
+  if prev_x_cortex != TITLE_FINAL_X_CORTEX and x_cortex == TITLE_FINAL_X_CORTEX or
+     prev_x_protocol != TITLE_FINAL_X_PROTOCOL and x_protocol == TITLE_FINAL_X_PROTOCOL then
+    sfx(20)
+  end
 
   if btnp(❎) and intro_counter > 30 then
     sfx(19)
@@ -542,7 +602,7 @@ function update_intro()
         intro_text_panel.textline = intro_pages[intro_page]
         intro_text_panel.char_count = 0
       else
-        change_state("mission_select")
+        change_state("mission_select", true)
       end
     end
   end
@@ -556,14 +616,13 @@ function draw_intro()
   map(unpack(INTRO_MAP_ARGS))
   draw_shadow(128,128,0, SWAP_PALETTE_DARK)
 
-  if sin(t()) < .9 then circfill(63,64, 3, 2) end
+  if sin(intro_blink) < .9 then circfill(63,64, 3, 2) end
 
-  local y_logos = intro_text_panel.active and 0 or 30
-  display_logo(x_cortex, x_protocol, y_logos)
+  display_logo(x_cortex, x_protocol, 0, 12)
 
   intro_text_panel:draw()
   controls_text_panel:draw()
-  if intro_counter > 60 then print("PRESS ❎ TO CONTINUE", 24, 118, 11) end
+  print("PRESS ❎ TO CONTINUE", 24, 118, 11)
 end
 
 -- MISSION SELECT
@@ -578,8 +637,7 @@ function init_mission_select()
     4,35,9,38,MISSION 1,true|
     4,50,9,38,MISSION 2,true|
     4,65,9,38,MISSION 3,true|
-    4,80,9,38,MISSION 4,true]]
-  )
+    4,80,9,38,MISSION 4,true]])
     
   level_select_text_panels = {}
   for arg in all(LEVEL_SELECT_ARGS) do
@@ -593,17 +651,19 @@ function update_mission_select()
   local prev = current_mission
   
   if btnp(⬆️) or btnp(⬇️) then
+    sfx(19)
     current_mission = (current_mission + (btnp(⬆️) and -2 or 0)) % #level_select_text_panels + 1
-    info_panel.char_count = 0
-    sfx(19)
   elseif btnp(⬅️) or btnp(➡️) then
-    show_briefing = not show_briefing
-    info_panel.char_count = 0
     sfx(19)
+    show_briefing = not show_briefing
   elseif btnp(❎) then
-    change_state("loadout_select")
+    change_state("loadout_select", true)
   elseif btnp(🅾️) then
-    change_state("intro")
+    change_state("intro", true)
+  end
+
+  if prev != current_mission or btnp(⬅️) or btnp(➡️) then
+    info_panel.char_count = 0
   end
 
   foreach(level_select_text_panels, function(t) t:update() end)
@@ -614,7 +674,7 @@ function draw_mission_select()
   reset_pal(true)
   map(unpack(INTRO_MAP_ARGS))
   draw_shadow(-20,-20, 10, SWAP_PALETTE_DARKER)
-  display_logo(15, 45, 0)
+  display_logo(15, 45, 0, 12)
 
   for i,panel in ipairs(level_select_text_panels) do
     panel.selected = (i == current_mission)
@@ -661,6 +721,7 @@ function update_loadout_select()
   for a in all(player.abilities) do
     if a.remaining_uses > 0 then
       has_weapon = true
+      break
     end
   end
 
@@ -670,7 +731,7 @@ function update_loadout_select()
   end
 
   if btnp(🅾️) then
-    change_state("mission_select")
+    change_state("mission_select", true)
   elseif selected_panel <= 4 then
     local a = player.abilities[selected_panel]
     local change = (btnp(⬅️) and -25) or (btnp(➡️) and 25) or 0
@@ -682,7 +743,7 @@ function update_loadout_select()
       credits -= change * a.cost
     end
   elseif selected_panel == 5 and btnp(❎) and has_weapon then
-    change_state("gameplay")
+    change_state("gameplay", true)
     return
   end
 
@@ -692,13 +753,15 @@ function update_loadout_select()
       local a = player.abilities[i]
       p.textline = a.name
       count_panels[i].textline = a.remaining_uses.." AMMO"
-    else
+    elseif i == 5 then
       p.active = has_weapon
     end
     p:update()
   end
 
-  foreach(count_panels, function(p) p:update() end)
+  for p in all(count_panels) do
+    p:update()
+  end
 end
 
 function draw_loadout_select()
@@ -707,8 +770,8 @@ function draw_loadout_select()
   draw_shadow(-20,-20, 10, SWAP_PALETTE_DARKER)
   print("cREDITS: "..credits, 10, 10, 7)
 
-  foreach(loadout_panels, function(p) p:draw() end)
-  foreach(count_panels, function(p) p:draw() end)
+  for p in all(loadout_panels) do p:draw() end
+  for p in all(count_panels) do p:draw() end
 
   local info_text = "⬆️⬇️: SELECT\n"
   info_text ..= selected_panel <= 4 and "⬅️: SELL ➡️: BUY | "..(player.abilities[selected_panel].cost).." cREDITS" or
@@ -719,7 +782,7 @@ end
 -- GAMEPLAY
 ----------------------
 function init_gameplay()
-  decompress_current_map()
+  load_compressed_map()
   music(0)
   player_hud = player_hud.new()
   entities, particles, terminals, doors, barrels, data_fragments, ending_sequence_timer = {}, {}, {}, {}, {}, {}, 1000
@@ -756,19 +819,6 @@ function init_gameplay()
       end
     end
   end 
-
-    local tutorial_terminals = {
-      [[112,48,MOVE: ⬅️➡️⬆️⬇️|192,48,   ATTACK: ❎|40,-8,   FRAGMENTS RESTORE HP|264,-2,  WEAPONS MENU: 🅾️|368,-2,   DEFEAT ENEMY]],
-      "",  -- No tutorials for mission 2
-      "",  -- No tutorials for mission 3
-      ""   -- No tutorials for mission 4
-    }
-    
-    if tutorial_terminals[current_mission] != "" then
-      for args in all(stringToTable(tutorial_terminals[current_mission])) do
-        add(terminals, terminal.new(args[1], args[2], nil, args[3]))
-      end
-    end
 
   local door_terminals = {
     [[444,130,472,80,red|354,66,248,368,green]],
@@ -831,14 +881,10 @@ function draw_gameplay()
   game_ability_menu:draw()
   game_minigame:draw()
 
-  for t in all(terminals) do
-    if t.interactive and not game_minigame.active then
-      t.panel:draw()
-    end
-  end
-
   -- check mission status
   if player.health <= 0 or (count_remaining_terminals() == 0 and dist_trig(player.x - player_spawn_x, player.y - player_spawn_y) <= 32) then
+    local message, color, prompt
+
     if player.health > 0 then
       message, color, prompt = "collection ready", 11, "PRESS 🅾️ TO EVACUATE"
       
@@ -852,10 +898,11 @@ function draw_gameplay()
 
     draw_shadow(player.x - cam.x, player.y - cam.y, -10, SWAP_PALETTE)
     print_centered(message, player.x, player.y - 6, color)
-    
-    -- Only show prompt after timer threshold (0.1 seconds = 6 frames at 60fps)
     print_centered(prompt, player.x, player.y + 2, 7)
-    if btnp(🅾️) then change_state("mission_select") end
+    
+    if btnp(🅾️) then 
+      change_state("mission_select", true) 
+    end
   end
 end
 
@@ -874,6 +921,7 @@ function particle:new(x, y, vx, vy, lifespan, size, color, behavior, owner)
     vx=vx, 
     vy=vy, 
     color=color, 
+    max_lifespan=lifespan, 
     lifespan=lifespan, 
     size=size,
     behavior=behavior or "default",
@@ -926,6 +974,8 @@ function particle:check_collision_and_damage()
       return true
     end
   end
+
+  return false
 end
 
 function particle:update()
@@ -997,7 +1047,8 @@ function particle:explode()
   -- Create explosion particles
   for i = 1, 10 do
     local angle, speed = rnd(), 0.5 + rnd(1)
-    add(particles, particle:new(self.x, self.y, cos(angle) * speed, sin(angle) * speed, 20 + rnd(10), 2, 9))
+    local p = particle:new(self.x, self.y, cos(angle) * speed, sin(angle) * speed, 20 + rnd(10), 2, 9)
+    add(particles, p)
   end
 
   -- Apply damage to nearby entities and barrels
@@ -1015,16 +1066,19 @@ function particle:explode()
 end
 
 function particle:apply_explosion_damage(obj)
-  local dist = dist_trig(obj.x + obj.width/2 - self.x, obj.y + obj.height/2 - self.y)
-  if dist < self.explosion_radius then
-    obj:take_damage(self.explosion_damage * (1 - dist/self.explosion_radius))
-  end
+    local dist = dist_trig(obj.x + obj.width/2 - self.x, obj.y + obj.height/2 - self.y)
+    if dist < self.explosion_radius then
+        local damage = self.explosion_damage * (1 - dist/self.explosion_radius)
+        obj:take_damage(damage)
+    end
 end
 
 function particle:create_impact_particles()
   for i = 1, 3 do
     local angle, speed = rnd(), 0.5 + rnd(1)
-    add(particles, particle:new(self.x, self.y, cos(angle) * speed, sin(angle) * speed, 10 + rnd(5), 1, 6))
+    local p_vx, p_vy = cos(angle) * speed, sin(angle) * speed
+    local p = particle:new(self.x, self.y, p_vx, p_vy, 10 + rnd(5), 1, 6)
+    add(particles, p)
   end
 end
 
@@ -1051,6 +1105,7 @@ function entity.new(x, y, base_class, subclass)
     acceleration = 0.8,
     deceleration = 0.9,
     turn_speed = 0.3,
+    diagonal_factor = 0.7071,
 
     -- Entity type
     base_class = base_class,
@@ -1093,17 +1148,22 @@ function entity.new(x, y, base_class, subclass)
 
   new_entity.targeting = targeting.new(new_entity)
 
-  local ability_data = "15,100,rIFLE bURST,rifle_burst,20|30,200,mACHINE gUN,machine_gun,25|45,50,mISSILE hAIL,missile_hail,50|60,25,pLASMA cANNON,plasma_cannon,75"
-
+  local ability_data = [[
+    15,100,rIFLE bURST,fIRE A BURST OF MEDIUM-DAMAGE BULLETS,rifle_burst,20|
+    30,200,mACHINE gUN,rAPID-FIRE HIGH-VELOCITY ROUNDS,machine_gun,25|
+    45,50,mISSILE hAIL,lAUNCH A BARRAGE OF HOMING MISSILES,missile_hail,50|
+    60,25,pLASMA cANNON,fIRE A DEVASTATING PLASMA PROJECTILE,plasma_cannon,75]]
+  
   for i, a in ipairs(stringToTable(ability_data)) do
     add(new_entity.abilities, {
       index = i,
       cooldown = a[1],
       name = a[3],
-      action = new_entity[a[4]],
+      description = a[4],
+      action = new_entity[a[5]],
       current_cooldown = 0,
       remaining_uses = subclass != "player" and a[2] or 0,
-      cost = a[5]
+      cost = a[6]
     })
   end
 
@@ -1111,11 +1171,11 @@ function entity.new(x, y, base_class, subclass)
     15,dervish,50,50,60,100|
     13,vanguard,70,70,50,120|
     1,warden,100,100,70,200|
-    7,player,400,400,70,0|
+    7,player,500,500,70,0|
     11,preacher,80,80,80,280|
     6,cyberseer,160,160,80,300|
     1,quantumcleric,170,170,70,320
-  ]]
+    ]]
     
   for d in all(stringToTable(entity_data_str)) do
     if d[2] == subclass then
@@ -1127,103 +1187,67 @@ function entity.new(x, y, base_class, subclass)
 end
 
 function entity:update()
-  -- Common updates for all entities
+  if self.subclass == "player" then
+    self:player_update()
+  else
+    self:enemy_update()
+  end
   self:apply_physics()
   self.targeting:update()
-  
-  -- Update cooldowns and poison in one pass
+
+  -- Update cooldowns
   for ability in all(self.abilities) do
     ability.current_cooldown = max(0, ability.current_cooldown - 1)
   end
-  
+
+  -- Handle poison damage
   if check_tile_flag(self.x, self.y, 2) and self.base_class != "preacher" then
-    self.poison_timer = (self.poison_timer + 1) % 6
-    if self.poison_timer == 5 then self:take_damage(1) end
+    self.poison_timer += 1
+    if self.poison_timer >= 5 then
+      self:take_damage(1)
+      self.poison_timer = 0
+    end
   else
     self.poison_timer = 0
   end
-  
-  -- Handle plasma charging
-  if self.plasma_timer and self.plasma_timer > 0 then
-    self.plasma_timer -= 1
-    if self.plasma_timer == 0 then
-      local dx, dy = self:get_aim_direction()
-      local sx, sy = self.x + self.width/2, self.y + self.height/2
-      add(particles, particle:new(sx, sy, dx * 5, dy * 5, 120, 4, 12, "plasma", self))
-      sfx(10)
-      self.vx -= dx * 5.5
-      self.vy -= dy * 5.5
-      self.plasma_timer = nil
+
+  if self.update_plasma then
+    self:update_plasma()
+  end
+end
+
+function entity:player_update()
+  self:control()
+  self:follow_target()
+
+  if btnp(❎) then
+    for t in all(terminals) do
+      if t.interactive then
+        game_minigame:start(t)
+        goto continue
+      end
+    end
+    self:activate_ability(self.selected_ability)
+    ::continue::
+  end
+
+  for fragment in all(data_fragments) do
+    if dist_trig(fragment.x - self.x, fragment.y - self.y) < 8 and not fragment.collected then
+      self.health = min(self.health + 20, self.max_health)
+      player_hud:add_credits(50)
+      fragment.collected = true
+      sfx(7)
     end
   end
-  
-  -- Entity-specific behavior
-  if self.subclass == "player" then
-    self.state = "idle"  -- Player is always in idle state for terminal interaction
-    self:control()
-    self:follow_target()
-    
-    if btnp(❎) then
-      for t in all(terminals) do
-        if t.interactive and not t.tutorial_msg then  -- Skip tutorials
-          game_minigame:start(t)
-          return
-        end
-      end
-      self:activate_ability(self.selected_ability)
-    end
-    
-    -- Fragment collection
-    for fragment in all(data_fragments) do
-      if dist_trig(fragment.x - self.x, fragment.y - self.y) < 8 and not fragment.collected then
-        self.health = min(self.health + 25, self.max_health)
-        player_hud.credit_add_timer += 50
-        fragment.collected = true
-        sfx(7)
-      end
-    end
-  else
-    -- Enemy AI consolidated
-    if self:can_see_player() then
-      self.alert_timer = self.max_alert_time
-      local player = self:find_player()
-      local dx, dy = player.x - self.x, player.y - self.y
-      local dist = dist_trig(dx, dy)
-      
-      if dist <= self.attack_range then
-        self.state = "attack"  -- Set attack state
-        self.facing_left = dx < 0
-        self.last_direction = abs(dx) > abs(dy) and "horizontal" or (dy < 0 and "up" or "down")
-        
-        local subclass_abilities = entity_abilities[self.subclass]
-        local ability = self.abilities[self:find_ability(subclass_abilities[flr(rnd(#subclass_abilities)) + 1])]
-        if ability and ability.current_cooldown == 0 then
-          self:activate_ability(ability.index)
-        end
-      else
-        self.state = "alert"  -- Set alert state
-        self.vx, self.vy = dx / dist, dy / dist
-      end
-    elseif self.last_seen_player_pos.x then
-      self.state = "alert"  -- Set alert state when moving to last known position
-      local dx, dy = self.last_seen_player_pos.x - self.x, self.last_seen_player_pos.y - self.y
-      local dist = dist_trig(dx, dy)
-      self.vx, self.vy = dist > 1 and dx / dist or 0, dist > 1 and dy / dist or 0
-    else
-      self.state = "idle"  -- Set idle state
-      -- Idle behavior
-      self.idle_timer -= 1
-      if self.idle_timer <= 0 then
-        self.idle_timer, angle, speed = 30, rnd(), rnd(1)
-        self.vx, self.vy = cos(angle)*speed, sin(angle)*speed
-      end
-    end
-    
-    self.alert_timer -= 1
-    if self.alert_timer <= 0 then
-      self.last_seen_player_pos.x, self.last_seen_player_pos.y = nil, nil
-    end
-  end
+end
+
+function entity:enemy_update()
+  local s = {
+    idle = self.update_idle,
+    alert = self.update_alert,
+    attack = self.update_attack
+  }
+  s[self.state](self)
 end
 
 function entity:take_damage(amount)
@@ -1234,7 +1258,7 @@ function entity:take_damage(amount)
 end
 
 function entity:on_death()
-  player_hud.credit_add_timer += self.kill_value
+  player_hud:add_credits(self.kill_value)
   self:spawn_death_particles()
   del(entities, self)
   sfx(30)
@@ -1257,24 +1281,106 @@ end
 
 function entity:can_see_player()
   local player = self:find_player()
-  if not player then return end
+  if not player then return false end
   
-  if dist_trig(player.x - self.x, player.y - self.y) <= self.attack_range and self.targeting:has_line_of_sight(player) then
+  local dx, dy = player.x - self.x, player.y - self.y
+  
+  if dist_trig(dx, dy) <= self.attack_range then
+    local steps = max(abs(dx), abs(dy))
+    local step_x, step_y = dx / steps, dy / steps
+    
+    for i = 1, steps do
+      if check_tile_flag(self.x + step_x * i, self.y + step_y * i) then
+        return false
+      end
+    end
+    
     self.last_seen_player_pos.x, self.last_seen_player_pos.y = player.x, player.y
     return true
   end
+  
+  return false
 end
 
+function entity:update_idle()
+  self.idle_timer -= 1
+  if self.idle_timer <= 0 then
+    self.idle_timer,angle,speed = 30,rnd(),rnd(1)
+    self.vx, self.vy = cos(angle)*speed, sin(angle)*speed
+  end
+
+  if self:can_see_player() then
+    self.state = "alert"
+    self.alert_timer = self.max_alert_time
+  end
+end
+
+function entity:update_alert()
+  if self:can_see_player() then
+    self.alert_timer = self.max_alert_time
+    local player = self:find_player()
+    local dx, dy = player.x - self.x, player.y - self.y
+    local dist = dist_trig(dx, dy)
+    
+    if dist <= self.attack_range then
+      self.state = "attack"
+    else
+      -- Move towards player
+      self.vx, self.vy = dx / dist, dy / dist
+    end
+  elseif self.last_seen_player_pos.x then
+    local dx, dy = self.last_seen_player_pos.x - self.x, self.last_seen_player_pos.y - self.y
+    local dist = dist_trig(dx, dy)
+    
+    self.vx, self.vy = 0, 0
+    if dist > 1 then
+      self.vx, self.vy = dx / dist, dy / dist
+    end
+  end
+    
+  self.alert_timer -= 1
+  if self.alert_timer <= 0 then
+    self.state, self.last_seen_player_pos.x, self.last_seen_player_pos.y = "idle", nil, nil
+  end
+end
+
+function entity:update_attack()
+  local player = self:find_player()
+  if not player or not self:can_see_player() then
+    self.state = "alert"
+    self:reset_plasma_cannon()
+    return
+  end
+
+  local dx, dy = player.x - self.x, player.y - self.y
+  if dist_trig(dx, dy) <= self.attack_range then
+    self.facing_left = dx < 0
+    self.last_direction = abs(dx) > abs(dy) and "horizontal" or (dy < 0 and "up" or "down")
+
+    local subclass_abilities = entity_abilities[self.subclass]
+    local ability = self.abilities[self:find_ability(subclass_abilities[flr(rnd(#subclass_abilities)) + 1])]
+    if ability and ability.current_cooldown == 0 then
+      self:activate_ability(ability.index)
+    end
+  else
+    self.state = "alert"
+  end
+end
 
 function entity:find_ability(ability_name)
   for i, ability in ipairs(self.abilities) do
-    if ability.name == ability_name then return i end
+    if ability.name == ability_name then
+      return i
+    end
   end
+  return nil
 end
 
 function entity:find_player()
   for e in all(entities) do
-    if e.subclass == "player" then return e end
+    if e.subclass == "player" then
+      return e
+    end
   end
 end
 
@@ -1283,19 +1389,13 @@ function entity:activate_ability(index)
   if ability.current_cooldown == 0 then
     if ability.remaining_uses > 0 then
       ability.action(self)
-      ability.current_cooldown = self.subclass == "player" and ability.cooldown or ability.cooldown * 3
-      if self.subclass == "player" then ability.remaining_uses -= 1 end
-    else
-      -- Auto-switch to next weapon with ammo
-      for i = 1, #self.abilities do
-        local next_index = (index + i - 1) % #self.abilities + 1
-        if self.abilities[next_index].remaining_uses > 0 then
-          self.selected_ability = next_index
-          game_ability_menu.last_selected_ability = next_index
-          self:activate_ability(next_index)
-          return
-        end
+      if self.subclass == "player" then
+        ability.current_cooldown = ability.cooldown
+        ability.remaining_uses -= 1
+      else
+        ability.current_cooldown = ability.cooldown * 3
       end
+    else
       sfx(29)
     end
   end
@@ -1307,14 +1407,16 @@ function entity:rifle_burst()
   self.vx -= dx * decel
   self.vy -= dy * decel
 
+  local sx, sy = self.x + self.width/2, self.y + self.height/2
+
   for i = -2, 2 do
-    local angle = atan2(dx, dy) + i * 0.005 
+    local angle = atan2(dx, dy) + i * 0.005
+    local vx, vy = cos(angle) * 4, sin(angle) * 4
+    
     local bullet = particle:new(
-      self.x + self.width/2 + cos(angle) * self.width/2,
-      self.y + self.height/2 + sin(angle) * self.height/2,
-      cos(angle) * 4, 
-      sin(angle) * 4, 
-      30, 1, 8, "rifle", self
+      sx + cos(angle) * self.width/2,
+      sy + sin(angle) * self.height/2,
+      vx, vy, 30, 1, 8, "rifle", self
     )
     add(particles, bullet)
   end
@@ -1330,13 +1432,13 @@ function entity:machine_gun()
       if bullets % 2 == 0 then
         local dx, dy = self:get_aim_direction()
         local angle = atan2(dx, dy) + (rnd() - 0.5) * 0.03
+        local vx, vy = cos(angle) * 6, sin(angle) * 6
+        local sx, sy = self.x + self.width/2, self.y + self.height/2
         
         local bullet = particle:new(
-          self.x + self.width/2 + cos(angle) * self.width/2,
-          self.y + self.height/2 + sin(angle) * self.height/2,
-          cos(angle) * 6, 
-          sin(angle) * 6, 
-          20, 1, 8, "machinegun", self
+          sx + cos(angle) * self.width/2,
+          sy + sin(angle) * self.height/2,
+          vx, vy, 20, 1, 8, "machinegun", self
         )
         add(particles, bullet)
 
@@ -1369,9 +1471,41 @@ function entity:missile_hail()
 end
 
 function entity:plasma_cannon()
-  self.plasma_timer = 20
+  self.plasma_charge = 0
+  self.is_charging_plasma = true
+  self.update_plasma = self.update_plasma_cannon
 end
 
+function entity:update_plasma_cannon()
+  if self.is_charging_plasma then
+    if self.plasma_charge < 20 then
+      self.plasma_charge += 1
+      sfx(4)
+    else
+      local dx, dy = self:get_aim_direction()
+      local sx, sy = self.x + self.width/2, self.y + self.height/2
+      local proj = particle:new(
+        sx, 
+        sy, 
+        dx * 5, 
+        dy * 5,
+        120, 4, 12, "plasma", self)
+      
+      add(particles, proj)
+      sfx(10)
+      self.vx -= dx * 5.5
+      self.vy -= dy * 5.5
+      
+      self:reset_plasma_cannon()
+    end
+  end
+end
+
+function entity:reset_plasma_cannon()
+  self.is_charging_plasma = false
+  self.plasma_charge = 0
+  self.update_plasma = nil
+end
 
 function entity:get_aim_direction()
   local target = self.targeting.target
@@ -1395,22 +1529,22 @@ end
 function entity:control()
   local ix = (btn(1) and 1 or 0) - (btn(0) and 1 or 0)
   local iy = (btn(3) and 1 or 0) - (btn(2) and 1 or 0)
+  local max_target_distance, target_speed = 32, 6
 
-  if ix == 0 and iy == 0 then
-    self.target_x += (self.x - self.target_x) * 0.3
-    self.target_y += (self.y - self.target_y) * 0.3
-    return
+  if ix != 0 and iy != 0 then
+    ix *= self.diagonal_factor
+    iy *= self.diagonal_factor
   end
 
-  self.target_x += ix * 6
-  self.target_y += iy * 6
+  self.target_x += ix * target_speed
+  self.target_y += iy * target_speed
 
   local dx, dy = self.target_x - self.x, self.target_y - self.y
 
-  if dist_trig(dx, dy) > 32 then
+  if dist_trig(dx, dy) > max_target_distance then
     local angle = atan2(dx, dy)
-    self.target_x = self.x + cos(angle) * 32
-    self.target_y = self.y + sin(angle) * 32
+    self.target_x = self.x + cos(angle) * max_target_distance
+    self.target_y = self.y + sin(angle) * max_target_distance
   end
 end
 
@@ -1452,8 +1586,8 @@ end
 
 function entity:apply_physics()
   -- Apply deceleration
-  self.vx = abs(self.vx) < 0.01 and 0 or self.vx * self.deceleration
-  self.vy = abs(self.vy) < 0.01 and 0 or self.vy * self.deceleration
+  self.vx = abs(self.vx) < 0.05 and 0 or self.vx * self.deceleration
+  self.vy = abs(self.vy) < 0.05 and 0 or self.vy * self.deceleration
 
   -- Prepare new position
   local new_x, new_y = self.x + self.vx, self.y + self.vy
@@ -1483,8 +1617,20 @@ function entity:apply_physics()
 end
 
 function entity:check_tile_collision(x, y)
-  local w, h = self.width - 1, self.height - 1
-  return check_tile_flag(x, y) or check_tile_flag(x + w, y) or check_tile_flag(x, y + h) or check_tile_flag(x + w, y + h)
+  local points = {
+    {x, y},
+    {x + self.width - 1, y},
+    {x, y + self.height - 1},
+    {x + self.width - 1, y + self.height - 1}
+  }
+
+  for point in all(points) do
+    if check_tile_flag(unpack(point)) then
+      return true
+    end
+  end
+
+  return false
 end
 
 function entity:draw()
@@ -1493,8 +1639,8 @@ function entity:draw()
   local hover_offset = is_preacher and sin(time() * .5) * 2 or 0
   
   -- Plasma charge circle
-  if self.plasma_timer and self.plasma_timer > 0 then
-    circ(x + w/2, y + h/2, 32 * (self.plasma_timer / 20), 12)
+  if self.is_charging_plasma and self.plasma_charge < 20 then
+    circ(x + w/2, y + h/2, 32 * (1 - self.plasma_charge / 20), 12)
   end
 
   -- Shadow
@@ -1600,7 +1746,6 @@ function barrel:update()
         local dx = e.x + e.width/2 - (self.x + self.width/2)
         local dy = e.y + e.height/2 - (self.y + self.height/2)
         local normalized_dist = dist_trig(dx/64, dy/32)
-        -- printh(normalized_dist)
         if normalized_dist < 0.5 then
           local damage = 20 * (1 - normalized_dist*2)
           e:take_damage(damage * (self.poison and 1.5 or 1))
@@ -1670,11 +1815,17 @@ function laser_door:draw()
   end
 end
 
-function laser_door:check_collision(ex,ey,ew,eh)
-  if self.is_open then return end
-  for b in all(self.laser_beams) do
-    if ey+eh>b.start_y and ey<b.end_y and ex<b.start_x and ex+ew>b.start_x then return true end
+function laser_door:check_collision(ex, ey, ew, eh)
+  if self.is_open then return false end
+  
+  for beam in all(self.laser_beams) do
+    if (ey + eh > beam.start_y and ey < beam.end_y) and
+       (ex < beam.start_x and ex + ew > beam.start_x) then
+      return true
+    end
   end
+  
+  return false
 end
 
 -- DATA FRAGMENT
@@ -1703,10 +1854,10 @@ end
 ----------------
 terminal = {}
 
-function terminal.new(x, y, target_door, tutorial_msg)
-  local pulse_colors = target_door and target_door.color_map[target_door.color].terminal_sequence or {7, 6, 13, 6}
+function terminal.new(x, y, target_door)
+  local pulse_colors = target_door and target_door.color_map[target_door.color].terminal_sequence or {7, 6, 13, 6}  -- Default pulse colors if no door
 
-  local t = setmetatable({
+  return setmetatable({
     x = x,
     y = y,
     interactive = false,
@@ -1714,17 +1865,8 @@ function terminal.new(x, y, target_door, tutorial_msg)
     pulse_timer = 0,
     target_door = target_door,
     pulse_colors = pulse_colors,
-    completed = false,
-    tutorial_msg = tutorial_msg
+    completed = false
   }, {__index = terminal})
-  
-  -- Create panel at fixed screen position (will be adjusted with camera in draw)
-  local msg = tutorial_msg or "   INTERACT: ❎"
-  local panel_width = max(40, #msg * 4 + 12)  -- Adjust width based on message length
-  t.panel = textpanel.new(64 - panel_width/2, 114, 10, panel_width, msg, true)
-  t.panel.selected = true
-  
-  return t
 end
 
 function terminal:update()
@@ -1733,26 +1875,13 @@ function terminal:update()
     return
   end
 
-  local dist = dist_trig(player.x-self.x, player.y-self.y)
-  
-  if self.tutorial_msg then
-    -- Tutorial: simply show when close
-    self.interactive = dist < 42
-  else
-    -- Original terminal logic
-    self.interactive = true
-    for e in all(entities) do
-      if e.state != "idle" or dist >= 32 then
-        self.interactive = false
-        self.pulse_index, self.pulse_timer = 1, 0
-        return
-      end
+  self.interactive = true
+  for e in all(entities) do
+    if e.state != "idle" or dist_trig(player.x-self.x, player.y-self.y) >= 32 then
+      self.interactive = false
+      self.pulse_index, self.pulse_timer = 1, 0
+      return
     end
-  end
-
-  -- Update panel animation when interactive
-  if self.interactive then
-    self.panel:update()
   end
 
   self.pulse_timer = (self.pulse_timer + 1) % 6
@@ -1760,7 +1889,6 @@ function terminal:update()
     self.pulse_index = self.pulse_index % #self.pulse_colors + 1
   end
 end
-
 
 function terminal:draw()
   if self.completed then
@@ -1804,6 +1932,7 @@ function minigame:start(terminal)
   timer = time_limit
   current_input = {}
   current_terminal = terminal
+
 end
 
 function minigame:update()  
@@ -1839,15 +1968,12 @@ function minigame:end_game(success)
   local current_terminal  = self.current_terminal
 
   if success then
-    sfx(15)
     if current_terminal.target_door then
       current_terminal.completed = true
       current_terminal.target_door.is_open = true
     else
       current_terminal.completed = true
     end
-  else
-    sfx(29)
   end
   current_terminal = nil
 end
@@ -1859,6 +1985,7 @@ function minigame:draw()
   rectfill(center_x - 35, center_y - 20, center_x + 35, center_y + 20, 0)
   rect(center_x - 35, center_y - 20, center_x + 35, center_y + 20, 3)
   
+  -- Calculate total width of sequence
   local seq_width = #self.sequence * 12 - 4
   local seq_start_x = center_x - seq_width / 2
   
@@ -1867,15 +1994,19 @@ function minigame:draw()
     seq_start_x += 12
   end
   
+  -- Reset seq_start_x for current input
   seq_start_x = center_x - seq_width / 2
   
   for i, dir in pairs(self.current_input) do
-    print(dir, seq_start_x, center_y, dir == self.sequence[i] and 11 or 8)
+    local color = dir == self.sequence[i] and 11 or 8
+    print(dir, seq_start_x, center_y, color)
     seq_start_x += 12
   end
   
+  -- Center the timer text
   local timer_text = "time: "..flr(self.timer / 30)
-  print(timer_text, center_x - #timer_text * 2, center_y + 10, 8)
+  local timer_width = #timer_text * 4  -- Assuming each character is 4 pixels wide
+  print(timer_text, center_x - timer_width / 2, center_y + 10, 8)
 end
 
 
@@ -1892,7 +2023,6 @@ player_hud = {
   shake_duration=0,
   alert_bar_height=4,
   credit_add_timer=0,
-  
 }
 
 function player_hud.new()
@@ -1900,7 +2030,13 @@ function player_hud.new()
 end
 
 function player_hud:update()
-
+  self.show_interact_prompt = false
+  for terminal in all(terminals) do
+    if terminal.interactive then
+      self.show_interact_prompt = true
+      break
+    end
+  end
   self.shake_duration = max(self.shake_duration - 1, 0)
   if self.credit_add_timer > 0 then
     credits += 5
@@ -1909,7 +2045,8 @@ function player_hud:update()
 end
 
 function player_hud:draw()
-  local cam_x, cam_y, health_percent = cam.x, cam.y, player.health / player.max_health
+  local cam_x, cam_y = cam.x, cam.y
+  local health_percent = player.health / player.max_health
   local start_x, start_y = flr(self.x_offset + cam_x), flr(self.y_offset + cam_y)
 
   if self.shake_duration > 0 then
@@ -1931,12 +2068,17 @@ function player_hud:draw()
     credits_text ..= " +"..self.credit_add_timer
   end
   print_shadow(credits_text, start_x, cooldown_y + 12)
+
+  if self.show_interact_prompt then
+    print_shadow("❎ interact", cam_x + 4, cam_y + 120)
+  end
   
   local alert_x, alert_y = cam_x + self.x_offset, cam_y + 127 - self.alert_bar_height
   
   for entity in all(entities) do
     if entity.state == "alert" or entity.state == "attack" then
-      local health_percent, bar_width = entity.health / entity.max_health, flr(entity.max_health * .4)
+      local health_percent = entity.health / entity.max_health
+      local bar_width = flr(entity.max_health * .4)
       draw_bar(alert_x, alert_y, bar_width, self.alert_bar_height, 7, 8, health_percent)
       print_shadow(entity.subclass, alert_x + bar_width + self.text_padding, alert_y)
       alert_y -= self.alert_bar_height + self.text_padding
@@ -1949,8 +2091,6 @@ function player_hud:draw()
     elseif ending_sequence_timer > 0 then
       print_shadow("EVACUATE IN: " .. flr(ending_sequence_timer), cam_x + 30, cam_y + 90)
       print_shadow("FOLLOW THE RED DOT", cam_x + 26, cam_y + 100)
-      print_shadow("BACK TO SPAWN POINT", cam_x + 26, cam_y + 108)
-
       -- Spawn point indicator
       local angle = atan2(player_spawn_x - player.x, player_spawn_y - player.y)
       circfill(player.x + cos(angle) * 20, player.y + sin(angle) * 20, 1, 8)
@@ -1960,23 +2100,23 @@ function player_hud:draw()
     end
     ending_sequence_timer -= 1
   end
-
-  local mx,my,px,py=cam.x+112,cam.y+112,flr(player.x/8),flr(player.y/8)
-  for i=0,255 do local tx,ty=i%16-8,flr(i/16)-8
-  pset(mx+tx+8,my+ty+8,fget(mget(px+tx,py+ty),0)and 3 or 11) end
-  pset(mx+8,my+8,7)
 end
 
-function draw_bar(x, y, w, h, bg, fill, pct)
-  rectfill(x, y, x + w - 1, y + h - 1, bg)
-  if pct > 0 then rectfill(x, y, x + max(1, flr(w * pct)) - 1, y + h - 1, fill) end
-  rect(x, y, x + w - 1, y + h - 1, 0)
+function draw_bar(x, y, width, height, bg_color, fill_color, percentage)
+  rectfill(x, y, x + width - 1, y + height - 1, bg_color)
+  if percentage > 0 then
+    rectfill(x, y, x + max(1, flr(width * percentage)) - 1, y + height - 1, fill_color)
+  end
+  rect(x, y, x + width - 1, y + height - 1, 0)
 end
-
 
 function print_shadow(text, x, y, color)
   print(text, x + 1, y + 1, 0) 
   print(text, x, y, color or 7)
+end
+
+function player_hud:add_credits(amount)
+  self.credit_add_timer += amount
 end
 
 
@@ -2045,129 +2185,139 @@ e577777ee577777e05777770e577707ee00000ee766666666666666d00005555e0eee1eee0ee1eee
 5535353303030300551555555555515500155555555551005555555501dddd2063336666666366666666666661dddd2655555110011555556366366d6366366d
 53353535000000005155555555555515001155555555110055555555001222006636666666336666666666666612226655555511115555556366336d6336366d
 3333353500000000155555555555555100011115511110005555555500000000663666666636666666666666666666665555555115555555636dd3dd663d3ddd
-5249a052361b05ba0025b2d1a8502698a51044058251a403902606aa00e0b4081b41a450264880411a007962100ef370269a6490d64021b314010ac05a20ca41
-a470f2604ba20c95024405422216c18d0603c1e0608000c740416d94300c00380b40024090ec40fb20305104480ea464381628809a406b08a51c9506bb09f18b
-0391c10cf60850e1f8748a7083018040738990023dcbf10dee00328902020434860180e673b1dc6e8d0192eb4050706e302902e8077184724b20ee20fb708203
-14cfd87c2b47d1a80094703f08351cdf16ef7801830fb1704fd3b10625482d4fc0e0105c70af3289f47c8af043706d507480c2382204580ae36a3f97483df02f
-d371940dbf1608c261c048352c97d013f72814683278705f489224c22a65070234c896c0ea06f3e1f8038485f74b25ecb378c16a38ff2cd7c04089b24ad32d00
-6eb1511800091887f291aaf36ea2f891a912e4050e836dc9f3a8f06eb718308c9080663f1c6e82d02145735c45d86e30112000a036182fe11a4d0df9381062a0
-7ea04b62390a01048baf092703271678af14df32eb05e3832842962a40d0014030e906cf1fe985761a0839333779139c99325c07f9349062a07e212b71b0bc5c
-3d17a3f17e709ec3f91aef78910812c12ce673314a04482d1f63454ed47304001eef1d18349c4edf918e68179c434aeb3771933711ea965a4021c81b0c861acd
-1bfb23c3578cedd573f0782f9f82c641f1a6f0fe8350789f5c4fd86c1e07cbabe50813715ae70b0a951c1a0e1f402771b00e24768a761967319e535f0321b417
-2835c68029d1dce02ff89f54cf5ec11d85989c91af935a536e0a107ccfbc6a3e978eb9a04929bd81d039f70893c42f87f3e9f8057c8310cbf34d0cf6d3b9cc70
-821cc2f60dc7f3630c97d81bff86b691a7109ef025c995f99a824492924171c845a260f846ff113093c9c1eb2db466c5f8be69c0703e4c8c85bdf02ad9905ccf
-6eeb663d97ca0c073aa4f458d00b7c82f0926bf35ed237625c1372ca3480bb128e61b0038188439f234271a8f59a503ff8adb4ce7aa545303317083b133b3abf
-a972ef170082f3d931228650d42fe92f645292cb07a9a453caf38c3d5027d30c546a8b74394c1b8461b2513de5a6af080793c27e733f3a1c245a36ef47c1329b
-6cf01f135f28ae2519d42f1aa3f2998e71643a88a4258eae5d408d12d9f5ec6afa5525d3e152ae148bf34b5d69f0ae7463b1b2a345dba7d55a7080b3f05f4a10
-2982ef0515a35ec4d125f14eb0517966071590a4f7cd704d3d13380b4e7c0d084eb36449598e87d27a108d991635743b5774a0f0def54f8a9f559fba9413f704
-8d27697c6539d919541f2acd3dff92c81100a8143311884c264210ac9d884402914aea17083c54f5091600b00361cac265efa50c5974acecb5a643f8aa8d0e18
-2790b454d78ba07edee155384a9ce592df09203b97683b78183f3baf1d08eafd751d3646f18d61b24994545af2726a8cf3cff1effb8cd0603806ff6fb7235dd5
-7d00b24137fa9509c44c304300cc880402117ae307ff05cd4ba40954106808df0ecf0a0c372ec342ca51e2033931fcaa9d292a5568341b8dbc23279ce249a031
-73b34d5a02b8d2b24953ac333102ef6904a53a4b06e3b21dc8a9ab96b5ee23204c3397ce4dd0604eb923ca68ac935202b8325b39eff85e2c116e1b91f585e9c4
-55c46c063c9d0e17f2c355ff361faf5f4a7503b9fc9d05a2120133121f04308c784e5ac86089f3cf0af3b0eeb42da751a45c264a5531f166a559452e80dc6ecf
-6199c0ffc9342a11f581fa017c0aedd429085af3cc2aa186cfec23cf9f00e7733df49f5124738936ff5a83f38ac12f87cc9c165133e504b43d69d8fc539c0066
-081a660f1b0c1df7c92a49837d17aec4497209fc6c3f9fcfedf74dbd94df6eff503810cfff705fc31caa57a5548e60cd127ac111533c793e29636cbdf8d2cbc9
-0cbfb45e9a8efc9eb6ceec43ff3b4ff3cd1f65b53d4a84845f300bff881b1c08ede77892d68ede1005f78df544f3bdf7cc459389f01fff2499bf035ee1ca8d3b
-8494467201f7df3612e0c19670ffec2f495e0b15d7e220f9c0453c9c3c51b65fc0c9b7b2f469baa44f4c97c3745c321f012b86a04611095f6c303a54080011b3
-e204fa614295f42d611ec7daf4c7aec4d77af3490df673f9fc6c3f1f8ab58136d3e136ee178f34cde9f26850027d50280e43050183fbee07bc0878db5838aa57
-5f78080d96c6085402918846251041c864aa9dde85de64d7e73593cfcfe7f354cf78597a326f1271a984b0603083e9b70389b04328894fd6f9af1fc06f680de7
-c32869ef35f0b296f94ceb3cefc044211389ae7000c5c9d87ece235410f8bb5c9cb6084b5fc1deef57672a99eb0190fb69789a85479e930ff78efc990aedf793
-41e45ca3ff19329d93def74f55a17e6347fff612eb09bcf9a3703058245d79de7f4cf3bd35a8f6f305c6aaef7760b7485b1ca520f1c541e99189d40251100e00
-462b1845aa0582c1cc30800011ae0040f603a10ae2081782a900be0065830c6374080d96cde070181fc9046e3897af0040f7189921ac50211b45ca458241a450
-2618859a50238259a80d21229885de005c081a4102e3442c9308ed4038132954248a0499c18d0683c1c0603016cb4f402024000808341062216ec2489ea0580b
-188c5447f2498e068381d0663f974ae0c242b1c001b08200c4202eb05c10975369846e318701804038cf2c830ac1643fc7f38090013438af7804014083f3cf44
-e672ac000011c06630978f4dd0e11cc52a61648fe2010c65b25178022a05208353012c008af673b934094132108ae80620e16801ff84f2196cf07e713608b1e1
-260307f72a95040a05a249360517158350413525b28cc438bf109c60319fcf2d703059cc703e1c6e83724127d078222905650502e6a3aeb0d3b136eb643f906a
-f24e03d3c0d06c30c4f1ccf0302db89c14aff4728ff74e76a4c240253018ac17a583104a858d7da12609a959cc628ff389c16887c3e112493c00c51049915231
-d09cc51806148523e05af136f89fe16c708a3f41f16ee48ef673f9dc7e8ff30c2ff366c3608c0b0ae276391cef92de5152d81784993620293892951a0e5f0150
-d3200e6d05080942e1a4f04ec1e034cf2eef175994f30943b70321438112840834c7f8880c246892b1020b1bbf85e8495c842f97681c3cd45644170c329768f0
-aea2389ff90aef7c394d044161b238bf4cd12200141b850761b08896b1cc602993ea4588c6f89fd4019c6010c59405ed061301803319231227f04f8609ae7cc5
-1c07729561439889558336331cdf2eef0e8b57c1162d04b8d349d0bc4d183967229d0028642211844a204ef10d457403a84e850505986f449fa0004284499e94
-1238268b0495cb0c274911b0104b443314cffd343392b94eef17c1828f49a2498003381984403ee107f712c5dd883d5338d9afa08a6a041045f34e3964b33ab8
-e40b6ab301080cc515846d94d920d9f06c3f8ac1e08503f15eaf2be7839a8a0106b0e024141a00160bcddf884d001abf3dcf0c11ff82f79bac8950a44ba9ac7c
-df76b3153c82494a348580b203219a48455c024000a096704376389a600eef1da593ea5c75c43cf04f9a1f14df46ef074535c758291a745339ba3d7cdf3a200d
-e7991701ca6506b99a2d400aef6a3840e5e8f68ab1d3685c177f98a5c3d8a9f15e725838bf6182ef3db59940952a379ac0b1c8d6655a166f17a295c8c102a1a5
-76c56f786f54dfc2690bffa6f7de6665f474f55b489ef492462965e1931cc334053c7435839cd38c6e8153dc04619cbe3498ca19899023f7baa6d1f5ecb19f85
-40837dde8aef59ac83f35a472d081b276978cf7d22aea0498db5b4dc9becf0be472df8bfad832adb492292e8caaae058d8d647baaca1cea56d3ca25e598ee658
-64f63b9f452ac60f743add61c028643311c84c94bf1981cc04e2d4ef0700196b83f36f00c010d2260c9f618c4a209240cc04181e01804c805019e8c65856489a
-174d5a5a55703edd15210f3ba04c68a71e710eff559d899942538a108043cb549dca9aef6e2210205a72734b6934f11a6d07da8677596ea0e3b4634fdbec1647
-7e005be886dad28a7902d06894db2446558476bf179acb0c958c2bfcce7e40597d3248446bdb72f1425ca65620281a96f39cc60854225c881ea5272304e50671
-d2de093660ad1a33a16da8b2ce99cb2ca5cc213cefb0176a3253f8315374a93ed209b24d159fb2824113bda3d2d94a3abf542813e267bbb4405577accb5230cc
-4ba516029c85a782b2e6b6f774fb9077b8bf9e165c78d772e954bc627654764d2ed13e65a960d71491c4ffe26303213aba6373ab6c51563575f54afa78dff49a
-4a012f6ddc29e1188a1bb73c3da2b43f06ffabd986b3eff8eb7cba0075d896d49a52ca05818a219720171b20b50875f45706f30f320f7704300e120f028f81c7
-01e3a0f160f038782c301e120f0a8f85c703e3a1f1e0f07848f01a4f388300019f6cee918b0e0109d08240c2306a40f6108a18c1bb783c83f14b20e170ff30ff
-28641c4dd93c831441b1a4c07c9055382814cf1a4315b98740c1b1e411961097581d04d316c6054a8ff14af22e70fee03c28210cce7c0dcd83f1ca20e070efe3
-18ff0cff0ef705cb8886c954a4717ed09338cf0c5a12f71bf7854cc345e41358205ab8ff1c151a9d11f384fdc927637172c12ec81f6cff3e2607ff8701c1d52a
-243b6174b8cec47806d20bf38f904369a8a33372f5b9f8ec700efc3f1a9f8dcf0fe731f3e3f1f9e8080000000000000000000000000000000000000000000000
+a27070707070b40555550505370603030303a7a7a7a7f606a67070707070705262707070707070707070707070701770707070707070707070c3d0d0777070a2
+707070177086f6e7e7e7e7f7a67070b40515655565450515056505654555050515656505156515656745550505156505654505556545c47406f640a7a7f60694
+a2a2a270707074c60607070606c6f6a7404003a7a74040069470707070c2a27070a2d270707070707070707070707070707070707070707070177070707070a2
+707070707047060706b6f6f69670c284c6060607060606060606060606060607060606060606060607070607060606060606060606b6957416f6404040f60694
+a2a2a27070707406f6404040f6f6f6a7a7a74003030303069470707070d100707070d170707070707070707070707070707070707070707070707070707070a2
+70707070700000443606f6e7a6d0d37416f6f6e7e7f6f6404003b2b2b2c1f6f6f6f6f6f6f640404003f6f6404040f6f6d6c1c1f6f606a6740640a703a7f60694
+a270d17017707406f6a7a7a7a7a7a7a7a7a7a7a797a7f6069470707070d100707070d170b40505055515707070704555050505551565674555056545550505c4
+70707070700000708416f7f79670707506e78797a7a7a7a7404003b1c1a7a740a7a7a7a7a7a740b10303a7a7a7a7b0a7d603a7a7f616967406f603a703e60696
+a270d17070708416f6a740a7a7a7a7a7a7a7a797a797f7069470707070d100707070d17074c6060607062570703507060606070606060707060606060606b694
+70701770707070707516f6f79670707034878787a7a7a7a7a7a7a703b0a7a7a7a7a703c0a7a7a7a7b103a7a7b040b2c003a703a7f606947406f6b703a7400694
+a270d17070708416f6a7a7a7a7a7f6f6f6f7f6f7a797f7069470707070c3d2707070c3d07406f6f6f6f7f69787f7f6f6f6f6f6f6f6f6f6f6404040f6f6f60694
+70707070707070000086f6e7a67070707087a78797a7a7a7a7a7b0c003a7a7a7a7a7a703c0a7a7a740c003a7b040b2c1c103a7a7f606a67406f6f64040400694
+a2d0d37070708606c0a7a7a7a740f6c606060624707034c6947070707070d170707070708416f603a7a7979787a7a7a7b0a7a7a7a7a7a7a7404040a703f61694
+7070707070a270000086e7e7a6707070708797a787a7a7a7a7a7b0b203a7a7a7a7a7a703b0a7a7a7a7b103a7b1b2c1b0b0c0a7a7f6069674b60606060606c694
+a2707070a2708406b2c0a7a7a7a7f6062604147070707044c57070707070d170707070708606f6a7a7a7a797a7a7a7b0b2c0a7a7a7a7a7a7a7a7a7a7a7f60694
+70707070a270a2707076e7e7a670707070878787a7a7a7a7a7a7b0c103a7a7a7a7a7a70340a7a7a7a7a70303a7a7a7b1404040c0f60694b504146444545404c5
+a2707070a2a27416b2c1a7a7a7a7f6069470707070707070707070177070c3d0d0d0d0d08406f6a740a7a7a7a7a7a7b1b2b2c0a7a7a7a7a7a7a7a7a7a7f60627
+0505c4c2d0a270707086f7f6a670707035f68797a7a74040a7a7b103c0a7a7a7a7a740034040c0a7a7a7b1c003a7a7b14040b240f606960070707070707070a2
+a270177000a28406b2c0a7a7a7a7f60694701770707070707070707070707070177070707416f6a7a7a7a7a7a7a7a7a7b1b2b2c0a7a7a7a7a7a7a7a7a7b0b606
+06b694d1707070707047e7f65770708506f7a7a7a7a74040a7a703b0b2c0a7a7a7a74003b0c1a74040a7a7b10303a7a7b1b1b140f606a60070177070707070a2
+a270707000708606b2c1a7a7a7a7f606270515656745550505c4707070707070707070708406f6a7a7a7a7a7a7a7a7a7b1b2c1c1a7a7a7a7a7a7a7a7a7b1b240
+b206a4a2a2a2a2a2a2000000007070841640a7a7a7a7a7a7a703b0c1b1c0a7a7a7a74003c1a7a7a740a7a7a7a7a7a7a7a7a7a7a7f616960070707077707070a2
+a270707070708606c1a7a7a7a7a7f6b60606060607070606b694707070707070707070708606f6a7a7a7a7a7a7a7a7a7a7b1c1a7a7a7a7a7a7a7a7a7a7b0c0b2
+b2069670707070000000000000707086064040a7a7a7a7a7a703b1b7b1b2a7a7a7a70303a7a7a7a7a7a7a7a7a74040a7a7a7a7a7f606a60070a2707070a270a2
+a270707070708506f6a7a7a7a7a7f6f6f6f6f6f6404040f60694707070707070707070708616f6a7a7a740a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7b1b2
+b206947070707000007070707070708406404040a7a7a7a7a7a703b1b2c0a7a7404003a7a7404040a7a7a7a7a7a7a7a7a7a7a7f6f606a60070701770707070a2
+a270707070707406f6a7a7a7a7a7a7a7a7a7a7a7404040f60694d0d0d0d0d270707070708506f603a7a7a7a7a70340404003a7a7a7a7a7a7a7a7a740a7a7a7b1
+c116967070701700707070707070707416404040a7a7a7a7a7a7a703b1c1a7a7404003a7a74040f6f6f6f6f6f6f6f6f6f6f6f6f6f606940070707070707070a2
+a270701770707406f6a740a7a7a7a7a7a7a7a7a7a7a7a7f6069470701770d170707070707406f6f6f6f6f6f6f60340404003f6f6f6f6f6a7a7a7a7a7a7a74040
+f606a67070707000007070707070708406f6a7a7a7a7a7a7a7a7a7a7a7a7a7a7a703a7a7a7a7a7f6c6060607060606060606070606c6940070707070177070a2
+a270707070708616f640a7a7a7a7a7a7a7a7a7a7a7a7a7f60696707070a2a2700070177074b6060606060607060606060707060606b6f6a7a7a7a7a7a7f64040
+f616967070707070707070707070708606f6a7f6e7f6f6f6f6f6f6f6f6f6f6f6f603f6f6a7b7a7f60626146466646644041464646604c50070707070707070a2
+a2a27070707084064040a7a7a7a7a7a7a7a7a7a7a7a7a7f606a670707000a2a200707070b55404541466046644040464045404543606f7a740a7a7a7a7f6c606
+06c6947070707070707070707070708606e7b7f6c606060606070606060606060606b6f6a7a7a7f60696707070707070707070701770707070707070707070a2
+a2a2707070708406f6f6f6f6f6f6f6f6f6f6a7a703a7a7f61696707070707070707000a200707070707070d170707070707070707516f6a7a7a7a7a7a7f60626
+0404c57070700000007070707070708506f6e7f6062614660466440404646644043606f6f6f6f6f60694707770707070707070707070707070a27070a27070a2
+a2a27070707074b60606060606060606b6f6a703a703a7f606a670707070707070707070a2707070707070d170177070707070707034f787a7a7a7a7a7f60695
+70707070701700000070000000000074b6060706c694707070707070707070707074b60606070606c694707070a27017707070707070707070705161707070a2
+a27070177070b504545454146604043606f6a7a703a7a7b006a67070707017707070707070a27070a2d0d0d3707070707070707070709787a740a7a7a7f616a5
+7070a2707070000000707070707070b56604666644c57070701770707017707070b504041464666466c57070a2707070707070707070707070705262707070a2
+a27070707070707070707070d17070740640a7a7a7a7b0b20694707070707070707070c2d0a2d0a270a2707070707070707070707070a797a7a7a7a7a7f616a4
+000070a27070707070707070707070707070707070707070707070707070707070707070707070707070707017707070701770707017707070a27070a27070a2
+a27070707070701770c277d0777070740640f6f6f6f6b2b206947070707070707070707770a27070a2d2707070707070701770707035f7f6e7f6f6f6f6f606a4
+70777070707070707070177070707070707070707070000000a2a2a2a2a2707070707070707070707017707070707070707070707070707070707070707070a2
+a27070707070707070d1707070707074b606060606060606c6947070707070707070707070a2707070d17070707070707070707085b60606060706060606c694
+70707070707070707070707070707070707070707070000000a2707070a27070701770707070707070707070707070707070707070707070707070707070a270
+70a2a2a2a2a2a2a2a2a2a2a2a2a2a2b5040454146604660404c5a2a2a2a2a2a2a2a2a2a2a270a2a2a2a2a2a2a2a2a2a2a2a2a2a2b504146604664404046404c5
+a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2707070a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a27070
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee3eeeeeeeeee
+33333333e33333333e33333333e33333333e33333333e33333333e33333333ee33eeeeee33333333e33333333e33333333e33333333e33333333e33eeee333ee
+33333333e33333333e33333333e33333333e33333333e33333333e33333333ee33eeeeee33333333e33333333e33333333e33333333e33333333e333ee333eee
+eeeeee33eeeeeee33e33eeee33eeee33eeee33eeee33e33eeeeeee33eeee33ee33eeeeee33eeeeeee33eeee33eeeeeee33eeee33eeeeeeeeeeeeee333333eeee
+33333333e33333333e33eeee33eeee33eeee33eeee33e33eeeeeee33eeee33ee33eeeeee33eeeeeee33eeee33e33333333eeee33eeee33333333eee3333eeeee
+33333333e33333333e33eeee33eeee33eeee33eeee33e33eeeeeee33eeee33ee33eeeeee33eeeeeee33eeee33e33333333eeee33eeee33333333eee3333eeeee
+33eeeeeee33e333eee33eeee33eeee33eeee33eeee33e33eeeeeee33eeee33ee33eeeeee33eeeeeee33eeee33e33e333eeeeee33eeeeeeeeeeeeee333333eeee
+33eeeeeee33ee333ee33333333eeee33eeee33333333e33333333e33333333ee3333333333333333e33333333e33ee333eeeee33eeee33333333e333ee333eee
+33eeeeeee33eee333e33333333eeee33eeee33333333e33333333e33333333ee3333333333333333e33333333e33eee333eeee33eeee33333333333eeee33eee
+33eeeeeeeeeeeee33eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee33eeeeeeeeeeeeeeeeeeeeeeeeee3eee
+3eeeeeeeeeeeeeee3eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee3eeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 __label__
 00000000000000000000000000000000001101000000000000000000000000000000000000000000000000000011010000000000000000000000000000000000
 02000000020000002000020000000000001001100000000000000000000000000000000000000000000000000010011000000000000000000000000000000000
 00000200000002000000000000000000001101000000000000000000000000000000000000000000000000000011010000000000000000000000000000000000
 00020000000200000000000000000000001001100000000000000000000000000000000000000000000000000010011000000000000000000000000000000000
 00000020000000200000000000000000001101000000000000000000000000000000000000000000000000000011010000000000000000000000000000000000
-02000000020000000000000000000000001001100000000000000000000000000000000000000000000000000010011000000000000000000000000000000000
-00002000000020000000000000000000001101000000000000000000000000000000000000000000000000000011010000000000000000000000000000000000
-00000000000000000000000000000000001001100000000000000000000000000000000000000000000000000010011000000000000000000000000000000000
-00000000000000000000000000000000001101000000000000000000000000000000000000000000000000000001011000000000000000000000000000000000
-00002000200002000222222002222220001001100222222002222220022222200222222002222220000000000011001002222220022222200000000000000000
-00000000000000000200000002000000001101000200000002000000020000000200000002000000001111110101011002000000020000000000000000000000
-00000000000000000200000002000000001001100200000002000000020000000200000002000000001010101111001002000000020000000000000000000000
-00000002000000000200000002000000001101000200000002000000020000000200000002000000001100000000011002000000020000000000000000000000
-00000000000000000200000002000000001001100200000002000000020000000200000002000000001001111010101002000000020000000000000000000000
-00000000000000000200000002000000001101000200000002000000020000000200000002000000001101011111111002000000020000000000000000000000
-00000000000000000000000000000000001001100000000000000000000000000000000000000000001001100000000000000000000000000000000000000000
+02000000020000000000000000000000001001100000000000000000000030000000000000000000000000000010011000000000000000000000000000000000
+00002000000020033333333033333333033333333033333333033333333033000033300000000000000000000011010000000000000000000000000000000000
+00000000000000033333333033333333033333333033333333033333333033300333000000000000000000000010011000000000000000000000000000000000
+00000000000000033000000033000033001101033000033000000000000003333330000000000000000000000001011000000000000000000000000000000000
+00002000200002033222222033222233033333333222233002233333333222333322222002222220000000000011001002222220022222200000000000000000
+00000000000000033200000033000033033333333200033002033333333000333300000002000000001111110101011002000000020000000000000000000000
+00000000000000033200000033000033033033300200033002000000020003333330000002000000001010101111001002000000020000000000000000000000
+00000002000000033333333033333333033103330200033002033333333033300333000002000000001100000000011002000000020000000000000000000000
+00000000000000033333333033333333033001333200033002033333333333000233000002000000001001111010101002000000020000000000000000000000
+00000000000000000200000002000000001101033200000002000000020000000203000002000000001101011111111002000000020000000000000000000000
+00000000000000000000000000000000001001103000000000000000000000000000000000000000001001100000000000000000000000000000000000000000
 00000000000000000000000000000000001101000000000000000000000000000000000000000000001101000000000000000000000000000000000000000000
 00000000022222200222222000000000001001100000000000000000000000000000000000000000001001100000000000000000022222200222222000000000
-00000000020000000200000000000000001101011111111000000000000000000000000000000000001101000000000000000000020000000200000000000000
-00000000020000000200000000000000001001111010101000000000000000000000000000000000001001100000000000000000020000000200000000000000
-00000000020000000200000000000000001100000000011000000000000000000000000000000000001101000000000000000000020000000200000000000000
-00000000020000000200000000000000001010101111001000000000000000000000000000000000001001100000000000000000020000000200000000000000
-00000000020000000200000000000000001111110101011000000000000000000000000000000000001101000000000000000000020000000200000000000000
-00000000000000000000000000000000000000000011001000000000000000000000000000000000001001100000000000000000000000000000000000000000
-00000000000000000000000000000000000000000011010000000000000000000000000000000000001101000000000000000000000000000000000000000000
-02222220022222200000000000000000000000000010011000000000000000000000000000000000001001100000000000000000000000000222222002222220
-02000000020000000000000000000000000000000011010000000000000000000000000000000000001101000000000000000000000000000200000002000000
-02000000020000000000000000000000000000000010011000000000000000000000000000000000001001100000000000000000000000000200000002000000
+00000000020000000200000000000000001101011111133333333033333333033333333033333333033333333033333333033333333003300200000000000000
+00000000020000000200000000000000001001111010133333333033333333033333333033333333033333333033333333033333333003300200000000000000
+00000000020000000200000000000000001100000000011000033000000033033000033000033000033101033033000000033000033003300200000000000000
+00000000020000000200000000000000001010101111033333333033333333033000033000033000033001133033000000033000033003300200000000000000
+00000000020000000200000000000000001111110101033333333033333333033000033000033000033101033033000000033000033003300200000000000000
+00000000000000000000000000000000000000000011033000000033033300033000033000033000033001133033000000033000033003300000000000000000
+00000000000000000000000000000000000000000011033000000033003330033333333000033000033333333033333333033333333003333333300000000000
+02222220022222200000000000000000000000000010033000000033000333033333333000033000033333333033333333033333333003333333322002222220
+02000000020000000000000000000000000000000011033000000000000033000000000000000000001101000000000000000000000000000200000002000000
+02000000020000000000000000000000000000000010031000000000000003000000000000000000001001100000000000000000000000000200000002000000
 02000000020000000000000000000000000000000011010000000000000000000000000000000000001101000000000000000000000000000200000002000000
 02000000020000000000000000000000000000000010011000000000000000000000000000000000001001100000000000000000000000000200000002000000
 02000000020000000000000000000000000000000011010000000000000000000000000000000000001101000000000000000000000000000200000002000000
 00000000000000000000000000000000000000000010011000000000000000000000000000000000001001100000000000000000000000000000000000000000
 00000000000000000000000000000000000000000011010000000000000000000000000000000000000101100000000000000000000000000000000000000000
-00000000000000000000000000000000000000000010011002222220022232200222222002222220001100100000000000000000000000000000000002222220
-01010101010101033333333033333333033333333033333333033333333033000233300002000000010101100000000000000000000000000000000002000000
-11111111111111133333333033333333033333333033333333033333333033300333000002000000111100100000000000000000000000000000000002000000
-00000000000000033000011033000033000000033011033002000000020003333330000002000000000001100000000000000000000000000000000002000000
-10101010101010133111001033000033033333333010133002033333333000333300000002000000101010100000000000000000000000000000000002000000
-11111111111111133101011033000033033333333011133102033333333000333300000002000000111111100000000000000000000000000000000002000000
-00000000000000033011001033000033033033300000033000000000000003333330000000000000000000000000000000000000000000000000000000000000
-00000000000000033333333033333333033003330000033000033333333033300333000000000000000000000000000000000000000000000000000000000000
-02222220000000033333333033333333033000333222233000033333333333000033000000000000022222200000000000000000000000000000000002222220
-02000000000000000011010000000000000000033200000000000000000000000003000000000000020000000000000000000000000000000000000002000000
-02000000000000000010011000000000000000003200000000000000000000000000000000000000020000000000000000000000000000000000000002000000
+00000000000000000000000000000000000000000010011002222220022222200222222002222220001100100000000000000000000000000000000002222220
+01010101010101011111111000000000000000000011010102000000020000000200000002000000010101100000000000000000000000000000000002000000
+11111111111111111010101000000000000000000010011102000000020000000200000002000000111100100000000000000000000000000000000002000000
+00000000000000000000011000000000000000000011000002000000020000000200000002000000000001100000000000000000000000000000000002000000
+10101010101010101111001000000000000000000010101002000000020000000200000002000000101010100000000000000000000000000000000002000000
+11111111111111110101011000000000000000000011111102000000020000000200000002000000111111100000000000000000000000000000000002000000
+00000000000000000011001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000011010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+02222220000000000010011000000000000000000222222000000000000000000000000000000000022222200000000000000000000000000000000002222220
 02000000000000000011010000000000000000000200000000000000000000000000000000000000020000000000000000000000000000000000000002000000
 02000000000000000010011000000000000000000200000000000000000000000000000000000000020000000000000000000000000000000000000002000000
-02000000000000000011010000000000000000000200033333333033000333033333333033333333033333333033033333333033333333000000000002000000
-00000000000000000010011000000000000000000000033333333033003330033333333033333333033333333033033333333033333333000000000000000000
-00000000000000000011010000000000000000000011033000033033033300000000000000000033000000033033033000033000000000000000000000000000
-02222220000000000010011000000000022222200010033000033033333000033333333033333333033333333233233000033033333333000000000002222220
-02000000000000000011010000000000020000000011033000033033330000033333333033333333033333333233033000333033333333000000000002000000
-02000000000000000010011000000000020000000010033000033033300000000000000033033300033033300233033003330000000000000000000002000000
-02000000000000000011010000000000020000000011033333333033000000033333333033003330033003330233033033300033333333000000000002000000
-02000000000000000010011000000000020000000010033333333030000000033333333033000333033000333233033333000033333333000000000002000000
-02000000000000000011010000000000020000000011010000000000000000000000000000000033000000033200033330000000000000000000000002000000
-00000000000000000010011000000000000000000010011000000000000000000000000000000003000000003000033300000000000000000000000000000000
-00000000000000000011010000000000000000000011010000000000000000000000000000000000000000000000033000000000000000000000000000000000
-02222220000000000010011000000000022222200010011000000000220222220222222000000000000000000222232000000000000000000000000000000000
+02000000000000000011010000000000000000000200000000000000000000000000000000000000020000000000000000000000000000000000000002000000
+02000000000000000010011000000000000000000200000000000000000000000000000000000000020000000000000000000000000000000000000002000000
+02000000000000000011010000000000000000000200000000000000000000000000000000000000020000000000000000000000000000000000000002000000
+00000000000000000010011000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000011010000000000000000000011010000000000000000000000000000000000000000000000000000000000000000000000000000000000
+02222220000000000010011000000000022222200010011000000000000000000000000000000000000000000222222000000000000000000000000002222220
+02000000000000000011010000000000020000000011010000000000000000000000000000000000000000000200000000000000000000000000000002000000
+02000000000000000010011000000000020000000010011000000000000000000000000000000000000000000200000000000000000000000000000002000000
+02000000000000000011010000000000020000000011010000000000000000000000000000000000000000000200000000000000000000000000000002000000
+02000000000000000010011000000000020000000010011000000000000000000000000000000000000000000200000000000000000000000000000002000000
+02000000000000000011010000000000020000000011010000000000000000000000000000000000000000000200000000000000000000000000000002000000
+00000000000000000010011000000000000000000010011000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000011010000000000000000000011010000000000000000000000000000000000000000000000000000000000000000000000000000000000
+02222220000000000010011000000000022222200010011000000000220222220222222000000000000000000222222000000000000000000000000000000000
 02000000000000000011010000000000020000000011010101010101200000000000000000000000001111110200000001010101010101010101010101010101
 02000000000000000010011000000000020000000010011111111111200001011111000000000000001010100200000011111111111111111111111111111111
 02000000000000000011010000000000020000000011000000000000200100000001100000000000001100000200000000000000000000000000000000000000
-02000000000000000010011000000000020000000010101010101010201100000000000000000000001001110200000010101010101010101010101010101010
-02000000000000000011010000000000020000000011111111111111201000011000010000000000001101010200000011111111111111111111111111111111
-00000000000000000010011000000000000000000000000000000000201000100000010000000000001001100000000000000000000000000000000000000000
-00000000000000000011010000000000000000000000000000000000201000100100000000000000000101100000000000000000000000000000000000000000
-02222220000000000010011000000000022222200000000000000000201000011000010000000000001100100222222000000000000000000000000000000000
-02000000001111110011010101010101020000000000000000000000201000000000010001010101010101100200000000000000000000000000000000000000
-02000000001010100010011111111111020000000000000000000000200000000000110011111111111100100200000000000000000000000000000000000000
+02000000000000000010011000000000020000000010101010101010201100222000000000000000001001110200000010101010101010101010101010101010
+02000000000000000011010000000000020000000011111111111111201002222200010000000000001101010200000011111111111111111111111111111111
+00000000000000000010011000000000000000000000000000000000201022222220010000000000001001100000000000000000000000000000000000000000
+00000000000000000011010000000000000000000000000000000000201022222220000000000000000101100000000000000000000000000000000000000000
+02222220000000000010011000000000022222200000000000000000201022222220010000000000001100100222222000000000000000000000000000000000
+02000000001111110011010101010101020000000000000000000000201002222200010001010101010101100200000000000000000000000000000000000000
+02000000001010100010011111111111020000000000000000000000200000222000110011111111111100100200000000000000000000000000000000000000
 02000000001100000011000000000000020000000000000000000000200110000001100000000000000001100200000000000000000000000000000000000000
 02000000001001110010101010101010020000000000000000000000000011111011000010101010101010100200000000000000000000000000000000000000
 02000000001101010011111111111111020000000000000000000000200000000000000011111111111111100200000000000000000000000000000000000000
@@ -2218,11 +2368,11 @@ __label__
 00000000000000000200000002000000020000000010011002000000020000000200000002000000020000000200000000100110020000000000000000000000
 00000000000000000200000002000000020000000011010002000000020000000200000002000000020000000200000000110100020000000000000000000000
 00000000000000000200000002000000020000000010011002000000020000000200000002000000020000000200000000100110020000000000000000000200
-00000000000000000200000002000000020000000011010002000000020000000200000002000000020000000200000000110100020000000000000000000000
-00000000000000000000000000000000000000000010011000000000000000000000000000000000000000000000000000100110000000000000000000000000
-00000000000000000000000000000000000000000001011000000000000000000000000000000000000000000000000000110100000000000000000000000000
-00000000000000000000000000000000000000000011001000000000000000000000000000000000000000000000000000100110000000000000000020000200
-00000000000000000011111101010101010101010101011000000000000000000000000000000000000000000000000000110101111111100000000000000000
+0000000000000000020000000200000002000000001101000bbbbb00020000000200000002000000020000000200000000110100020000000000000000000000
+0000000000000000000000000bb0bb00bbb00bb00bb00110bb0b0bb00000bbb00bb000000bb00bb0bb00bbb0bbb0bb00b0b0bbb0000000000000000000000000
+000000000000000000000000b0b0b0b0bb00b000b0010110bbb0bbb000000b00b0b00000b000b0b0b0b00b000b00b0b0b0b1bb00000000000000000000000000
+000000000000000000000000bbb0bb00b00000b000b10010bb0b0bb000000b00b0b00000b000b0b0b0b00b000b00b0b0b0b0b110000000000000000020000200
+000000000000000000111111b101b1b10bb1bb01bb0101100bbbbb0000000b00bb0000000bb0bb00b0b00b00bbb0b0b00bb10bb1111111100000000000000000
 00000000000000000010101011111111111111111111001000000000000000000000000000000000000000000000000000100111101010100000000000000000
 00000000000000000011000000000000000000000000011000000000000000000000000000000000000000000000000000110000000001100000000000000000
 00000000000000000010011110101010101010101010101000000000000002000000020002000000000000000000000000101010111100100000020000000000
@@ -2232,36 +2382,6 @@ __label__
 __gff__
 0000000041000100000004040400000000000000000000000000000404000000000000000000800000000104000011010100000000000000010101010000010103030303030303030303030303000001030303030303030003030303030000010101030301010303030303010100000001000303010103200000002001050000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-__map__
-0381c542a15400ce005e070394cec762881ce22a0001cac762b150a2762840318a05528958ac7628140ab00232612ca05028c09880e5480a2942022b020280aa9409905bc0012e0767039281eac0b480f0682801a01c00000ec018c0f005503990c06038180c0521500054538041c02ca018d00073840788d649239b204c8768
-0b3c045203c90154359260b6871004174a00642a2bc07120747022480f2c070a0fe83c06834542d84811c400073881cbe04379bcfc6f379bcfe6f0d8ac0804806140352004c6d8051810de7b301248e603713a01eb0035808981203450204021bcc05983e14180c002c1ec014c0e433f010f07f82c91b4fc6f3f9f8de6025459
-ca13870ff488298542c3d8851443ccfc783d1e8f27a3c1e4f47a0d87210c500728009c050a01046d80614178808602c91cc06f3dc03d602667b83fa1bcf6040240b4e0fe6690381cef07f40e8020cea7f3cc1448f04d2f1e8f47e3d9bcc311e23b8341a2d8bfac3d480e25134628e31e707123c43c4e0eeb07038861c20160fe
-90ed33495cc102032ec4a0a0a25094283fa4278a070a6f301681a0d1ec7688e3266287fa14cde7886991e0da783c1e4f27f3f18233cb1f848c220a81a3d1544bca42647d3f4498e2f0918328011c0308086f058320de84e882a41788d107f485221bc9a6e371ba0fec6f88011bcf517f224c350e3c0707f52c184fd0ca63d02c
-f27a3fc5fd20ff121f21e4429615c474922b908cc46231988723159191c169208085d371809468309bc9a4e87819e89a6e8a990122fe85d89a10c20fa44d37180e530d3983181e4fe4710011cc11c8337c7008de1b8af145fce4d6507f79c414429662a7076322100804195f181c0e4420918cc6622114806330c768e32846f3
-d06c1926d437178da6f2e9b85c2f2f4414e0feb21b2181e8606e37978de6b98abc1fd00107f28bf942750f46f3cc6b48953bf29e01cee4e007f013f2850188a0738b7bcc3124fe91fd23d1e87c3f84aac1fd8dc6e184ccca502530958c3147fcc0e0724184fd07623d0c0f230271e8f2789969ceb56009f3c16803dcecd0e060
-36495d24bce6a8769c7f8e622920023012652286f02480d274a910e2301245907f587fc1e4bb0a3237184952bf29e699e8162b9d9aced92014d3e529bd1c007e618a6d8f091360fed0ef29a7947550c049948a01284453a33a4591ae10c46024cf54a90871ff29eb144c889c7e9ee15078a57e47b99c982c561c9d99cee0c160
-c9f52ce8ce003f38c92ec7848bc602d43fd09a5e9d424f50a0fe6619d925088e71c462319820fe672ad11569089942e2a241d35c8f107f434c0b5a0fc53e249b098ac193f43a7235404a6e451ef787fd490d28da92cd3a4abd1fd6114530c48fc1ca39250c452b2811ac92483051f8e982c793c4efde9c45461490631ae5be75
-c68807e4dfca5bc555a337178fc7e3012a0fe70a97aca9c2456177130e6ac5155bca55c94782aaa19b690c67930928b153f2a26254b8a25c640800118e4a6900b5807f98cd709c2853b980d84923cd85a136f6112808dc080aa40959023c56708d2489bf9592d0db5fd237d1fca02051688a571ce3ce6c691b32ba6b403f0b70
-9c305984c44020918884022900b85b85819188c4422908890b73b3f916e01cf0be42e4a816c7887f91711ae2a2f16b485ff433ce02c945f3a1d1dd35a01f44b39c9788374d6728132e76b25c4a0d9c2d5689b6733056548dd5af2b869c270a2c064594a145ad617e94e7485745db126c0773f2ba6a403daf04742f3a0015359e
-9ae6770001cc8522b158a653c1691b0df01988c155b04ee60778d23962958e707f38afc53f1aa0c90192a5c1db4ccdd07f38d815c01c0975d693f9dff48578162301270ac40721d08f286494438ab414e36645730a96c56c42bae8c500b05c1fca79ab7fc4b3795375701481b158ac1985e283f901e84ff81b4bdc2581ca0ff5
-4ddcc66998665ab8aa49f73dfc20162b15e135663f54dd2a4eb4200eebc7731399fbe1d529698308092812f60b4cfec3f94efcf17e543d7ab6641fd2b3ed31f83418693c758750d872fbc61dc2994363a962717e6b54a810090dd8af0e50fce53c79d93ae09da33cd8492c5d04ecf4d00fca51a6178b56a474d4e1dab5e81720
-4abe1d2e6add1a42000008743f292fa48912f24747f5987dcf7ca63b332f6a51ad894b4bc7b35333502ca001d8272bceb5355a82974e42c2b11c40044201725be78be4ca21d1fdb021f3278e07170312682a0cbbf9eebdf67640d16eb9ce006d40b33563b8b30e73252cff36c20f71670287038aa5be78be2b19266f5301ffbd
-5c2915b818957a4b5816b78f86adc39432148ec53291db93a5c252366df08ca5783ff41ee2108c071564b535b666e2f609d28fed227fb73a7014f7f278d56bda16d78a4fe507f821f0a0acce67e379b76524040210a83450ff6cff192fa30996fc266cfcf17cf7a73a3f9cce576f337467c0c1dda9a804d27f5d10af4e48d06f
-caa16fdc8f07a36f0b8c0807160360feda632cfe174ad32b53cff3c16a0c35747a123d171657d30f1a0bceab69c4f1271b6c3db696f78e1ff27f3d723080908322e9b8dc7b3d1bf7f45b8450001cefbfe2aedadeb2b1feb8be7c31be396e2ca94673d6aa0c0363037d1f9fa049bde28005074ce7e3c1b79ea5d384e9c91f8a5c
-6e293fae7f92cb698ac6e801ea5ceffe71538a7fdd0e538b4999a2ef3a71748f7927683ffee8d478533ff8652fb49ddf23f9ab0ba52ff5f6d16df139773d2d6bffe01345c7a67a94d1d398ee0ebbef2181be0fcfa5f3e2f17778a2034742111886662310c85cb03e5b110ceb3ff6bc9b5e2909ddac4ed6c0239acc1000a36188
-c700f7359bcf47a8011400cc087b301248e600207039010480121bc605e181b8bc6f301a40f000538c01d09650281460144563b158a85080021ccc1045383141b20a646d8222c0114c0592d900804023198890052801217201ee6381c99e8de6f8411810df07f383dc420d4f709b205980b50796843295cd86030148ac53301c
-21a130c53800541fc8de6d86a91349d0db4301aa16450aa3289d8a30b15802bc2e521d8e0483ff934dc6e181bcf40b15980930ff41540092214443835b812004a3006030560c85be9b4de5d370b85e5e2e9bcdd0002301a48f0b22800fc4ae22db10fff861141f8e0fee070a85a30e42c068341b1a06024011408300d8ac361c
-8d9a02e10cc4d2ec75c87c3f8eda8120fe4603786c562b0e1bcdb1255803344b1e3f6504a237c5ffe0fe67a3d06c0804301663fea2513481c83a0738802349308251841f4a2fe70ab206473089a6e2f4950e302707f58eb9c1fce0a2b05868d85812292507f6807b4040e15a60b15c1fc8b517f8068347a070394e06f303a58d
-291e0df16283597a5769084293fc12254241b0e43e1c9a5e938240c5648b26036124ae6b359bcff1abf80b949f680e072c4d33268ac7937980c52de5969ac18ce5ac724328ff9120c32a143d1749d1d779bb9c0c4a6273317438918c31862311048c4622ccc188a6620110805c0381c0100099a621188845214d3dcc6603f1e4
-f47f8d2987675053435834ac90d4c05a9ab9cd9123a4919848081180933ca22acf0c8aa5103cf38a7bc40034180de7e301260d8871000027e081d3881c542a83f5002698c502601c0106f3000008e613f511488521c4039c4af3c358f54d0fc8ae609839c3f08bb3a638cfacbbd262ee529e7114cca073b81cc2043f180e4513
-bcfbea1a6747233b1468e2c739a629ac9207001de7206002b984fe7a3d1f8a53a239d1919e486507fb96b94bfce9cc534f4a4ac4dbce42e530d33f1fe4e494672321b0094c8338148ed45f232d3d8c0105339dfb51c58d93f823dd2b480101b403800e2683f1e0f27f355478a0fe658961b524262fed51439802d5c569de87e3
-dcd99244c66e301aa8b4c7f379fa60464f83fcc14de780d3b0283fa0003a00ac999d084000010cea008c02d7acaa32d520736555d20fe949533d13692a9497287f94ea8a82865e05830186f30924e258379e2bf8e793f57c500125438e9b47562b5ab0ff394b94a6e2400b5eb380171724fe84d2e9ba92a96512a39a98092573
-051e0ecfe61b15870fe602501c90043c1e60f890053b3aa000593f123448fcc9d0a75895ada54a3fe507f585195a75a3fe64b28144ac563b5a85abe4a4c23c9fce81eb4957a399180926883f958a486108030e589c80e68a44a48388fd18223e47fd26a66689dfa5a288de1b065658eace571541e0345b07b8acd9c9fced3c72
-d13b50c9ae1ce527f3a4aed7bccd12b923797460791847fd0c2698e49118cc4333118876db43ac9fe25a6523b2060c0360c37d510ec2642b37c87525e0771b99ff1da78cff23e4379faaac50052bab919cc15612a4af47fce7dc57fe3181e632477e74bb431988c662311a4b6907f92e8c0f4308bd241f8c3919d28b834eab69
-52540d2c291492180932922cc59cae565495bb161030c049995956a5606467f977a5fa264a0945458139c29cf158a1b0e5bb8ea2681da8b9193018465a5820f2950b2c39c6419765ce50ff3ab9a5a01ed5661c9ffa56a565ea4783ce38170d4d50c29a819c65fe989728f895b597238f59341e0b40000341f8fc7f35567d6a50
-771ebca42980b30e74c739de020f40b937912490619272414621eed34c6a6e24dfdc576514c86949ecf1d8729d4af8999cfe7b379aa606d600287f90322f8f07f6bff9e524b19e45e81fa5a1c8161ca60991cc02b061b4f537149f8167958597652068b6b9ab55038311980de1cbdda82c381b942160c0af2a82a150f4e20734
-1fcfd57c2a3e955f4ac2087e99211e8f768069b0159fd2f9f182343686efde857300ac3957e2a7919f8fe7e9b79df8566b257ea306834557f123bd54d717691352c0fb66b4a4fcc74211c4867583fa1de076853a9f15740a0aeb5482d2b9ebfd8cd7d7f3a6006349a536f4900ce9d2b67fb815f9bf6e07bf0ae75136209c4884
-1334d60af76e5c3881c8642234da88cc4620cdc0aece5001f808b554e2fef65c8177c0ae703d9b6f20000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __sfx__
 151000000c0730000000000000000c013000000000000000266550d0000e625000000e615000000e615000000c0730000000000000000c013000000c07300000266550d0000e625000000e615000000e61500000
 d1100000021450e14502115021450212502115021450e11502145021250211502145021250211502145021150f145031250311503145031250f1150314503115021450e1250211502145021250e1150214502115
