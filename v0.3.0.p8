@@ -10,6 +10,10 @@ init_fn,update_fn,draw_fn=nil,nil,nil
 current_mission=1
 
 function _init()
+  -- set transparency
+  palt(0,false)
+  palt(14,true)
+
   -- load compressed map data from cart
   v=2040
   map_data={
@@ -19,11 +23,13 @@ function _init()
     pack(peek(0x1000+1788,1402))
   }
 
+  cam=gamecam.new()
   change_state(init_game,update_game,draw_game)
 end
 
 function _update()
   update_fn()
+  cam:update()
 end
 
 function _draw()
@@ -34,6 +40,12 @@ end
 function change_state(i,u,d)
   init_fn,update_fn,draw_fn=i,u,d
   init_fn()
+end
+
+-- helper functions
+function dist_trig(dx,dy)
+  local ang=atan2(dx,dy)
+  return dx*cos(ang)+dy*sin(ang)
 end
 
 -- intro
@@ -69,13 +81,140 @@ end
 -- gameplay
 function init_game()
   decompress_map()
+  player=entity.new(64,64)
 end
 
 function update_game()
+  player:update()
 end
 
 function draw_game()
   map(0,0,0,0,128,56)
+  player:draw()
+end
+
+-- entity
+entity={}
+entity.__index=entity
+
+function entity.new(x,y)
+  return setmetatable({
+    x=x,
+    y=y,
+    vx=0,
+    vy=0,
+    w=8,
+    h=8,
+    target_x=x,
+    target_y=y,
+    max_speed=4,
+    acceleration=0.8,
+    deceleration=0.9,
+    last_dir="down"
+  },entity)
+end
+
+function entity:update()
+  self:control()
+  self:follow_target()
+  self:apply_physics()
+end
+
+function entity:control()
+  local ix=(btn(1) and 1 or 0)-(btn(0) and 1 or 0)
+  local iy=(btn(3) and 1 or 0)-(btn(2) and 1 or 0)
+
+  if ix==0 and iy==0 then
+    self.target_x+=(self.x-self.target_x)*0.3
+    self.target_y+=(self.y-self.target_y)*0.3
+    return
+  end
+
+  self.target_x+=ix*6
+  self.target_y+=iy*6
+
+  local dx,dy=self.target_x-self.x,self.target_y-self.y
+
+  if dist_trig(dx,dy)>32 then
+    local angle=atan2(dx,dy)
+    self.target_x=self.x+cos(angle)*32
+    self.target_y=self.y+sin(angle)*32
+  end
+end
+
+function entity:follow_target()
+  local dx,dy=self.target_x-self.x,self.target_y-self.y
+  local dist=dist_trig(dx,dy)
+
+  if dist>1 then
+    self.vx=self:approach(self.vx,dx*0.1,self.acceleration)
+    self.vy=self:approach(self.vy,dy*0.1,self.acceleration)
+
+    -- track direction
+    if abs(self.vx)>abs(self.vy) then
+      self.last_dir="horizontal"
+    else
+      self.last_dir=self.vy<0 and "up" or "down"
+    end
+  else
+    self.vx=self:approach(self.vx,0,self.deceleration)
+    self.vy=self:approach(self.vy,0,self.deceleration)
+  end
+
+  -- limit speed
+  local speed=dist_trig(self.vx,self.vy)
+  if speed>self.max_speed then
+    self.vx=(self.vx/speed)*self.max_speed
+    self.vy=(self.vy/speed)*self.max_speed
+  end
+end
+
+function entity:approach(current,target,step)
+  if current<target then
+    return min(current+step,target)
+  elseif current>target then
+    return max(current-step,target)
+  end
+  return current
+end
+
+function entity:apply_physics()
+  self.vx=abs(self.vx)<0.01 and 0 or self.vx*self.deceleration
+  self.vy=abs(self.vy)<0.01 and 0 or self.vy*self.deceleration
+  self.x+=self.vx
+  self.y+=self.vy
+end
+
+function entity:draw()
+  spr(49,self.x,self.y+1) -- shadow
+
+  local spd=dist_trig(self.vx,self.vy)
+  local moving=spd>0.2
+
+  -- sprite base: horizontal=0, down=16, up=32
+  local s=(self.last_dir=="up" and 32 or self.last_dir=="horizontal" and 0 or 16)+(moving and 2 or 0)
+
+  -- animate
+  s+=flr(t()*(moving and 10+min(spd/self.max_speed,1)*10 or 3))%2
+
+  spr(s,self.x,self.y,1,1,self.vx<0)
+end
+
+-- camera
+gamecam={}
+gamecam.__index=gamecam
+
+function gamecam.new()
+  return setmetatable({
+    x=0,
+    y=0
+  },gamecam)
+end
+
+function gamecam:update()
+  self.x+=(player.x-self.x-64)*0.2
+  self.y+=(player.y-self.y-64)*0.2
+  camera(self.x,self.y)
 end
 
 -- map decompression
@@ -105,7 +244,7 @@ function decompress_to_mem(data,dest)
       local dist=di-read_bits(12)-1
       local len=read_bits(4)+1
       for _=1,len do
-        poke(di,peek(dist))
+        poke(di,@dist)
         dist+=1
         di+=1
       end
