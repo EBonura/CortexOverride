@@ -48,6 +48,10 @@ function dist_trig(dx,dy)
   return dx*cos(ang)+dy*sin(ang)
 end
 
+function check_tile_flag(x,y)
+  return fget(mget(flr(x/8),flr(y/8)),0)
+end
+
 -- intro
 function init_intro()
 end
@@ -81,6 +85,18 @@ end
 -- gameplay
 function init_game()
   decompress_map()
+
+  -- find spawn point (flag 7)
+  for ty=0,63 do
+    for tx=0,127 do
+      if fget(mget(tx,ty),7) then
+        player=entity.new(tx*8,ty*8)
+        return
+      end
+    end
+  end
+
+  -- fallback if no spawn found
   player=entity.new(64,64)
 end
 
@@ -105,6 +121,10 @@ function entity.new(x,y)
     vy=0,
     w=8,
     h=8,
+    col_x=0,  -- collision box offset from x
+    col_y=1,  -- collision box offset from y (skip top row)
+    col_w=8,  -- collision box width
+    col_h=7,  -- collision box height (7 pixels, not 8)
     target_x=x,
     target_y=y,
     max_speed=4,
@@ -178,11 +198,41 @@ function entity:approach(current,target,step)
   return current
 end
 
+function entity:check_tile_collision(x,y)
+  -- use actual collision box (not visual sprite size)
+  local cx1,cy1=x+self.col_x,y+self.col_y
+  local cx2,cy2=cx1+self.col_w-1,cy1+self.col_h-1
+
+  local tx1,ty1=flr(cx1/8),flr(cy1/8)
+  local tx2,ty2=flr(cx2/8),flr(cy2/8)
+
+  for tx=tx1,tx2 do
+    for ty=ty1,ty2 do
+      if fget(mget(tx,ty),0) then
+        return true
+      end
+    end
+  end
+  return false
+end
+
 function entity:apply_physics()
+  local nx,ny=self.x+self.vx,self.y+self.vy
+
+  -- check collision and slide
+  if self:check_tile_collision(nx,ny) then
+    if not self:check_tile_collision(nx,self.y) then
+      ny=self.y  -- slide horizontally
+    elseif not self:check_tile_collision(self.x,ny) then
+      nx=self.x  -- slide vertically
+    else
+      nx,ny=self.x,self.y  -- stop
+    end
+  end
+
   self.vx=abs(self.vx)<0.01 and 0 or self.vx
   self.vy=abs(self.vy)<0.01 and 0 or self.vy
-  self.x+=self.vx
-  self.y+=self.vy
+  self.x,self.y=nx,ny
 end
 
 function entity:draw()
