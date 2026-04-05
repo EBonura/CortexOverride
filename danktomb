@@ -1,0 +1,1479 @@
+--dank tomb
+cartdata("dank")function hd(x)
+return flr(x+0.5)end
+function je(r1,r2)if not r2 then
+return ke(je,r1)end
+return r1+(r2-r1)*rnd()end
+function gl(ob,mf,t,x)ob[mf]=
+t+(ob[mf]-t)*(x or 0.8)end
+function nq(qz,er)qz=qz or {}
+for k,v in pairs(er)do
+qz[k]=v
+end
+return qz
+end
+function kq(ob,mj,bp,be)local cb=ob[mj]
+if type(cb)=="function" then
+cb=cb(ob,bp,mj,be)end
+return cb or false
+end
+function ex(iy,ix,e)iy[ix]=iy[ix]or {}
+add(iy[ix],e)end
+function hu(n,d)d=d or 0
+if n and n>=stat(16+d)+d then
+sfx(n,d)end
+end
+rx=0
+function qm(n)
+n+=rx
+sfx(-1)if ee~=n then
+ee=n
+music(n,300)end
+end
+function kt(jb)local iu,s={},1
+im(jb,function(c,i)if c=="\n" then
+add(iu,ob(sub(jb,s,i)))s=i
+end
+end)
+return iu
+end
+function ke(fn,a)
+return fn
+and fn(a[1],a[2],a[3],a[4],a[5])or a
+end
+function ob(jb,er)local iu,s,n,rc=
+{},1,1,0
+im(jb,function(c,i)local sc,nr=sub(jb,s,s),i+1
+if c=="(" then
+rc+=1
+elseif c==")" then
+rc-=1
+elseif rc==0 then
+if c=="=" then
+n,s=sub(jb,s,i-1),nr
+elseif c=="," and s<i then
+iu[n]=sc=='"'and sub(jb,s+1,i-2)or sub(jb,s+1,s+1)=="("and ke(is[sc],ob(sub(jb,s+2,i-2)..","))or sc!="f"and band(sub(jb,s,i-1)+0,0xffff.fffe)s=nr
+if (type(n)=="number")n+=1
+elseif sc!='"'and c==" " or c=="\n" then
+s=nr
+end
+end
+end)
+return nq(er,iu)end
+function im(jb,fn)for i=1,#jb do
+fn(sub(jb,i,i),i)end
+end
+bh,ha={},{}
+function bh:ej(lg)lg=ob(lg or "",{lr=self})for s in all(lg.lz)do
+ha[s]=lg
+end
+return setmetatable(lg,{__index=self,__call=function(self,ob)ob=setmetatable(ob or {},{__index=lg})local ko,nv=lg
+while ko do
+if ko.oi and ko.oi~=nv then
+nv=ko.oi
+nv(ob)end
+ko=ko.lr
+end
+return ob
+end
+})end
+kb={}
+function kb:__add(v2)
+return v(self.x+v2.x,self.y+v2.y)end
+function kb:__sub(v2)
+return v(self.x-v2.x,self.y-v2.y)end
+function kb:__mul(a)
+return v(self.x*a,self.y*a)end
+function kb:__pow(v2)
+return self.x*v2.x+self.y*v2.y
+end
+function kb:__unm()
+return v(-self.x,-self.y)end
+function kb:__len()
+return self.x*self.x+self.y*self.y
+end
+function kb:sk()
+return self*(1/sqrt(#self))end
+function kb:pq()
+return v(-self.y,self.x)end
+function kb:sf()
+return v(flr(self.x),flr(self.y))end
+function kb:__call()
+return self.x..","..self.y
+end
+kb.__index=kb
+function v(x,y)
+return setmetatable({x=x,y=y},kb
+)end
+function ld(a,d)
+return v(cos(a),sin(a))*d
+end
+bt=bh:ej()function bt:ir(v)
+return ks(self.xl+v.x,self.yt+v.y,self.xr+v.x,self.yb+v.y
+)end
+function bt:cy(qj,c)rectfill(self.xl+qj.x,self.yt+qj.y,self.xr+qj.x,self.yb+qj.y,c)end
+function bt:ek(b)
+return
+self.xr>b.xl and
+b.xr>self.xl and
+self.yb>b.yt and
+b.yb>self.yt
+end
+function bt:rf(b,oq)local jc={v(b.xl-self.xr,0),v(b.xr-self.xl,0),v(0,b.yt-self.yb),v(0,b.yb-self.yt)}
+if type(oq)~="table" then
+oq=ob([[1,1,1,1,]])
+end
+local ml,mv=32767
+for d,v in pairs(jc)do
+if oq[d]and #v<ml then
+ml,mv=#v,v
+end
+end
+return mv
+end
+function ks(xl,yt,xr,yb)
+return bt({
+xl=min(xl,xr),xr=max(xl,xr),
+yt=min(yt,yb),yb=max(yt,yb)
+})
+end
+function o_(v1,v2)
+return ks(
+v1.x,v1.y,
+v2.x,v2.y
+)
+end
+function bd(sp,sz,qn,dp)
+return {
+sp=sp,sz=sz,qn=qn,dp=dp
+}
+end
+function bm(self,c,dp)
+if (self.z>=7)return
+if self.py then
+ll(self,self.py)
+else
+bn(self.fc or 8+max(self.z*0.5,0))
+end
+c=c or self.bd
+local p,s,sp=
+self.qj+(c.qn or v0),
+c.sz or v(1,1),
+(c.sp or self.gj)+flr(self.mz)
+spr(sp,p.x,p.y+self.z,
+s.x,s.y,dp or c.dp)
+end
+function br(ls,dj,mc)
+local bv=1
+return function(os,qw)
+local rv=0
+for i=0,os-1 do
+local rd=peek(ls)
+local kj=band(rd,bv)
+if (kj>0)rv+=2^i
+if mc then
+poke(ls,
+rd-kj+
+band(1,shr(qw,i))*bv
+)
+end
+bv*=2
+if bv==256 then
+bv=1
+ls+=(ls%128==dj and 128-dj or 1)
+end
+end
+return mc and qw or rv
+end
+end
+function bo()
+gd={}
+for i=1,peek(0x2000)do
+add(gd,ob([[
+p=v(r(4),r(4)),
+rs=v(r(7),r(6)),
+rp=v(r(4),r(4)),
+e=e(r(4),r(4),r(4),r(4)),
+hx=r(3),s=r(2),
+stat=r(8),co=r(3),
+]]))end
+end
+is={v=v,b=ks,c=bd,r=br(8193,15)}
+v0,nt,qc,ol=
+v(0,0),ob([[
+v(-1,0),v(1,0),v(0,-1),v(0,1),
+]]),ob([[2,1,4,3,]]),
+ks(512,512,512)
+jy=kt([[
+0,-1,0,
+0,1,0,
+-1,0,0,
+1,0,0,
+0,0,1,
+]])function hy(s,x,y,c,a)
+x-=a*4*#(s.."")
+for d in all(jy)do
+print(s,x+d[1],y+d[2],c*d[3])end
+end
+bl=bh:ej([[
+t=0,mq="nn",z=0,tm=0,
+qo=1,
+]])oj=ob([[
+"q_","io",
+"eq","gm","ft","id",
+"pu","fo","qy",
+"bk","eo",
+"jm","pb","bi",
+]])function lk(e,fn)for mf in all(oj)do
+if (e[mf])fn(fw,mf,e)
+end
+end
+function g_(l,mf,e)del(l[mf],e)end
+function bl:oi()
+if (self.kw)jw(self,self)
+ju+=1
+gz[ju]=self
+lk(self,ex)end
+function bl:ij(mq)self.mq,self.t=mq,0
+end
+function fl()for n,e in pairs(gz)do
+local bu=e[e.mq]
+if bu and bu(e,e.t)or e.rh then
+gz[n]=nil
+lk(e,g_)else
+e.t+=1
+end
+end
+end
+function le(fk)for e in all(fw[fk])do
+e[fk](e)end
+end
+dk=bl:ej()function dk:q_()bm(self)end
+function ho()local ky,ib={},kv(5)for e in all(fw.q_)do
+ex(ky,e.cu or flr(e.qj.y),e)end
+for y=-2,130 do
+if y%8==0 then
+map(0,y*0.125,0,y,16,1)elseif y==129 then
+bn(hf.l_)map(0,0,0,0,16,16,128)end
+for e in all(ky[y])do
+if e.jv and e.z<=0 then
+local sd=e.qj+e.jv-e.gf
+ma(ib,sd.x,sd.y,e.gf.x*2+1,e.gf.y*2+1,2)end
+e:q_(e.qj+v(0,e.z),e.z,e.t)bn()end
+end
+end
+es=bh:ej([[
+kf=b(0,0,8,8),
+ft=1,z=0,
+]])jz=es:ej()function jz:ft(e)local op=id[self.mp.y-1][self.mp.x]
+return op and kq(op,"ft",e,true)end
+nl=es:ej()function nl:oi()for d in all(nt)do
+local p=self.mp+d
+local tt=hi(p.x,p.y)ex(self,"gm",band(tt,6)==0)end
+end
+sb={c1=es,c2=nl,c4=nl,c16=jz,}
+function gx()id={}
+for y=-1,16 do
+ex(id,y)for x=-1,16 do
+local c,mp=
+sb["c"..hi(x,y)],v(x,y)if c then
+id[y][x]=
+c({mp=mp,qj=mp*8})end
+end
+end
+for ge in all(fw.id)do
+local mp=ge.qj*0.125
+id[mp.y][mp.x]=ge
+g_(fw,"ft",ge)end
+end
+function la(self)self.ie=false
+if abs(self.z)<=self.sa then
+hs(self,"ft",function(e,o)self.ie=self.ie or kq(o,"ft",e)and o
+end,true,self.iw)elseif self.z>0 then
+hs(self,"ft",dm,true)end
+end
+function dm(me,qa,e)
+return kq(qa,e,me)end
+function hz()hu(62)
+og+=1
+ia.kf=ol
+ia:ij("i_")end
+function dl(e,bx)
+if (e.z>7)return ol
+return (bx or e.kf):ir(e.qj or v0)end
+fe={}
+function hs(cn,mf,cb,g,bx)add(fe,{e=cn,p=mf,cb=cb,g=g,bx=bx})end
+function nj()for c in all(fe)do
+local e=c.e
+local eb=dl(e,c.bx)if c.g then
+for x=flr(eb.xl*0.125),flr((eb.xr-0.001)*0.125)do
+for y=flr(eb.yt*0.125),flr((eb.yb-0.001)*0.125)do
+local o=id[y]and id[y][x]
+if o and o[c.p]then
+eb=fu(c,e,o,eb)end
+end
+end
+end
+for o in all(fw[c.p])do
+if o~=e and
+#(o.qj-e.qj)<576 and
+eb:ek(dl(o))then
+eb=fu(c,e,o,eb)end
+end
+end
+fe={}
+end
+function fu(c,e,o,eb)local ez=c.cb(e,o,c.p)if ez then
+local rf=eb:rf(dl(o),ez)if rf then
+e.qj+=rf
+eb=eb:ir(rf)end
+end
+return eb
+end
+jn=ob("yt=16000,")function cq(r_,db,ln)local pm,fg,ov={},{},#r_
+for i=1,ov do
+fb(r_[i],r_[i%ov+1],pm,fg
+)end
+db=db or jn
+local om,gw,hl,hr=
+db.yt,db.yb,db.xl,db.xr
+for y,xl in pairs(pm)do
+local xr=fg[y]
+if y<om or y>gw then
+ln(xl,xr,y)else
+local cl,cr=
+min(hl,xr),max(hr,xl)if xl<=cl then
+ln(xl,cl,y)end
+if cr<=xr then
+ln(cr,xr,y)end
+end
+end
+end
+function fb(a,b,pm,fg)local ax,ay=a.x,hd(a.y)local bx,by=b.x,hd(b.y)
+if (ay==by)return
+local x,dx,eg=
+ax,(bx-ax)/abs(by-ay),1
+if by<ay then
+fg,eg=pm,-1
+end
+for y=ay,by,eg do
+fg[y]=x
+x+=dx
+end
+end
+function qd(sg)
+return mid(hd(sg),0,127)end
+function ma(ln,xs,ys,w,h,bg)local x1,x2,r=
+qd(xs),qd(xs+w-1),0
+for y=qd(ys),qd(ys+h-1)do
+if bg then
+r=max(0,bg-min(y-ys,ys+h-1-y))end
+ln(x1+r,x2-r,y)end
+end
+function c_(c)
+return function(x1,x2,y)rectfill(x1,y,x2,y,c)end
+end
+function di(f_)_sqrt={}
+for i=0,4096 do
+_sqrt[i]=sqrt(i)end
+for lv=1,f_ do
+local ls=0x4300+lv*0x100
+local sx=lv-1
+for c1=0,15 do
+local nc=sget(sx,c1)local ew=shl(nc,4)for c2=0,15 do
+poke(ls,ew+sget(sx,c2))
+ls+=1
+end
+end
+end
+end
+function kv(l)local eh=0x4300+shl(l,8)
+return function(x1,x2,y)local bs=eh
+local mr=0x6000+(y<<6)
+local gi,gb=
+mr+(((x1+1)>>1)&0xffff),
+mr+(((x2-1)>>1)&0xffff)
+if(gi<0)return -- jww: overflowed
+if (x1&1.99995)>=1 then
+local a=gi-1
+local v=@a
+poke(a,(v&0xf)|
+(@(bs|v)&0xf0))end
+for ls=gi,gb do
+poke(ls,@(bs|@ls))end
+if (x2&1.99995)<1 then
+local a=gb+1
+local v=@(a)
+poke(a,(@(bs|v)&0xf)|(v&0xf0))
+end
+end
+end
+dq=ob([[
+420,756,1092,1428,1764,
+]],{[0]=-10000})ch={function()end,kv(2),kv(3),kv(4),kv(5),c_(0)}
+function lb(lx,ly,co)local hk,ev,ru=
+co*co,ch,{}
+return function(x1,x2,y)local ox,oy,oe=x1-lx,y-ly,x2-lx
+local jg,km=
+hk*je(0.92,1.08),oy*oy
+local d_,lp,b_,p_=
+km+ox*ox,km+oe*oe
+for lv=5,0,-1 do
+local r=band(dq[lv]*jg,0xffff)if not b_ and d_>=r then
+b_=lv+1
+if (p_)break
+end
+if not p_ and lp>=r then
+p_=lv+1
+if (b_)break
+end
+end
+local lq,dv=1,max(b_,p_)local od=max(x1-lx,lx-x2)for lv=dv-1,1,-1 do
+local hq=band(dq[lv]*jg,0xffff)local hp=_sqrt[hq-km]
+if not hp or hp<od then
+lq=lv+1
+break
+end
+ru[lv]=hp
+end
+local xs,xe=x1
+for l=b_,lq+1,-1 do
+xe=lx-ru[l-1]
+ev[l](xs,xe-1,y)xs=xe
+end
+for l=lq,p_-1 do
+xe=lx+ru[l]
+ev[l](xs,xe-1,y)xs=xe
+end
+ev[p_](xs,x2,y)end
+end
+function fv(n)local a=0x5000
+for p=0,n do
+local pj,iz=p,8
+if p>=24 then
+pj=13+p/8
+iz+=p%8
+end
+for c=0,15 do
+local v=sget(iz,sget(pj,c))
+if (c==3)v+=0x80
+poke(a,v)
+a+=1
+end
+end
+end
+function bn(no)memcpy(0x5f00,0x5000+shl(flr(no or 8),4),16)end
+function ll(o,mx)bn(hf.l_+
+mid((o.qj.y-jr.qj.y)*0.4+o.z*0.5,0,mx))end
+function qt()local qf=
+sh()for e in all(fw.pu)do
+foreach(e.pu,qf)end
+end
+ne=ob([[
+v(-1,1),v(-1,-1),v(1,-1),v(1,1),
+]])function sh()local p,kz=jr.qj,jr.kz+1
+local fx,nh=
+kz*kz,c_(0)
+return function(kx)local s,e,pp=kx.s,kx.e,p-kx.d*3
+if (kx.d^(pp-s)<=0)return
+local ds,de=s-pp,e-pp
+if (#ds>fx and #de>fx)return
+local cs,ce=
+kz/max(abs(ds.x),abs(ds.y)),kz/max(abs(de.x),abs(de.y))local ps,pe=
+ds*cs,de*ce
+local qs,qe=mo(ps),mo(pe)
+if (qs<qe)qs+=4
+local r_={s,e,pp+pe}
+for q=qe,qs-1 do
+add(r_,p+ne[q%4+1]*kz)end
+add(r_,pp+ps)cq(r_,kx.h,nh)end
+end
+function mo(v)
+return abs(v.x)>abs(v.y)and 2+sgn(v.x)or 3+sgn(v.y)end
+oh=bl:ej([[
+oc=0,bk=1,z=0,vz=0,
+kf=b(-2,-3,2,2),iw=b(-1,-2,1,1),
+gf=v(5,2),
+bb=e(v(3,-3.5),v(-4,-3.5),v(-1,-1),v(-1,-3.5)),
+eq=1,ie=e(),
+sa=1,
+cm=c(62,v(2,1),v(-8,-15)),
+cf=c(10,v(2,1),v(-8,-7)),
+gs=e(0,0,0,26,28,26,30,26,28,26,30,42,44,42,46,10,12,10,14),
+]])function oh:nn()self.cv=v0
+self:dc(1)if #self.cv>0 then
+self.cv=self.cv:sk()*0.6
+self.qj+=self.cv
+self.oc+=0.1667
+if self.oc%3<0.1 then
+hu(39)end
+else
+self.oc=0
+end
+self.jv=self.bb[self.mg]
+if btnp(4)or not self.ie then
+self:ij("kn")end
+self:gy()end
+function oh:kn(t)self.oc=1
+self:dc(0.1)if btn(4)then
+if self.vz>=0 and t<3 then
+hu(53)self.vz=-0.5
+elseif t<10 then
+self.vz-=0.1
+end
+end
+self.cv*=0.857
+self.qj+=self.cv
+self.z+=self.vz
+self.vz+=(self.ie and 0.06 or 0.125)
+if self.z>=0 and self.ie then
+self.z=0
+hu(44)
+return self:ij("nn")elseif self.z>5 and not self.ok then
+hu(58)
+og+=1
+self.ok=true
+elseif self.z>14 then
+self:ij("ca")end
+self:gy()end
+function oh:i_(t)
+if (t>=24)jr.dh=0
+self.gf*=0.92
+self:gy()end
+function oh:gy()hs(self,"gm",dm,true)la(self)if jr.co<0.05 then
+jp=function()dy(self.et)end
+end
+end
+function oh:dc(ns)for i=1,4 do
+if btn(i-1)then
+self.mg=i
+self.cv+=nt[i]*ns
+end
+end
+end
+function oh:ca()self:gy()jr.dh=0
+end
+function oh:q_(p,z,t)if self.mq=="i_" then
+local jj=
+mid(0,16,60-t*2)bn(20+min(t/3,3))
+p-=v(jj,jj)*0.5
+sspr(64,0,16,16,p.x+je(-0.15,0.15)*t,p.y-5,jj,jj)else
+local gg=self.mg==1
+self.cf.sp=
+self.gs[self.mg*4+flr(self.oc%4)]
+bm(self,self.cm,gg)bm(self,self.cf,gg)end
+end
+ef=bl:ej([[
+kf=b(-1,-1,1,1),
+d=e(0,1),sp=e(0.03,0.07),c=14,
+qj=v(0,0),lo=v(0,-4),
+]])function ef:nn()local dr=nt[ia.mg]
+if self.n_ then
+self.qj=self.n_.qj+self.mu
+end
+local jt=self.qj-ia.qj
+local rq,fp,kg=
+(rr:hg(94,true)and 28 or 4)+(n_ and 7 or 0),dr^jt,dr:pq()^jt
+if self.mg~=ia.mg or
+ia.mq~="nn" or
+fp>rq or
+fp<0 or
+abs(kg)>7
+then
+self:h_()end
+local n_=self.n_
+if n_ then
+local eu=fp>9
+if n_.z>2 or
+n_.qp and eu or
+n_.ic and not rr:hg(n_.ic)then
+return
+end
+if btnp(5)then
+if eu then
+for i=7,fp,2 do
+pg:add(1,ia.qj+self.lo+
+dr*i,ef)end
+end
+n_:lf()self:h_()end
+rr:hg(94,not eu)self.kp=n_
+else
+self.qj+=dr*3
+hs(self,"eo",function(e,t)e.n_,e.mu=t,e.qj-t.qj
+end)hs(self,"gm",dm,true)self.n_=nil
+end
+end
+function ef:h_()self.mg,self.qj,self.n_=
+ia.mg,ia.qj+nt[ia.mg],nil
+end
+function ef:fo()local kp=self.kp
+if kp then
+local p=kp.qj+kp.ka
+p.y+=sin(dg)*2
+spr(255,p.x-#kp.eo*2,p.y-1)hy(kp.eo,p.x,p.y,7,0.5)self.kp=nil
+end
+end
+iv=bl:ej()function iv:fo()bn()rectfill(0,122,8*#self.fi-1,124,1)for x,it in pairs(self.fi)do
+spr(it.bq,x*8-8,118+sin(dg)*it.a
+)if it.dw>1 then
+print(it.dw,x*8-4,123,7)end
+it.a*=0.5
+end
+end
+function iv:hg(bq,qv)for i,it in pairs(self.fi)do
+if it.bq==bq then
+if (not qv)it.a=2
+return it,i,it.dw
+end
+end
+return nil,#self.fi+1,0
+end
+function iv:js(bq,d)cn,ix,dw=self:hg(bq)
+dw+=d
+if dw==0 then
+del(self.fi,cn)else
+self.fi[ix]={bq=bq,dw=dw,a=0}
+end
+end
+lh=bl:ej([[
+co=0.02,dh=1,
+]])function lh:nn()gl(self,"co",self.dh*(1-hf.co*0.05),0.91)self.qj,self.kz=
+(self.qk or ia).qj:sf(),flr(42*self.co)end
+function lh:gp()local r=self.kz
+return
+self.qj.x-r,self.qj.y-r,r*2+1,r*2+1
+end
+function lh:lt()ma(lb(self.qj.x,self.qj.y,self.co
+),self:gp())end
+pi=dk:ej([[
+lz=e(5),rg=220,qn=v(-4,8),
+kf=b(-1,-8,8,0),py=6,
+bd=c(5,f,v(0,-16)),
+ry=45,il=3,eo=f,
+cj=e("=2,.=2),
+eo="  read",ic=111,qp=1,
+ey=e(),
+ka=v(4,-22),
+t=1000,
+]])ig=ob([[
+""past shadows so dark_",
+"beyond sands windswept_",
+"in the desert's cold heart",
+"a strange portal slept."",
+""seven kings went through_",
+"one madman returned_",
+"his eyes struck blind",
+"by secrets he learned."",
+""beyond limestone walls_",
+"past traps beyond count_",
+"he banished the stories",
+"he dared not recount."",
+"- progress saved -",
+]])function pi:lf()pi.ey[self.c1],self.t=
+ig[self.c1],-110
+sfx(59,0)end
+function pi:fo()local st,t=
+flr(self.c1/4-0.01)*4+1,self.t*2
+rectfill(t-200,10,t+200,self.ry,0)for ln=0,self.il do
+local s=pi.ey[st+ln]or "..."if t<380 then
+local x=64-#s*2
+im(s,function(c,i)
+if (c=="_")c=","
+local pt=
+max(abs(i-t/4)-37,8)if pt<15 then
+bn(pt)print(c,x,12+ln*8+sin(dg+i*0.05)*1.5,self.cj[c]or 15)end
+x+=4
+end)end
+end
+end
+hb=pi:ej([[
+lz=e(89,90,95),qn=v(0,4),rg=f,
+jv=v(4,0),
+gf=v(5,2),
+eo=f,c1=17,il=0,ry=18,
+bd=c(f,f,v(0,-7)),py=f,
+ka=v(4,0),
+kf=b(1,-3,7,3),
+qy=0,qo=0,mz=0,
+d=e(4,7),gn=0.8,
+a=0.25,sp=e(0.2,1.5),
+r=1,c=10,
+]])ro=hb:ej([[
+lz=e(77,94,78,79),qn=v(-4,8),
+ro=1,
+]])function hb:nn()self.z=sin(dg)*2-3+self.mz*15
+end
+function hb:io()ga(self.z<=7,3)end
+function hb:gm(e)if e.bk then
+rr:js(self.gj,1)self.mz=1
+pg:add(20,self.qj+self.ka,hb)if self.ro then
+qm(30)else
+if self.gj==90 then
+local _,__,gq=rr:hg(90)ig[17]="idols found: "..gq.."/7"self:lf()end
+hu(60)end
+end
+return true
+end
+j_=kt([[
+en=e(192),hc=216,l_=8,wd=6,jx=0,rg=192,gv=0,
+en=e(205,206),hc=221,l_=32,wd=4,jx=0,rg=205,gv=0,
+en=e(209),hc=52,l_=24,wd=6,jx=-1,rg=209,gv=0,
+en=e(209),hc=52,l_=8,wd=6,jx=0,rg=209,gv=0,
+en=e(205,206),hc=221,l_=32,wd=4,jx=0,rg=246,gv=0,
+en=e(209),hc=52,l_=24,wd=6,jx=-1,rg=246,gv=0,
+]])function fz()k_,kr={},v(4,10)for rd in all(gd)do
+rd.hf=
+jk(nq(nil,nq(rd,j_[rd.hx])))k_[rd.p()]=rd.hf
+end
+fm()dy(3)end
+ot=bl:ej([[
+lz=e(32),d=16,pf=1,jx=0,
+]])fs=ot:ej([[
+pf=2,jx=28,
+ci=e(90,88,93,1,1,s=1,go=-1),
+]])mb={kt([[
+32,45,25,5,1,go=1,s=1,
+"arrows        ",37,46,13,0,go=-1.3,
+"       … walk",37,46,1,0,go=-1,
+"@itsmerobertk",60,8,1,1,go=-0.5,
+"@grubermusic",68,8,1,0,go=-0.5,
+" c           x       ",22,53,13,0,go=1.3,
+"@krajzeg",64,2,1,0.5,go=0.5,
+"   … jump     … use",22,53,1,0,go=1,
+]]),kt([[
+32,43,21,5,1,go=1,s=1,fc=15,
+32,43,23,5,1,go=1,s=1,fc=15,
+32,43,22,5,1,go=1,s=1,
+"well done!",64,72,7,0.5,go=-1,
+"time:",28,86,10,0,go=1,
+"",98,86,9,1,go=-1,
+"deaths:",28,104,10,0,go=1,
+"",98,104,9,1,go=-1,
+"idols:",28,95,10,0,go=1,
+]])}
+function fs:oi()sfx(38,0)local tx=mb[2]
+local a,b,gq=rr:hg(90)tx[8][1]=og
+for i=1,7 do
+tx[17-i]=nq(nq(nil,self.ci),{nil,64+i*4,fc=i<=gq and 8 or 13})end
+tx[6][1]=flr(dg/60).."\77"..
+flr(dg%60).."\83"fw.fo={self}
+end
+function ot:nn(t)local p=ia.qj
+p.y=min(p.y,122)self:fd("d",0,16,0.6,p.y>100)if t==50 then
+qm(self.jx)end
+end
+function ot:fo()for tt in all(mb[self.pf])do
+bn(tt.fc)camera(tt.go*self.d*self.d,0)ke(tt.s and spr or hy,tt)end
+camera()end
+nk=bl:ej([[
+qj=v(0,128),z=0,
+jo=e(f=0.2,d=e(0,0),gn=1,ck=0,l=0,rd=0),
+]])function nk:add(n,qj,lj)lj=nq(nq({},nk.jo),lj)for i=1,n do
+local a=rnd()local d=ld(a,je(lj.d))
+d.y*=lj.gn
+self.ps[rnd()]=nq({p=qj+d,v=ld(lj.a or a+lj.ck,je(lj.sp)),ba=0x5080+lj.c
+},lj)end
+end
+function nk:q_()for k,p in pairs(self.ps)do
+p.p+=p.v
+p.l+=p.f
+if p.l>=7 then
+self.ps[k]=nil
+end
+circ(p.p.x,p.p.y,p.rd,peek(p.ba+shl(max(0,flr(p.l)),4)))end
+end
+bw=bl:ej([[
+ka=v(64,67),
+]])function bw:nn()
+if (ia.qj-self.ka)^nt[self.dr]>63 then
+ia.et=self.dr
+ia:ij("ca")
+return true
+end
+end
+oz=pi:ej([[
+lz=e(60),rg=225,qn=v(0,0),
+qo=0,c1=13,
+oa=v(34,23),
+ni=v(64,56),rj=1,
+ry=18,il=0,
+nm=e(b(2,2,7,3),f,b(2,3,3,7)),
+pd=e(b(2,1,7,2),f,b(2,3,2,7)),
+d=e(8,32),gn=0.8,
+a=0.25,sp=e(0.2,1.2),
+r=1,c=12,
+]])function oz:nn()if #(ia.qj-self.ni)<400
+and self.rj then
+fm(true)self:lf()hu(60)self.rj,jr.co=false,1
+pg:add(40,self.ni,oz)end
+end
+function oz:q_()map(20,12,32,32,8,8)for y=2,9 do
+for x=0,9 do
+local xy=v(x,y)local hf=ou(xy)if hf then
+local p,pc=
+self.oa+xy*6,hf.gv>0
+for d=1,3,2 do
+local qa=ou(xy-nt[d])if hf.md[d]and qa then
+local dh=pc and qa.gv>0 and 9 or 13
+self.nm[d]:cy(p,dh)self.pd[d]:cy(p,0)end
+end
+spr(pc and 59+hf.s or 58,p.x,p.y)end
+end
+end
+end
+function ou(v)local hf=k_[v()]
+return hf and (hf.gv>0 or hf.s~=1)and hf
+end
+gk=dk:ej([[
+bd=c(123,f,v(-4,-8)),
+kf=b(-3,-3,3,3),
+d=e(1,2),sp=e(0.25,0.5),f=0.3,c=11,
+e_=e(d=e(0,1),sp=e(0.1,0.2),f=0.4,c=11),
+]])function gk:nn(t)
+self.qj+=self.v
+if (self.v.y>0 and t<9)return
+hs(self,"gm",self.jq,true)hs(self,"bk",self.jq)pg:add(rnd(1.5),self.qj-v(0,4),gk.e_)end
+function gk:jq(o)
+if (self.rh)return
+if (o.bk)hz()
+hu(56)self.rh,li=true,1
+pg:add(7,self.qj,gk)end
+jd=dk:ej([[
+lz=e(124),qn=v(4,8),qo=2,rg=220,
+bd=c(124,f,v(-4,-12)),
+dr=v(0,2),oo=v(0,-16),py=4,
+]])qh=jd:ej([[
+lz=e(93),qn=v(-8,0),rg=220,
+bd=c(93,f,v(0,-3)),py=f,
+dr=v(-2,0),oo=v(4,5),
+]])function jd:nn()local _,ql=ra(self,self.c2==255 and 15 or 20,not on(self))if ql then
+hu(55)gk({qj=self.qj+self.oo,v=self.dr
+})end
+end
+function on(e)local rs=band(lm,e.c1)==e.c1
+if e.rl~=nil and rs~=e.rl then
+hu(rs and e.cz or e.bj)end
+e.rl=rs
+return rs
+end
+function bl:fd(mf,mn,mx,m,up)
+if (up==nil)up=on(self)
+local gr=self[mf]
+self[mf]=mid(mn,mx,up and gr-m or gr+m)
+return self[mf]~=gr
+end
+function ra(e,qx,qg)
+if (not qg)e.tm+=1
+local qu=shl(1,e.tm/qx%8)local on=band(e.c2 or e.c1,qu)>0
+return on,on and not qg and e.tm%qx==0
+end
+function ga(mt,qw)if mt then
+lm=bxor(lm,qw)end
+end
+bc=bl:ej([[
+lz=e(128),rg=1,qo=2,
+]])function bc:io()ga(ra(self,30),self.c1)end
+qi=bl:ej([[
+lz=e(199),rg=199,qn=v(0,8),
+kl=0,
+kf=b(1,-7,7,-1),
+fr=e(v(2,-6),v(5,-6),v(1,-3),v(4,-3)),
+]])dn=qi:ej([[
+lz=e(200),qo=2,qy=0,
+]])function qi:nn()local ej=
+ra(self,21,self.qo==2 and not on(self))if ej and self.kl==0 then
+hu(51)end
+self:fd("kl",0,6,-1,ej)if self.kl>4 then
+hs(self,"bk",hz)end
+end
+function qi:q_(p)for so in all(self.fr)do
+local sp=p+so
+sspr(64,96,2,self.kl,sp.x,sp.y-self.kl)end
+end
+cx=dk:ej([[
+lz=e(104),rg=219,
+z=0,
+kf=b(0,0,8,8),
+bd=c(104,v(1,2)),
+id=1,
+lstsnd=0,cz=47,bj=47,
+]])function cx:nn()local nz
+if self.qo==2 then
+nz=ra(self,23,not on(self))end
+self:fd("z",0,12,1.5,nz)end
+function cx:ft(e)if e.eq then
+self.z,self.mm=
+max(self.z,1),true
+end
+return self.z<5
+end
+ii=cx:ej([[
+lz=e(120),qo=2,qy=0,
+]])nd=cx:ej([[
+lz=e(105),dz=30,qo=0,
+bd=c(105,v(1,2)),
+]])function nd:nn()if self.mm then
+self.dz-=1
+if self.dz<=0 then
+if not self.mz then
+self.mz=1
+hu(48)end
+self.z+=0.5
+end
+end
+end
+qq=cx:ej([[
+lz=e(3),qo=0,
+bd=c(3,v(1,2)),
+z=7,fc=15,
+d=e(0,3),a=0.25,sp=e(0,0.05),c=9,
+]])function qq:nn()local cp=self.qj+v(4,4)local d=#(cp-ia.qj)<225
+and not (ia.ie and ia.ie.pb)and rr:hg(78)and self.pw
+if (d and self.fc==15)hu(50)
+self:fd("fc",8,15,0.6,d)self:fd("z",0,7,0.7,d)if rnd()<0.02 then
+pg:add(1,cp,qq)end
+self.pw=true
+hs(self,"pb",function()self.pw=false
+end)end
+pb=dk:ej([[
+lz=e(91),rg=219,qn=v(0,-8),
+qy=0,qo=2,
+pb=1,
+kf=b(0,0,16,16),
+delay=0,
+gr=v(0,0),
+bd=c(75,v(2,3)),
+z=1,
+]])gc=pb:ej([[
+lz=e(37),kf=b(0,0,8,8),qn=v(0,0),
+bd=c(37,v(1,2)),
+]])function pb:oi()self.sw,self.cv=
+self.c2%16,self.cv or
+nt[flr(self.c2/16)]*0.5
+end
+function pb:nn()local d=self.qj-self.gr
+for h in all(self.nz)do
+h.qj+=d
+end
+self.nz,self.gr=
+{},self.qj
+if on(self)then
+self.qj+=self.cv
+self.fc=8
+hs(self,"ft",function(e,o)if kq(o,"ft",self)then
+self:ij("np")hu(46)
+return true
+end
+end,true)else
+self.fc=6
+end
+end
+function pb:np(t)if t==16 then
+for i=1,self.sw do
+self.cv=self.cv:pq()end
+self:ij("nn")end
+end
+function pb:ft(e)if not e.pb then
+add(self.nz,e)end
+return true
+end
+ms=pb:ej([[
+lz=e(22),
+bd=c(6,v(2,2)),
+kf=b(0,0,16,15),qn=v(0,-7),
+]])function ms:io()ga(self==ia.ie,self.c1)end
+pv=bl:ej([[
+lz=e(201),qn=v(0,8),
+kf=b(0,-32,8,0),
+cboxn=b(0,2,-1,3),
+gm=1,ht=32,
+pu=1,qy=0,
+kw=e(
+e(s=v(0,-31),e=v(0,0)),
+e(s=v(7,0),e=v(7,-31))),
+cz=61,bj=61,
+si=e(kf=b(0,-32,8,0),dd=0),
+ea=e(kf=b(0,2,0,2),dd=16,pu=e()),
+]])function pv:oi()self.si=nq({},self.si)jw(self.si,self)end
+function pv:nn(t)if self:fd("ht",16,32,2)and
+abs(self.ht-24)==8 then
+li=2
+end
+nq(self,self.ht>23
+and self.si or self.ea)self.cu=
+self.qj.y-self.dd
+end
+function pv:q_(p,z)bn(hf.l_+8-self.ht/4)sspr(80,96,8,z>0 and z or self.ht,p.x,p.y-self.ht)end
+function pv:bi()if self.ht>=32 then
+self:q_(self.qj,24)end
+end
+cc=bl:ej([[
+lz=e(102),qn=v(0,8),
+gu=6,
+kf=b(0,-12,16,-1),
+py=4,
+bd1=c(70,v(1,3),v(0,-24)),
+bd2=c(70,v(1,3),v(8,-24),1),
+db=b(-1,-2,16,-24),
+gm=1,
+ki=b(0,-80,15,-23),
+cz=61,bj=61,
+]])function cc:nn()if self:fd("gu",0,6,1)and
+abs(self.gu-3)==3 then
+li=1.5
+end
+self.gm=self.gu>3
+end
+function cc:fo()if self.gm then
+self.ki:cy(self.qj,0)end
+end
+function cc:q_(p)local gu=self.gu
+bm(self,self.bd1)bm(self,self.bd2)sspr(62-gu,32,gu,16,p.x+2,p.y-18)sspr(66,32,gu,16,p.x+14-gu,p.y-18)end
+df=bl:ej([[
+lz=e(195),qo=0,
+gm=1,qy=0,
+eo="  ???",ic=111,qp=1,
+ka=v(4,-20),
+kf=b(0,-16,8,0),
+ki=b(0,-40,-48,8),
+qn=v(0,16),
+cu=130,
+mp=v(0,-40),mx=127,my=1,mw=1,mh=6,
+]])bf=df:ej([[
+lz=e(211),rg=1,
+mx=127,my=7,mw=1,mh=5,
+ki=b(8,-40,48,8),
+]])nf=df:ej([[
+lz=e(243),
+kf=b(0,0,16,8),
+ki=b(-8,0,30,48),
+qn=v(0,0),
+mp=v(-8,-8),mx=124,my=0,mw=4,mh=1,
+]])function df:lf()hu(61)self.z,li=10,3
+end
+function df:q_(p)
+if (self.z>0)return
+self.ki:cy(p)
+p+=self.mp
+map(self.mx,self.my,p.x,p.y,self.mw,self.mh
+)end
+jl=bl:ej([[
+lz=e(34),qn=v(12,70),rg=219,
+kf=b(-8,-8,8,8),
+ka=v(64,54),m_=v(64,54),
+ct=v(64,120),
+jj=0,dr=3,
+d=e(8,11),f=0.4,rd=1,
+sp=e(0.2,0.4),ck=0.23,
+l=-4,c=10,
+]])function jl:nn()local cg=0.3
+if on(self)then
+cg=0
+ia.fc=max(20,24-#(ia.qj-self.qj)/256)hs(self,"bk",function()if ia.z<5 then
+fs()ia.qj=self.ct
+ia:ij("s_stuck")end
+end)end
+if ia.mq~="s_stuck" then
+hu(cg==0 and 54 or 40,1)end
+gl(self,"qj",self.ka+(ia.qj-self.m_)*cg,0.9
+)jr.qk=self
+end
+function jl:q_(p)
+p-=v(0,4)
+self:fd("jj",3,11,-1)circfill(p.x,p.y,self.jj,10)pg:add(self.jj-7,p,jl)
+p+=ld(rnd(),1.5)
+circfill(p.x,p.y,0.68*self.jj,7)end
+pa=dk:ej([[
+mz=0,kd=0,qy=0,
+]])function pa:io()if self.mz~=self.kd then
+hu(57)end
+self.kd=self.mz
+ga(self.mz==1,self.c1)end
+dt=pa:ej([[
+lz=e(117),id=1,
+kf=b(0,0,7,7),
+bd=c(117),
+]])function dt:nn()self.mz=0
+end
+function dt:ft(o,n,px)
+if (abs(o.z)<0.5 and not px)self.mz=1
+return true
+end
+mk=pa:ej([[
+qy=f,id=f,
+lz=e(160),qo=2,rg=219,
+kf=b(0,-31,7,0),
+bd=c(127,v(0,0)),mz=0,
+]])function mk:nn()hs(self,"bk",function()if band(lm,self.c2)==self.c2 then
+self.mz=1
+end
+end)end
+jm=pa:ej([[
+lz=e(109),bd=c(109,f,v(0,-8)),qn=v(0,8),
+eo=" ",gm=1,
+ka=v(3,-16),
+kf=b(0,-7,8,0),jm=1,
+]])fy=jm:ej("lz=e(110),qn=v(4,7),kf=b(0,-6,8,1),")function jm:lf()self.mz=1-self.mz
+end
+cw=pa:ej([[
+lz=e(73),qn=v(-4,8),rg=1,
+kf=b(-1,-8,8,0),
+bd=c(73,f,v(0,-14)),
+py=6,eo="  insert",qp=1,ip=-1,
+ka=v(4,-20),
+c2=89,
+jf=e(
+e(eo="  insert",mz=0,ip=-1),
+e(eo="  take",mz=1,ip=1)),
+]])hv=cw:ej([[
+lz=e(74),mz=1,
+]])function cw:nn()self.ic=self.mz==0 and self.c2
+nq(self,self.jf[self.mz+1])end
+function cw:lf()rr:js(self.c2,self.ip)self.mz,self.z=
+1-self.mz,band(self.c1,128)end
+gh=cw:ej([[
+lz=e(56),qn=v(0,8),qo=2,
+rg=f,kf=b(0,0,8,-8),
+gm=1,py=2,
+bd=c(40,v(1,2),v(0,-16)),
+]])function gh:q_(p)bm(self)bn(15-self.mz*7)palt(0,true)spr(self.c2,p.x,p.y-13)end
+function jw(t,e)t.pu={}
+for wd in all(e.kw)do
+local p1,p2=
+e.qj+wd.s,e.qj+wd.e
+add(t.pu,{s=p1,e=p2,d=(p1-p2):pq():sk(),h=e.wh and e.wh:ir(e.qj)})end
+end
+nw=dk:ej([[
+lz=e(67),qn=v(0,8),qo=0,
+gm=1,py=6,
+bd=c(67,v(2,4),v(0,-32)),
+kf=b(0,-14,16,0),
+kw=e(
+e(e=v(0,0),s=v(0,-16)),
+e(e=v(0,-16),s=v(16,-16)),
+e(e=v(16,-16),s=v(16,0)),
+e(e=v(16,0),s=v(0,0))),
+wh=b(3,-32,12,-15),
+]])lu=dk:ej([[
+lz=e(119),qn=v(0,7),qo=0,
+qy=15,
+bd=c(103,v(1,2),v(0,-15)),
+py=2,
+jv=v(4,0),gf=v(6,2),
+kf=b(1,-7,7,1),iw=b(3,-5,5,-3),
+eq=1,eo=" ",ic=79,
+sa=3,
+ka=v(3,-17),
+d=v(0,0),gr=v(0,0),
+ie=e(),
+]])function lu:nn()if self.ie then
+self.z=0
+else
+self.z+=1.5
+end
+la(self)local d=self.d
+if (#d>0.25)d*=0.1875
+self.qj+=d
+self.d-=d
+if #(self.qj-self.gr)>0 then
+hs(self,"gm",self.rm,true)end
+self.gr=self.qj
+end
+function lu:gm(e)
+return e.z<=0
+end
+function lu:rm(o)if kq(o,"gm",self)then
+self:ow(v0)hu(46)end
+end
+function lu:ow(d)
+d+=self.qj+v(4,4)
+self.d=
+(d*0.125):sf()*8+nt[3]-self.qj
+end
+function lu:lf()hu(49)self:ow(nt[kk.mg]*8)end
+da=lu:ej([[
+lz=e(4),jv=v(4,-2),py=3,
+kf=b(1,-7,7,0),
+bd=c(f,f,v(0,-9)),
+cv=v(0,0),
+pk=e(4,4,4,20,20,20),
+]])function da:rm(o)self.cv,li=v0,1
+lu.rm(self,o)end
+function da:nn(t)lu.nn(self)if #self.cv>0 then
+self.qj+=self.cv
+self.gj=da.pk[t%6+1]
+end
+end
+function da:lf()hu(45)self.cv=nt[kk.mg]*0.5
+end
+fj=kt([[
+v(0,1),v(1,0),4,4,
+v(0,1),v(1,0),8,3,
+v(1,0),v(0,1),1,2,
+v(1,0),v(0,1),2,1,
+]])function nx()for a in all(fj)do
+ke(hn,a)end
+end
+function hn(el,hw,mi,ec)for ik=0,15 do
+local l,c,bv,gr=
+el*ik-hw*2,-2,0
+repeat
+repeat
+l+=hw
+c+=1
+gr,bv=
+bv,lw(mi,l.x,l.y)until c==16 or bv~=gr
+if gr~=0 then
+ku(sl*8,l*8,ec)if ec==3 then
+hh({mx=sl.x,my=sl.y,mw=(l-sl).x,qj=sl*8+v(0,15)})end
+end
+sl=l
+until c==16
+end
+end
+iq=kt([[
+f=v(7,8),t=v(7,7),wi=1,
+f=v(0,8),t=v(0,7),
+f=v(0,15),t=v(-1,15),h=v(-1,14),
+f=v(0,8),t=v(-1,8),h=v(-1,1),wi=1,
+]])function ku(ng,to,dr)
+if (#(to-ng)<100)return
+local d,ps=nt[dr],iq[dr]
+local cs,ce=
+ng+ps.f,to+ps.t
+local ja=
+ps.h and o_(cs,to+ps.h)
+if (ps.wi)cs,ce=ce,cs
+bl({pu={{s=cs,e=ce,d=d,h=ja}
+}
+})end
+hh=bl:ej()function hh:q_(p)ll(self,hf.wd)map(self.mx,self.my,p.x,p.y-15,self.mw,2)end
+bo()function _init()di(6)fv(39)hf,fi=nil,kt([[
+bq=111,dw=1,a=0,
+]])fz()menuitem(1,"toggle music",function()rx=64-rx
+qm(ee%64)end)menuitem(2,"delete progress",function()dset(0,0)_init()end)end
+function dy(dr)if dr and hf then
+hf:kh()fi=rr.fi
+kr+=nt[dr]
+end
+gz,fw,ju,t=
+{},{},1,0
+kk=ef()hf=k_[kr()]
+hf:h_()ia,jr,rr,pg=
+oh(),lh(ob([[co=0.07,]])),
+iv({fi=nq({},fi)}),
+nk(ob("ps=e(),"))
+hf:hm(dr)
+qm(hf.jx)
+end
+rn=ob([[
+v(16,16),v(0,0),
+v(0,16),v(16,0),
+]])jk=bh:ej([[rt=255,]])
+function jk:oi()
+for dr=1,4 do
+local ep=self.e[dr]
+ex(self,"md",
+ep>0 and
+rn[dr]+
+nt[dr]:pq()*ep
+)
+end
+end
+function jk:kh()
+local gr,m=self.qy or {},1
+self.qy,self.rt={},0
+for e in all(fw.qy)do
+self.qy[e.na]=
+lm%128<e.qy and
+(gr[e.na]or {})or
+e
+if e.qy and e.mz then
+self.rt+=e.mz*m
+m*=2
+end
+end
+end
+function jk:hm(dr)
+dr=dr or self.gv
+self.gv=dr
+local gt=nt[dr]
+ia.qj,ia.mg=
+(self.md[dr]+gt*0.6+gt:pq())*8,
+dr
+end
+function jk:h_()
+po(v0,v(16,16),{220})
+local r=em(self.rs)
+r:lc(
+self.rp,
+self.qy,
+self.rt~=255 and self.rt
+)
+for ei,se in pairs(self.md)do
+local re=r.md[ei]
+if re and se then
+fh(re+self.rp,se,nt[ei])
+bw({dr=qc[ei]})
+end
+end
+jh(ih)
+jh(nb)
+nx()
+gx()
+end
+pn=bh:ej()
+function pn:lc(p,qy,rt)
+local rz,qr,na=
+self.rz,1,1
+for y=rz.yt,rz.yb-1 do
+local d=p+v(0,y-rz.yt)
+for x=rz.xl,rz.xr-1 do
+local t=mget(x,y)
+local s=ha[t]
+if s then
+local pl={
+qj=d*8+(s.qn or v0),
+na=na,gj=t
+}
+for i=1,s.qo do
+pl["c"..i]=self.qo[qr]
+qr+=1
+end
+if qy and s.qy then
+nq(pl,qy[na])
+elseif rt and s.qy and s.mz then
+pl.mz=band(rt,1)
+rt*=0.5
+end
+s(pl)
+na+=1
+t=s.rg or hf.rg
+if t==1 then
+t=mget(d.x-1,d.y)
+end
+if t==219 and hi(d.x,d.y-1)==1 then
+t=hf.hc
+end
+end
+mset(d.x,d.y,t)
+d.x+=1
+end
+end
+end
+hj=kt([[
+c1="xr",c2="yt",sz="y",d=2,
+c1="xl",c2="yb",sz="y",d=1,
+c1="xr",c2="yb",sz="x",d=4,
+c1="xl",c2="yt",sz="x",d=3,
+]])function em(p)local nu=v(ff(p,nt[2]),ff(p,nt[4]))local rb,qo,e=
+o_(p,p+nu),{},{}
+for i=0,30 do
+add(qo,mget(p.x+nu.x+i/nu.y,p.y+i%nu.y
+))end
+for d,a in pairs(hj)do
+e[d]=pz(p,rb[a.c1],rb[a.c2],nt[a.d],nu[a.sz]
+)end
+return pn({rz=rb,md=e,qo=qo
+})end
+function ff(p,d)local m=1
+while mget(p.x,p.y)~=48 do
+m+=1
+p+=d
+end
+return m
+end
+function pz(ed,ox,oy,dr,mx)local p,d=
+v(ox,oy),dr:pq()local rk=(d-dr)*0.5
+for i=1,mx do
+local tp=(p+rk):sf()if fget(mget(tp.x,tp.y))==0 then
+return p-ed
+end
+p+=d
+end
+end
+function fh(pr,ps,d)local fa=(pr-ps)^d
+if (fa<=0)return
+local ri=flr(fa*0.7)+1
+local kc,du=
+fa-ri+2,d:pq()*2
+local of,ph=
+pr-d*ri-du,ps+d*kc+du
+po(pr,of)po(ps,ph)po(of,ph)end
+function po(p1,p2,ji)local bt=o_(p1,p2)ji=ji or hf.en
+for x=bt.xl,bt.xr-1 do
+for y=bt.yt,bt.yb-1 do
+mset(x,y,ji[x%#ji+1])end
+end
+end
+ih,nb=kt([[
+4,0,1,249,1,0,249,254,
+4,0,1,249,-1,0,249,253,
+4,0,1,4,0,2,249,1,1,249,238,
+4,0,1,4,0,2,249,-1,1,249,237,
+4,0,1,249,251,
+4,0,2,249,235,
+]]),kt([[
+4,1,0,4,0,1,4,1,1,2,196,
+4,-1,0,4,0,1,4,-1,1,2,198,
+4,1,0,249,0,1,4,1,1,4,228,
+4,-1,0,249,0,1,4,-1,1,4,230,
+4,0,1,2,1,0,251,249,
+4,0,1,2,-1,0,251,248,
+251,0,1,4,-1,1,251,232,
+251,0,1,4,1,1,251,233,
+4,0,1,2,197,
+4,1,0,251,212,
+4,-1,0,251,214,
+251,0,1,4,229,
+]])qb=ob([[
+r192=e(192,208,224,240),
+r251=e(251,251,251),
+r235=e(235,235,236),
+r209=e(209,209,209,227,244),
+r48=e(220),r49=e(220),
+r21=e(127),
+]])function lw(mi,x,y)
+return band(mi,fget(mget(mid(x,0,15),mid(y,0,15))))end
+function hi(x,y)
+return shl(1,lw(0x70,x,y)/16)end
+function jh(ny)for x=0,15 do
+for y=0,15 do
+for p in all(ny)do
+for n=1,#p,3 do
+if band(hi(x+(p[n-2]or 0),y+(p[n-1]or 0)),p[n])==0 then
+goto sj
+end
+end
+mset(x,y,p[#p])break
+::sj::
+end
+if ny==nb then
+local r=qb["r"..mget(x,y)]
+if r then
+mset(x,y,r[flr(rnd(#r)+1)])end
+end
+end
+end
+end
+function fm(mc)local rw=br(0x5e00,127,mc)dg,og=
+rw(16,dg),rw(16,og)
+if (dg<=1)return
+local bz=rw(4,#fi)for i=1,bz do
+local it=fi[i]or {}
+fi[i]={bq=rw(8,it.bq),dw=rw(4,it.dw),a=0
+}
+end
+for s in all(gd)do
+s.hf.gv,s.hf.rt=
+rw(3,s.hf.gv),rw(8,s.hf.rt)end
+kr=v(5,4)end
+function _update60()if jp then
+jp()jp=nil
+end
+lm=hf.stat
+le("io")fl()nj()
+t+=1
+dg+=0.01667
+end
+function _draw()cls()bn()li=max(t>60 and li-0.2,0)local fq=ld(t*0.36,li)camera(hd(fq.x),hd(fq.y))clip(jr:gp())ho()qt()le("bi")camera()jr:lt()clip()bn()le("fo")end
