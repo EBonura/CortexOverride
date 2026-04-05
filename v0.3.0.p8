@@ -23,6 +23,9 @@ function _init()
     pack(peek(0x1000+1788,1402))
   }
 
+  -- lighting palettes (5 darkness levels)
+  init_light_tables()
+
   cam=gamecam.new()
   change_state(init_game,update_game,draw_game)
 end
@@ -50,6 +53,168 @@ end
 
 function check_tile_flag(x,y)
   return fget(mget(flr(x/8),flr(y/8)),0)
+end
+
+-- lighting system
+function init_light_tables()
+  -- darkness palette (maps each color to darker version)
+  local dark_pal={0,1,1,1,1,0,5,6,2,5,9,3,1,2,2,4}
+
+  -- build 256-entry lookup: all combinations of 2 pixels
+  for i=0,15 do
+    for j=0,15 do
+      local idx=bor(shl(i,4),j)  -- i=left pixel, j=right pixel
+      poke(0x4300+idx,bor(shl(dark_pal[i+1],4),dark_pal[j+1]))
+    end
+  end
+end
+
+function draw_light(lx,ly,rad)
+  local r2=rad*rad
+  local top_y,bot_y=max(0,flr(ly-rad)),min(127,flr(ly+rad))
+
+  -- darken top section (above circle)
+  for y=0,top_y do
+    darken_line(y,127,127)
+  end
+
+  -- darken bottom section (below circle)
+  for y=bot_y,127 do
+    darken_line(y,127,127)
+  end
+
+  -- middle section (circle area)
+  for y=top_y+1,bot_y-1 do
+    local dy=ly-y
+    local dx=sqrt(r2-dy*dy)
+    darken_line(y,max(0,lx-dx),min(127,lx+dx))
+  end
+end
+
+function darken_line(y,start_x,end_x)
+  local row=0x6000+y*64
+
+  -- darken from 0 to start_x (left side)
+  for i=0,shr(start_x,1) do
+    local addr=row+i
+    poke(addr,@(0x4300+@addr))
+  end
+
+  -- darken from end_x+1 to 127 (right side)
+  for i=shr(end_x+1,1),63 do
+    local addr=row+i
+    poke(addr,@(0x4300+@addr))
+  end
+end
+
+-- shadow casting (scanline polygon fill)
+function cast_shadows(lx,ly,rad)
+  local px,py=lx+cam.x,ly+cam.y
+  local r2=rad*rad
+
+  -- find all wall tiles and cast shadows
+  local tx1,ty1=flr((px-rad)/8),flr((py-rad)/8)
+  local tx2,ty2=flr((px+rad)/8),flr((py+rad)/8)
+
+  for ty=max(0,ty1),min(63,ty2) do
+    for tx=max(0,tx1),min(127,tx2) do
+      if fget(mget(tx,ty),0) then
+        -- check each edge of tile
+        local wx,wy=tx*8,ty*8
+        check_edge(lx,ly,wx,wy,wx+8,wy,rad,px,py)      -- top
+        check_edge(lx,ly,wx+8,wy,wx+8,wy+8,rad,px,py)  -- right
+        check_edge(lx,ly,wx+8,wy+8,wx,wy+8,rad,px,py)  -- bottom
+        check_edge(lx,ly,wx,wy+8,wx,wy,rad,px,py)      -- left
+      end
+    end
+  end
+end
+
+function check_edge(lx,ly,x1,y1,x2,y2,rad,px,py)
+  -- convert to screen coords
+  x1,y1=x1-cam.x,y1-cam.y
+  x2,y2=x2-cam.x,y2-cam.y
+
+  -- edge midpoint
+  local mx,my=(x1+x2)/2,(y1+y2)/2
+
+  -- edge direction and normal
+  local dx,dy=x2-x1,y2-y1
+  local nx,ny=-dy,dx  -- perpendicular (outward normal)
+
+  -- vector from edge to light
+  local tolx,toly=lx-mx,ly-my
+
+  -- if edge faces away from light (dot product < 0)
+  if nx*tolx+ny*toly<0 then
+    -- project edge points away from light
+    local d1x,d1y,d2x,d2y=x1-lx,y1-ly,x2-lx,y2-ly
+    local len1,len2=max(1,sqrt(d1x*d1x+d1y*d1y)),max(1,sqrt(d2x*d2x+d2y*d2y))
+
+    local e1x,e1y=lx+d1x/len1*rad,ly+d1y/len1*rad
+    local e2x,e2y=lx+d2x/len2*rad,ly+d2y/len2*rad
+
+    -- fill shadow quad
+    fill_poly({x1,y1,x2,y2,e2x,e2y,e1x,e1y})
+  end
+end
+
+function fill_poly(pts)
+  -- scanline polygon fill
+  local edges={}
+
+  -- build edge table
+  for i=1,#pts,2 do
+    local x1,y1=pts[i],pts[i+1]
+    local ni=(i+2>#pts) and 1 or i+2
+    local x2,y2=pts[ni],pts[ni+1]
+
+    if y1~=y2 then
+      add(edges,{y1,y2,x1,x2})
+    end
+  end
+
+  -- find y bounds
+  local miny,maxy=127,0
+  for i=1,#pts,2 do
+    miny,maxy=min(miny,pts[i+1]),max(maxy,pts[i+1])
+  end
+
+  miny,maxy=max(0,flr(miny)),min(127,flr(maxy))
+
+  -- scan each line
+  for y=miny,maxy do
+    local xs={}
+
+    -- find x intersections
+    for e in all(edges)do
+      local y1,y2,x1,x2=e[1],e[2],e[3],e[4]
+      if (y-y1)*(y-y2)<=0 then
+        local t=(y-y1)/(y2-y1)
+        add(xs,x1+(x2-x1)*t)
+      end
+    end
+
+    -- sort xs
+    for i=1,#xs do
+      for j=i+1,#xs do
+        if xs[j]<xs[i]then
+          xs[i],xs[j]=xs[j],xs[i]
+        end
+      end
+    end
+
+    -- fill spans
+    for i=1,#xs,2 do
+      if i+1<=#xs then
+        local x1,x2=max(0,flr(xs[i])),min(127,flr(xs[i+1]))
+        local row=0x6000+y*64
+        for x=shr(x1,1),shr(x2,1)do
+          poke(row+x,@(0x4300+@(row+x)))
+        end
+      end
+    end
+  end
 end
 
 -- intro
@@ -107,6 +272,16 @@ end
 function draw_game()
   map(0,0,0,0,128,56)
   player:draw()
+
+  -- convert player world position to screen position
+  local sx=player.x-cam.x+4
+  local sy=player.y-cam.y+4
+
+  -- draw circular light
+  draw_light(sx,sy,50)
+
+  -- cast shadows from walls
+  cast_shadows(sx,sy,50)
 end
 
 -- entity

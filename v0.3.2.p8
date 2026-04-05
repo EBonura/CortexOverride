@@ -1,14 +1,9 @@
 pico-8 cartridge // http://www.pico-8.com
-version 41
+version 43
 __lua__
 
 -- cortex override v0.3.2
 -- sspr+pal colored lighting
-
--- pico-8 palette rgb
-pr={0,29,126,0,171,95,194,255,255,255,255,0,41,131,255,255}
-pg={0,43,37,135,82,87,195,241,0,163,236,228,173,118,119,204}
-pb={0,83,83,81,54,79,199,232,77,0,39,54,255,156,168,170}
 
 -- state management
 current_mission=1
@@ -40,19 +35,14 @@ function _init()
   -- decompress map 1 for intro bg
   decompress_map()
 
-  -- init shadow darkening table
-  local dk={[0]=0,0,0,0,0,0,1,1,0,0,1,0,1,1,14,1}
+  _dk1,_dk2,_dk3=
+    split"0,1,2,3,2,5,13,6,8,9,9,11,12,5,14,6",
+    split"0,0,1,1,2,1,5,13,2,4,4,3,1,1,14,5",
+    split"0,0,0,0,0,0,1,1,0,0,1,0,1,1,14,1"
   _dk3t={}
   for i=0,255 do
-    _dk3t[i]=bor(shl(dk[i\16],4),dk[i%16])
+    _dk3t[i]=bor(shl(_dk3[i\16+1],4),_dk3[i%16+1])
   end
-
-  _palsets={}
-  _palsets["white"]=make_pals(1,1,1)
-  _palsets["red"]=make_pals(1,0.1,0.1)
-  _palsets["green"]=make_pals(0.1,1,0.1)
-  _palsets["blue"]=make_pals(0.1,0.3,1)
-  _palsets["neutral"]=make_pals(0.7,0.7,0.7)
 
   cam=gamecam.new()
 
@@ -118,55 +108,11 @@ function check_tile_flag(x,y)
   return fget(mget(flr(x/8),flr(y/8)),0)
 end
 
--- nearest color (manhattan, skip 14)
-function find_near(tr,tg,tb)
-  local best,bd=0,32767
-  for i=0,15 do
-    if i~=14 then
-      local dr=pr[i+1]-tr
-      local dg=pg[i+1]-tg
-      local db=pb[i+1]-tb
-      local d=abs(dr)+abs(dg)+abs(db)
-      if d<bd then best,bd=i,d end
-    end
-  end
-  return best
-end
-
--- precompute 4 shade palettes per light color
-function make_pals(lr,lg,lb)
-  local pals={}
-  for k=1,4 do
-    local br,bg,bb=lr*k/4,lg*k/4,lb*k/4
-    local mx=max(br,max(bg,bb))
-    local mn=min(br,min(bg,bb))
-    local sat=0
-    if mx>0 then sat=(mx-mn)/mx end
-    local blend=sat*0.6
-    local b1=1-blend
-    local p={}
-    for c=0,15 do
-      if k==4 and lr==1 and lg==1 and lb==1 then
-        p[c+1]=c
-      elseif mx==0 then
-        p[c+1]=0
-      else
-        p[c+1]=find_near(
-          pr[c+1]*mx*b1+pr[c+1]*br*blend,
-          pg[c+1]*mx*b1+pg[c+1]*bg*blend,
-          pb[c+1]*mx*b1+pb[c+1]*bb*blend)
-      end
-    end
-    pals[k]=p
-  end
-  return pals
-end
-
 -- color name -> pico color + light rgb
 color_map={
-  red={8,2, 1,0.1,0.1},
-  green={11,3, 0.1,1,0.1},
-  blue={12,1, 0.1,0.3,1}
+  red={8,2},
+  green={11,3},
+  blue={12,1}
 }
 
 -- laser door
@@ -188,7 +134,6 @@ function laser_door.new(x,y,col)
     is_open=false,
     color=col,
     beam_col=cm[1],
-    lr=cm[3],lg=cm[4],lb=cm[5],
     beams=beams
   },laser_door)
 end
@@ -229,9 +174,6 @@ function terminal.new(x,y,door)
     x=x,y=y,
     door=door,
     color=col,
-    lr=cm and cm[3] or 0.7,
-    lg=cm and cm[4] or 0.7,
-    lb=cm and cm[5] or 0.7,
     pulse=0
   },terminal)
 end
@@ -269,36 +211,26 @@ end
 -- sspr+pal multi-light
 ----------------------------
 function draw_multi()
-  local nl=act_nl or #lights
+  local nl=#lights
   local _sq,_mx,_mn=sqrt,max,min
-  local wp=_palsets["white"]
   local ld={}
   for i=1,nl do
     local lt=lights[i]
     local sx,sy=flr(lt.x-cam_x),flr(lt.y-cam_y)
-    local rad=lt.ir+lt.fo
     local s=lt.fo/4
-    ld[i]={sx=sx,sy=sy,rad=rad,
-      r1=lt.ir+s,r2=lt.ir+s*2,
-      r3=lt.ir+s*3,pals=lt.pals}
+    ld[i]={sx=sx,sy=sy,rad=lt.ir+lt.fo,
+      r1=lt.ir+s,r2=lt.ir+s*2,r3=lt.ir+s*3}
   end
   memcpy(0x0000,0x6000,0x2000)
   memset(0x6000,0,0x2000)
   camera()
-  palt(0,false)
-  palt(14,false)
-  -- shade passes use neutral (white) palettes
-  -- so overlapping lights compete on brightness only
-  -- shade 3 at full radius
-  local p=wp[1]
-  for c=0,15 do pal(c,p[c+1]) end
+  palt(0,false) palt(14,false)
+  for c=0,15 do pal(c,_dk3[c+1]) end
   for li=1,nl do
     local d=ld[li]
     sspr_disc(d.sx,d.sy,d.rad,_sq,_mx,_mn)
   end
-  -- shade 2 at r3
-  p=wp[2]
-  for c=0,15 do pal(c,p[c+1]) end
+  for c=0,15 do pal(c,_dk2[c+1]) end
   for li=1,nl do
     local d=ld[li]
     sspr_disc(d.sx,d.sy,d.r3,_sq,_mx,_mn)
@@ -309,32 +241,19 @@ function draw_multi()
     end
   end
   if _sd_full then sspr_disc=_sd_full _sd_full=nil end
-  -- shade 1 at r2
-  p=wp[3]
-  for c=0,15 do pal(c,p[c+1]) end
+  for c=0,15 do pal(c,_dk1[c+1]) end
   for li=1,nl do
     local d=ld[li]
     sspr_disc(d.sx,d.sy,d.r2,_sq,_mx,_mn)
   end
-  -- shade 0 at r1 (identity)
-  p=wp[4]
-  for c=0,15 do pal(c,p[c+1]) end
+  pal() palt(0,false) palt(14,false)
   for li=1,nl do
     local d=ld[li]
     sspr_disc(d.sx,d.sy,d.r1,_sq,_mx,_mn)
   end
-  -- color overlay: tint lit screen per colored light
-  memcpy(0x0000,0x6000,0x2000)
-  for li=2,nl do
-    local d=ld[li]
-    local p=d.pals[4]
-    for c=0,15 do pal(c,p[c+1]) end
-    sspr_disc(d.sx,d.sy,d.rad,_sq,_mx,_mn)
-  end
   -- restore sprites + map + state
   pal()
-  memcpy(0x0000,0x4300,0x1000)
-  memcpy(0x1000,0x5300,0x0C00)
+  rss()
   palt(14,true)
   camera(cam_x,cam_y)
 end
@@ -383,6 +302,184 @@ function sspr_disc_dt_h2s(cx,cy,rad,_,_mx,_mn)
   end
 end
 
+function dk_span_torch(y,l,r)
+  if l>r then return end
+  for ti=1,_ntch do
+    local t=_tch[ti]
+    local dy=flr(abs(t[2]-y))
+    local cdx=t[3][dy]
+    if cdx then
+      local tl=flr(t[1]-cdx)
+      local tr=flr(t[1]+cdx)
+      if tl<=r and tr>=l then
+        if l<tl then sspr(l,y,tl-l,1,l,y) end
+        l=tr+1
+        if l>r then return end
+      end
+    end
+  end
+  sspr(l,y,r-l+1,1,l,y)
+end
+
+function build_clip()
+  _cl={}
+  for y=0,127 do
+    local dy=_ly-y
+    local d2=dy*dy
+    if d2<_lr2 then
+      local cdx=sqrt(_lr2-d2)
+      local rl=max(0,_lx-cdx)
+      local rr=min(127,_lx+cdx)
+      _cl[y]={(flr(rl/2)+1)*2,
+        flr((rr+1)/2)*2-1}
+    end
+  end
+end
+
+function shadow_poly_merged(lx,ly,rad)
+  local px,py=lx+cam_x,ly+cam_y
+  local ox,oy=cam_x,cam_y
+  local t1,t2=max(0,flr((py-rad)/8)),min(63,flr((py+rad)/8))
+  local x1,x2=max(0,flr((px-rad)/8)),min(127,flr((px+rad)/8))
+  local function w(tx,ty)
+    return tx>=0 and tx<=127 and ty>=0 and ty<=63
+      and fget(mget(tx,ty),0)
+  end
+  for ty=t1,t2 do
+    local rs=nil
+    for tx=x1,x2+1 do
+      if tx<=x2 and w(tx,ty) and not w(tx,ty-1) then
+        if not rs then rs=tx end
+      elseif rs then
+        opt_edge(lx,ly,rs*8-ox,ty*8-oy,tx*8-ox,ty*8-oy,rad)
+        rs=nil
+      end
+    end
+  end
+  for ty=t1,t2 do
+    local rs=nil
+    for tx=x1,x2+1 do
+      if tx<=x2 and w(tx,ty) and not w(tx,ty+1) then
+        if not rs then rs=tx end
+      elseif rs then
+        opt_edge(lx,ly,tx*8-ox,(ty+1)*8-oy,rs*8-ox,(ty+1)*8-oy,rad)
+        rs=nil
+      end
+    end
+  end
+  for tx=x1,x2 do
+    local rs=nil
+    for ty=t1,t2+1 do
+      if ty<=t2 and w(tx,ty) and not w(tx+1,ty) then
+        if not rs then rs=ty end
+      elseif rs then
+        opt_edge(lx,ly,(tx+1)*8-ox,rs*8-oy,(tx+1)*8-ox,ty*8-oy,rad)
+        rs=nil
+      end
+    end
+  end
+  for tx=x1,x2 do
+    local rs=nil
+    for ty=t1,t2+1 do
+      if ty<=t2 and w(tx,ty) and not w(tx-1,ty) then
+        if not rs then rs=ty end
+      elseif rs then
+        opt_edge(lx,ly,tx*8-ox,ty*8-oy,tx*8-ox,rs*8-oy,rad)
+        rs=nil
+      end
+    end
+  end
+end
+
+function opt_edge(lx,ly,x1,y1,x2,y2,rad)
+  local mx,my=(x1+x2)/2,(y1+y2)/2
+  local nx,ny=-(y2-y1),(x2-x1)
+  if nx*(lx-mx)+ny*(ly-my)<=0 then return end
+  local d1x,d1y=x1-lx,y1-ly
+  local d2x,d2y=x2-lx,y2-ly
+  local len1=max(1,max(abs(d1x),abs(d1y)))
+  local len2=max(1,max(abs(d2x),abs(d2y)))
+  local ext=rad*2
+  fq_dda(x1,y1,x2,y2,
+    lx+d2x/len2*ext,ly+d2y/len2*ext,
+    lx+d1x/len1*ext,ly+d1y/len1*ext)
+end
+
+function fq_dda(x1,y1,x2,y2,x3,y3,x4,y4)
+  local _fl,_mx,_mn=flr,max,min
+  local miny=_mx(0,_fl(_mn(_mn(y1,y2),_mn(y3,y4))))
+  local maxy=_mn(127,_fl(_mx(_mx(y1,y2),_mx(y3,y4))))
+  local s1=y1~=y2 and (x2-x1)/(y2-y1) or 0
+  local s2=y2~=y3 and (x3-x2)/(y3-y2) or 0
+  local s3=y3~=y4 and (x4-x3)/(y4-y3) or 0
+  local s4=y4~=y1 and (x1-x4)/(y1-y4) or 0
+  local ex1=x1+s1*(miny-y1)
+  local ex2=x2+s2*(miny-y2)
+  local ex3=x3+s3*(miny-y3)
+  local ex4=x4+s4*(miny-y4)
+  local ds1,ds2,ds3,ds4=s1*2,s2*2,s3*2,s4*2
+  for y=miny,maxy,2 do
+    local c=_cl[y]
+    if c then
+      local xn,xx=127,0
+      if y1~=y2 and (y-y1)*(y-y2)<=0 then
+        if ex1<xn then xn=ex1 end
+        if ex1>xx then xx=ex1 end
+      end
+      if y2~=y3 and (y-y2)*(y-y3)<=0 then
+        if ex2<xn then xn=ex2 end
+        if ex2>xx then xx=ex2 end
+      end
+      if y3~=y4 and (y-y3)*(y-y4)<=0 then
+        if ex3<xn then xn=ex3 end
+        if ex3>xx then xx=ex3 end
+      end
+      if y4~=y1 and (y-y4)*(y-y1)<=0 then
+        if ex4<xn then xn=ex4 end
+        if ex4>xx then xx=ex4 end
+      end
+      if xn<=xx then
+        local l,r=_mx(c[1],_fl(xn)),_mn(c[2],_fl(xx))
+        dk_span_torch(y,l,r)
+        if y+1<=127 then dk_span_torch(y+1,l,r) end
+      end
+    end
+    ex1+=ds1 ex2+=ds2
+    ex3+=ds3 ex4+=ds4
+  end
+end
+
+function draw_player_shadow()
+  local pl=lights[1] local rad=pl.ir+pl.fo
+  _lx,_ly=pl.x-cam_x,pl.y-cam_y
+  _lr2=rad*rad
+  _tch={} _ntch=0
+  for li=2,#lights do
+    local lt=lights[li]
+    local r=lt.ir+lt.fo
+    local dt=_dtabs[r]
+    if dt then
+      _ntch+=1
+      _tch[_ntch]={lt.x-cam_x,lt.y-cam_y,dt}
+    end
+  end
+  build_clip()
+  camera()
+  memcpy(0x0000,0x6000,0x2000)
+  palt(0,false) palt(14,false)
+  for c=0,15 do pal(c,_dk3[c+1]) end
+  shadow_poly_merged(_lx,_ly,rad)
+  pal()
+  rss()
+  palt(0,false) palt(14,true)
+  camera(cam_x,cam_y)
+end
+
+function rss()
+  memcpy(0x0000,0x4300,0x1000)
+  memcpy(0x1000,0x5300,0x0C00)
+end
+
 -- textpanel: menu boxes with reveal + select anim
 textpanel={}
 textpanel.__index=textpanel
@@ -423,7 +520,7 @@ function textpanel:draw()
   end
   local t=self.reveal
     and sub(self.txt,1,self.cc) or self.txt
-  print(t,dx+2,dy+2,self.sel and 11 or 5)
+  ?t,dx+2,dy+2,self.sel and 11 or 5
 end
 
 function display_logo(xc,xp,y)
@@ -437,7 +534,13 @@ function reset_pal(_cls)
 end
 
 function print_centered(t,x,y,c)
-  print(t,x-#t*2,y,c)
+  ?t,x-#t*2,y,c
+end
+
+function dks()
+  for a=0x6000,0x7fff do
+    poke(a,_dk3t[@a])
+  end
 end
 
 -- intro
@@ -485,17 +588,14 @@ end
 function draw_intro()
   reset_pal(true)
   map(4,37,0,0,128,48)
-  -- darken screen
-  for addr=0x6000,0x7fff do
-    poke(addr,_dk3t[@addr])
-  end
+  dks()
   if sin(t())<.9 then circfill(63,64,3,2) end
   local yl=_itp.active and 0 or 30
   display_logo(_xc,_xp,yl)
   _itp:draw()
   _ctp:draw()
   if _ic>60 then
-    print("PRESS \x8e TO CONTINUE",24,118,11)
+    ?"PRESS \x8e TO CONTINUE",24,118,11
   end
 end
 
@@ -536,9 +636,7 @@ end
 function draw_mission_select()
   reset_pal(true)
   map(4,37,0,0,128,48)
-  for addr=0x6000,0x7fff do
-    poke(addr,_dk3t[@addr])
-  end
+  dks()
   display_logo(15,45,0)
   for i,p in ipairs(_mpanels) do
     p.sel=(i==current_mission)
@@ -555,11 +653,9 @@ function draw_mission_select()
   end
   _minfo:draw()
   color(11)
-  print("\x83\x94 CHANGE MISSION",25,108)
-  print("\x8b\x91 "..(
-    _mshow_brief and "VIEW STATUS"
-    or "VIEW BRIEFING"),25,115)
-  print("   \x8e START MISSION",25,122)
+  ?"\x83\x94 CHANGE MISSION",25,108
+  ?"\x8b\x91 "..(_mshow_brief and "VIEW STATUS" or "VIEW BRIEFING"),25,115
+  ?"   \x8e START MISSION",25,122
 end
 
 -- gameplay
@@ -593,6 +689,29 @@ wpns={
 bullets={}
 parts={}
 
+-- enemy types: col,hp,atk_range,kill,wpn
+_et={
+  dervish={15,50,60,100,2},
+  vanguard={13,70,50,120,1},
+  warden={1,100,70,200,3},
+  cyberseer={6,160,80,300,1},
+  quantumcleric={1,170,70,320,2}
+}
+enemies={}
+_espawn={
+  "448,64,dervish|432,232,vanguard|376,272,vanguard|426,354,dervish|356,404,warden|312,152,vanguard|232,360,dervish|40,100,dervish|200,152,dervish|32,232,warden|88,232,vanguard|248,248,cyberseer"
+}
+
+function spawn_enemy(x,y,typ)
+  local d=_et[typ]
+  local e=entity.new(x,y)
+  e.col=d[1] e.hp=d[2] e.mhp=d[2]
+  e.atk=d[3] e.kv=d[4] e.wpi=d[5]
+  e.ecd=0 e.ait=0 e.alt=0
+  e.flash=0 e.max_speed=2
+  add(enemies,e)
+end
+
 function init_gameplay()
   decompress_map()
 
@@ -625,31 +744,48 @@ function init_gameplay()
   -- combat state
   bullets={}
   parts={}
+  enemies={}
   _wsel=1
   _wcd={0,0,0,0}
   _wmenu=false
+  _dead=false
 
   -- find spawn point (flag 7)
   for ty=0,63 do
     for tx=0,127 do
       if fget(mget(tx,ty),7) then
         player=entity.new(tx*8,ty*8)
+        player.hp=400 player.mhp=400 player.flash=0
         cam.x=player.x-64
         cam.y=player.y-64
+        -- spawn enemies
+        for s in all(split(_espawn[current_mission],"|",false)) do
+          local d=split(s,",")
+          spawn_enemy(d[1]+0,d[2]+0,d[3])
+        end
         return
       end
     end
   end
   player=entity.new(64,64)
+  player.hp=400 player.mhp=400 player.flash=0
   cam.x,cam.y=0,0
 end
 
 function update_gameplay()
+  -- player death
+  if _dead then
+    _dead_t-=1
+    if _dead_t<=0 then change_state("mission_select") end
+    update_parts()
+    return
+  end
   if _mg.active then
     mg_update()
     return
   end
   player:update()
+  if player.flash>0 then player.flash-=1 end
   cam:update()
   for t in all(terminals) do t:update() end
   for d in all(doors) do d:update() end
@@ -716,9 +852,10 @@ function update_gameplay()
     end
   end
 
-  -- update bullets and particles
+  -- update bullets, particles, enemies
   update_bullets()
   update_parts()
+  update_enemies()
 end
 
 function draw_gameplay()
@@ -733,7 +870,8 @@ function draw_gameplay()
   for d in all(doors) do d:draw() end
   for t in all(terminals) do t:draw() end
 
-  player:draw()
+  if not _dead then player:draw() end
+  for e in all(enemies) do e:draw() end
 
   -- plasma charge visual
   if player._charge then
@@ -749,9 +887,8 @@ function draw_gameplay()
 
   -- build lights array: player + nearest 3 env
   local px,py=player.x+4,player.y+4
-  local sx,sy=px-cam_x,py-cam_y
   lights={{x=px,y=py,ir=light_ir,fo=light_fo,
-    pals=_palsets["white"]}}
+  }}
 
   -- find nearest 3 light-emitting entities
   local b1,b2,b3=32767,32767,32767
@@ -787,21 +924,19 @@ function draw_gameplay()
   for i=1,3 do
     local src=near[i]
     if src then
-      local col=src.color or "neutral"
       add(lights,{x=src.x+4,y=src.y+4,
-        ir=env_ir,fo=env_fo,
-        pals=_palsets[col] or _palsets["neutral"]})
+        ir=env_ir,fo=env_fo})
     end
   end
 
   -- lighting pass (h2dup mode)
-  act_nl=#lights
   local orig=sspr_disc
   _sd_full=sspr_disc_dt
   _dm_dup=true
   sspr_disc=sspr_disc_dt_h2s
   draw_multi()
   sspr_disc=orig _sd_full=nil _dm_dup=nil
+  draw_player_shadow()
 
   -- interaction prompt (hidden during minigame)
   if not _mg.active then
@@ -810,7 +945,7 @@ function draw_gameplay()
         and not t.door.opening then
         local dx,dy=t.x+4-px,t.y+4-py
         if abs(dx)<16 and abs(dy)<16 then
-          print("\142",player.x+2,player.y-6,7)
+          ?"\142",player.x+2,player.y-6,7
           break
         end
       end
@@ -879,12 +1014,12 @@ function mg_draw()
   local sw=#_mg.seq*8
   local sx=cx-sw/2
   for i,d in ipairs(_mg.seq) do
-    print(d,sx+(i-1)*8,cy-12,7)
+    ?d,sx+(i-1)*8,cy-12,7
   end
   -- player input
   for i,d in ipairs(_mg.inp) do
     local c=d==_mg.seq[i] and 11 or 8
-    print(d,sx+(i-1)*8,cy-2,c)
+    ?d,sx+(i-1)*8,cy-2,c
   end
   -- timer bar
   local tw=60*_mg.timer/180
@@ -893,11 +1028,14 @@ function mg_draw()
   local tc=_mg.timer>60 and 11 or 8
   rectfill(bx,cy+10,bx+tw,cy+13,tc)
   -- label
-  print("HACK TERMINAL",cx-26,cy-19,3)
+  ?"HACK TERMINAL",cx-26,cy-19,3
 end
 
 -- weapons: aim + fire
 function get_aim()
+  local vx,vy=player.vx,player.vy
+  local spd=dist_trig(vx,vy)
+  if spd>0 then return vx/spd,vy/spd end
   local d=player.last_dir
   if d=="horizontal" then
     return player.face_x,0
@@ -934,7 +1072,7 @@ function fire_weapon(wi)
         col=w.col,dmg=w.dmg,
         aoe=w.aoe,aoe_dmg=w.aoe_dmg,
         orbit=w.orbit,orb_a=a,orb_r=5+rnd(10),
-        spd=1,dir=a,mx_spd=3})
+        spd=1,dir=a,mx_spd=3,plr=true,own=player})
     end
     sfx(w.sfx)
   else
@@ -951,15 +1089,116 @@ function fire_weapon(wi)
   end
 end
 
-function fire_single(w,aim,ang_off)
+function fire_single(w,aim,ang_off,src)
   local ax,ay=aim[1],aim[2]
   local a=atan2(ax,ay)+(ang_off or 0)
     +(w.spread and (rnd()-0.5)*w.spread or 0)
-  local px,py=player.x+4,player.y+4
+  src=src or player
+  local px,py=src.x+4,src.y+4
   add(bullets,{x=px+cos(a)*5,y=py+sin(a)*5,
     vx=cos(a)*w.spd,vy=sin(a)*w.spd,
     life=w.life,sz=w.sz,col=w.col,
-    dmg=w.dmg,aoe=w.aoe,aoe_dmg=w.aoe_dmg})
+    dmg=w.dmg,aoe=w.aoe,aoe_dmg=w.aoe_dmg,
+    plr=src==player})
+end
+
+-- enemy AI
+function los(a,b)
+  local x,y=a.x+4,a.y+4
+  local dx,dy=b.x+4-x,b.y+4-y
+  local s=max(abs(dx),abs(dy))
+  if s<1 then return true end
+  for i=4,s,4 do
+    if check_tile_flag(x+dx*i/s,y+dy*i/s) then return false end
+  end
+  return true
+end
+
+function enemy_fire(e,wi)
+  local w=wpns[wi]
+  local dx,dy=player.x-e.x,player.y-e.y
+  local d=dist_trig(dx,dy)
+  if d<1 then return end
+  local aim={dx/d,dy/d}
+  if w.homing then
+    local px,py=e.x+4,e.y+4
+    for i=1,w.n do
+      local a=rnd()
+      add(bullets,{x=px+cos(a)*10,y=py+sin(a)*10,
+        vx=0,vy=0,life=w.life,sz=w.sz,col=w.col,
+        dmg=w.dmg,aoe=w.aoe,aoe_dmg=w.aoe_dmg,
+        orbit=w.orbit,orb_a=a,orb_r=5+rnd(10),
+        spd=1,dir=a,mx_spd=3,own=e,plr=false})
+    end
+  else
+    for i=1,min(w.n,3) do
+      fire_single(w,aim,
+        (i-1-(min(w.n,3)-1)/2)*(w.fan or 0),e)
+    end
+  end
+  sfx(w.sfx)
+end
+
+function update_enemies()
+  for e in all(enemies) do
+    local dx,dy=player.x-e.x,player.y-e.y
+    local d=dist_trig(dx,dy)
+    e.ecd=max(0,e.ecd-1)
+    e.alt=max(0,e.alt-1)
+
+    -- can see player? (within attack range + LOS)
+    if d<=e.atk and los(e,player) then
+      e.lsx,e.lsy=player.x,player.y
+      e.alt=180
+      -- attack: face + fire
+      e.ai="atk"
+      e.face_x=dx>0 and 1 or -1
+      e.last_dir=abs(dx)>abs(dy)
+        and "horizontal"
+        or (dy<0 and "up" or "down")
+      if e.ecd<=0 then
+        enemy_fire(e,e.wpi)
+        e.ecd=wpns[e.wpi].cd*3
+      end
+    elseif e.lsx then
+      -- chase to last seen position
+      e.ai="chase"
+      dx,dy=e.lsx-e.x,e.lsy-e.y
+      d=dist_trig(dx,dy)
+      if d>1 then
+        e.vx,e.vy=dx/d,dy/d
+      else
+        e.vx,e.vy=0,0
+      end
+    else
+      -- idle wander
+      e.ai="idle"
+      e.ait-=1
+      if e.ait<=0 then
+        e.ait=30
+        local a,s=rnd(),rnd(1)
+        e.vx,e.vy=cos(a)*s,sin(a)*s
+      end
+    end
+
+    -- forget last seen when alert expires
+    if e.alt<=0 then e.lsx,e.lsy=nil,nil end
+
+    -- direction from velocity
+    if abs(e.vx)>0.1 or abs(e.vy)>0.1 then
+      if abs(e.vx)>abs(e.vy) then
+        e.last_dir="horizontal"
+        e.face_x=e.vx>0 and 1 or -1
+      else
+        e.last_dir=e.vy<0 and "up" or "down"
+      end
+    end
+
+    -- friction + physics
+    e.vx*=0.9 e.vy*=0.9
+    e:apply_physics()
+    if e.flash>0 then e.flash-=1 end
+  end
 end
 
 -- bullet system
@@ -973,20 +1212,34 @@ function update_bullets()
       -- missile orbit phase
       b.orbit-=1
       b.orb_a+=0.02
-      local px,py=player.x+4,player.y+4
+      local s=b.own or player
+      local px,py=s.x+4,s.y+4
       b.x=px+cos(b.orb_a)*b.orb_r
       b.y=py+sin(b.orb_a)*b.orb_r
     else
       b.x+=b.vx
       b.y+=b.vy
-      -- missile scatter (homing added w/ enemies)
+      -- missile scatter
       if b.mx_spd then
         b.spd=min(b.spd+0.05,b.mx_spd)
         b.dir+=(rnd()-0.5)*0.1
         b.vx=cos(b.dir)*b.spd
         b.vy=sin(b.dir)*b.spd
       end
-      if check_tile_flag(b.x,b.y) then
+      -- entity collision
+      if not dead and b.plr then
+        for e in all(enemies) do
+          if abs(b.x-e.x-4)<5 and abs(b.y-e.y-4)<5 then
+            hurt(e,b) dead=true break
+          end
+        end
+      elseif not dead and b.plr==false then
+        if abs(b.x-player.x-4)<5 and abs(b.y-player.y-4)<5 then
+          hurt(player,b) dead=true
+        end
+      end
+      -- tile collision
+      if not dead and check_tile_flag(b.x,b.y) then
         bullet_hit(b) dead=true
       end
     end
@@ -1026,6 +1279,42 @@ function spawn_impact(x,y)
   end
 end
 
+-- damage system
+function hurt(e,b)
+  e.hp-=b.dmg
+  e.flash=2
+  if b.aoe then
+    bullet_explode(b)
+  else
+    spawn_impact(b.x,b.y)
+  end
+  if e.hp<=0 then
+    if e.kv then
+      -- enemy death
+      credits+=e.kv
+      for i=1,15 do
+        local a,s=rnd(),0.5+rnd(1.5)
+        add(parts,{x=e.x+4,y=e.y+4,
+          vx=cos(a)*s,vy=sin(a)*s,
+          life=20+rnd(10),sz=1+flr(rnd(2)),
+          col=({8,9,10})[flr(rnd(3))+1]})
+      end
+      del(enemies,e) sfx(30)
+    else
+      -- player death
+      for i=1,20 do
+        local a,s=rnd(),0.5+rnd(1.5)
+        add(parts,{x=e.x+4,y=e.y+4,
+          vx=cos(a)*s,vy=sin(a)*s,
+          life=20+rnd(10),sz=1+flr(rnd(2)),
+          col=({8,9,10})[flr(rnd(3))+1]})
+      end
+      sfx(30)
+      _dead=true _dead_t=60
+    end
+  end
+end
+
 -- particles (visual only)
 function update_parts()
   for i=#parts,1,-1 do
@@ -1054,7 +1343,7 @@ function draw_weapon_menu()
   camera()
   rectfill(28,24,99,92,0)
   rect(28,24,99,92,3)
-  print("WEAPONS",44,26,3)
+  ?"WEAPONS",44,26,3
   for i=1,4 do
     local w=wpns[i]
     local y=34+(i-1)*14
@@ -1063,7 +1352,7 @@ function draw_weapon_menu()
     if sel then
       rectfill(30,y-1,97,y+10,1)
     end
-    print(w.name,32,y,c)
+    ?w.name,32,y,c
     -- cooldown bar
     local pct=1-_wcd[i]/w.cd
     rectfill(32,y+8,90,y+9,1)
@@ -1079,8 +1368,8 @@ function draw_hud()
   local w=wpns[_wsel]
   local pct=1-_wcd[_wsel]/w.cd
   -- weapon name
-  print(w.name,2,2,0)
-  print(w.name,1,1,7)
+  ?w.name,2,2,0
+  ?w.name,1,1,7
   -- cooldown bar
   rectfill(1,8,61,10,1)
   if pct>0 then
@@ -1088,13 +1377,18 @@ function draw_hud()
       pct>=1 and 11 or 12)
   end
   rect(1,8,61,10,0)
+  -- health bar
+  local hp=player.hp/player.mhp
+  local hc=hp>0.6 and 11 or hp>0.3 and 10 or 8
+  rectfill(1,13,61,15,1)
+  if hp>0 then rectfill(1,13,1+flr(60*hp),15,hc) end
+  rect(1,13,61,15,0)
   -- charge indicator
   if player._charge then
     local ct=player._charge.t
     local cw=player._charge.w
     local p=1-ct/cw.charge
-    print("CHARGING",26,2,
-      flr(t()*8)%2==0 and 12 or 0)
+    ?"CHARGING",26,2,flr(t()*8)%2==0 and 12 or 0
   end
 end
 
@@ -1237,15 +1531,26 @@ end
 
 function entity:draw()
   spr(49,self.x,self.y+1) -- shadow
-
+  if self.flash and self.flash>0 then
+    for i=0,15 do pal(i,7) end
+  elseif self.col then
+    pal(7,self.col)
+  end
   local spd=dist_trig(self.vx,self.vy)
   local moving=spd>0.2
-
   local s=(self.last_dir=="up" and 32 or self.last_dir=="horizontal" and 0 or 16)+(moving and 2 or 0)
-
   s+=flr(t()*(moving and 10+min(spd/self.max_speed,1)*10 or 3))%2
-
   spr(s,self.x,self.y,1,1,self.vx<0)
+  pal() palt(0,false) palt(14,true)
+  -- ai state indicator
+  if self.ai then
+    local c=self.ai=="atk" and 8
+      or self.ai=="chase" and 10
+    if c then
+      rectfill(self.x+2,self.y-2,
+        self.x+5,self.y-1,c)
+    end
+  end
 end
 
 -- camera
@@ -1631,4 +1936,3 @@ __music__
 01 1a154344
 02 1a164344
 00 02424344
-

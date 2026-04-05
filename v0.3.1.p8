@@ -536,10 +536,22 @@ function draw_game()
 
   apply_light(game_lights)
 
-  -- force-darken margins outside light
+  -- force-darken margins outside all lights
   local rad=light_ir+light_fo
-  local top_m=max(0,flr((sy-rad)*2)-1)
-  local bot_m=min(127,flr((sy+rad)*2)+1)
+  local top_edge=(sy-rad)*2
+  local bot_edge=(sy+rad)*2
+  local erad=env_ir+env_fo
+  for i=2,4 do
+    local l=game_lights[i]
+    if l.R2>0 then
+      local lt=(l.sy-erad)*2
+      local lb=(l.sy+erad)*2
+      if lt<top_edge then top_edge=lt end
+      if lb>bot_edge then bot_edge=lb end
+    end
+  end
+  local top_m=max(0,flr(top_edge)+8)
+  local bot_m=min(127,flr(bot_edge)-8)
   camera()
   if top_m>0 then rectfill(0,0,127,top_m,0) end
   if bot_m<127 then rectfill(0,bot_m,127,127,0) end
