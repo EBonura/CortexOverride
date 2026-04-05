@@ -3,7 +3,7 @@ version 43
 __lua__
 
 -- shadow perf test v5
--- compare lighting methods
+-- compare 4-color lighting methods
 -- arrows: move light
 -- x: cycle mode, o: toggle shd
 
@@ -12,7 +12,9 @@ cur_m=4
 
 lights={
   {x=64,y=64,ir=40,fo=30,lr=1,lg=1,lb=1},
-  {x=36,y=36,ir=15,fo=20,lr=1,lg=0,lb=0},
+  {x=36,y=36,ir=15,fo=20,lr=1,lg=0.1,lb=0.05},
+  {x=100,y=36,ir=15,fo=20,lr=0.05,lg=0.1,lb=1},
+  {x=64,y=100,ir=15,fo=20,lr=0.1,lg=1,lb=0.1},
 }
 
 -- pico-8 palette rgb
@@ -93,11 +95,16 @@ function _init()
   end
   -- benchmark config (multi-light focus)
   bench={
-    {nm="lit:dtab  ",fn=4,shd=false,nl=3,dt=1},
-    {nm="lit:h2    ",fn=4,shd=false,nl=3,dm=1},
-    {nm="lit:h2dup ",fn=4,shd=false,nl=3,dm=2},
-    {nm="h2+dda   ",fn=4,shd=true,nl=3,sv=5,dm=1},
-    {nm="h2d+dda  ",fn=4,shd=true,nl=3,sv=5,dm=2},
+    {nm="4lit:dtab ",fn=4,shd=false,nl=4,dt=1},
+    {nm="4lit:h2   ",fn=4,shd=false,nl=4,dm=1},
+    {nm="4lit:h2dup",fn=4,shd=false,nl=4,dm=2},
+    {nm="mono:h2d ",fn=4,shd=false,nl=4,dm=2,mo=true},
+    {nm="1lit+pshd",fn=4,shd=true,nl=1,sv=5,dm=2},
+    {nm="mono+psh ",fn=4,shd=true,nl=4,sv=5,dm=2,mo=true},
+    {nm="4lit+h2  ",fn=4,shd=true,nl=4,sv=5,dm=1},
+    {nm="4lit+h2d ",fn=4,shd=true,nl=4,sv=5,dm=2},
+    {nm="4lit+ci2 ",fn=4,shd=true,nl=4,sv=4,dm=2},
+    {nm="4lit+all ",fn=4,shd=true,nl=4,sv=5,dm=2,ash=true},
   }
   bi=1 bf=0 bs=0
   bench_on=false
@@ -115,6 +122,42 @@ function _update()
   if btnp(4) then show_shd=not show_shd end
 end
 
+function prep_shadow(si,nl,sv)
+  local lt=lights[si]
+  local slx,sly=lt.x-cam_x,lt.y-cam_y
+  local rad=lt.ir+lt.fo
+  _lx,_ly,_lr2=slx,sly,rad*rad
+  _tch={} _ntch=0
+  for li=1,nl do
+    if li~=si then
+      local ot=lights[li]
+      local sx,sy=ot.x-cam_x,ot.y-cam_y
+      local r=ot.ir+ot.fo
+      local dt=_dtabs[r]
+      if dt then
+        _ntch+=1
+        _tch[_ntch]={sx,sy,dt}
+      end
+    end
+  end
+  for i=2,_ntch do
+    local t=_tch[i] local j=i-1
+    while j>=1 and _tch[j][1]>t[1] do
+      _tch[j+1]=_tch[j] j-=1
+    end
+    _tch[j+1]=t
+  end
+  dk_span=_ntch>0 and dk_span_torch
+    or (sv==1 and dk_span_tline or dk_span_sspr)
+  if sv>=2 then build_clip() end
+  if sv==2 then fill_quad=fq_clip
+  elseif sv==3 then fill_quad=fq_ci
+  elseif sv==4 then fill_quad=fq_ci2
+  elseif sv==5 then fill_quad=fq_dda
+  else fill_quad=fq_base end
+  return slx,sly,rad
+end
+
 function do_render(fn,shd,nl)
   cls()
   local pl=lights[1]
@@ -123,6 +166,7 @@ function do_render(fn,shd,nl)
   camera(cam_x,cam_y)
   map(0,0,0,0,16,16)
   local rad=inner_r+falloff
+  if fn==4 then rad=pl.ir+pl.fo end
   local slx,sly=pl.x-cam_x,pl.y-cam_y
   if fn==1 then draw_byte(slx,sly,rad)
   elseif fn==2 then draw_zone(slx,sly,rad)
@@ -134,7 +178,8 @@ function do_render(fn,shd,nl)
       _sd_full=sspr_disc_dt
       _dm_dup=true
       sspr_disc=sspr_disc_dt_h2s
-      draw_multi()
+      if act_mo then draw_mono()
+      else draw_multi() end
       sspr_disc=orig
       _sd_full=nil
       _dm_dup=nil
@@ -142,16 +187,19 @@ function do_render(fn,shd,nl)
       local orig=sspr_disc
       _sd_full=sspr_disc_dt
       sspr_disc=sspr_disc_dt_h2
-      draw_multi()
+      if act_mo then draw_mono()
+      else draw_multi() end
       sspr_disc=orig
       _sd_full=nil
     elseif act_dt then
       local orig=sspr_disc
       sspr_disc=sspr_disc_dt
-      draw_multi()
+      if act_mo then draw_mono()
+      else draw_multi() end
       sspr_disc=orig
     else
-      draw_multi()
+      if act_mo then draw_mono()
+      else draw_multi() end
     end
   end
   if shd and fn>0 then
@@ -162,37 +210,13 @@ function do_render(fn,shd,nl)
       palt(0,false) palt(14,false)
       local dk3={0,0,0,0,0,0,1,1,0,0,1,0,1,1,14,1}
       for c=0,15 do pal(c,dk3[c+1]) end
-      -- precompute torch clip data (sorted by x)
-      _tch={} _ntch=0
       local _nl=act_nl or #lights
-      for li=2,_nl do
-        local lt=lights[li]
-        local sx,sy=lt.x-cam_x,lt.y-cam_y
-        local r=lt.ir+lt.fo
-        local dt=_dtabs[r]
-        if dt then
-          _ntch+=1
-          _tch[_ntch]={sx,sy,dt}
-        end
-      end
-      -- sort by x for left-to-right clip
-      for i=2,_ntch do
-        local t=_tch[i] local j=i-1
-        while j>=1 and _tch[j][1]>t[1] do
-          _tch[j+1]=_tch[j] j-=1
-        end
-        _tch[j+1]=t
-      end
       local sv=act_sv or 0
-      dk_span=_ntch>0 and dk_span_torch
-        or (sv==1 and dk_span_tline or dk_span_sspr)
-      if sv>=2 then build_clip() end
-      if sv==2 then fill_quad=fq_clip
-      elseif sv==3 then fill_quad=fq_ci
-      elseif sv==4 then fill_quad=fq_ci2
-      elseif sv==5 then fill_quad=fq_dda
+      local shn=act_ash and _nl or 1
+      for si=1,shn do
+        local qx,qy,qrad=prep_shadow(si,_nl,sv)
+        shadow_poly_merged(qx,qy,qrad)
       end
-      shadow_poly_merged(slx,sly,rad)
       fill_quad=fq_base
       dk_span=dk_span_byte
       pal() palt(14,true)
@@ -210,6 +234,8 @@ function _draw()
     act_sv=t.sv or 4
     act_dt=t.dt
     act_dm=t.dm
+    act_mo=t.mo
+    act_ash=t.ash
     do_render(t.fn,t.shd,t.nl)
     bf+=1
     if bf>3 then bs+=stat(1) end
@@ -231,6 +257,8 @@ function _draw()
     act_sv=5
     act_dt=nil
     act_dm=2
+    act_mo=nil
+    act_ash=nil
     do_render(cur_m,show_shd,act_nl)
     if cur_m==4 then
       for i=1,#lights do
@@ -423,7 +451,7 @@ end
 -- brightest wins via overwrite
 ----------------------------
 function draw_multi()
-  local nl=act_nl or #lights
+  local nl=min(act_nl or #lights,#lights)
   local _sq,_mx,_mn=sqrt,max,min
 
   -- precompute screen-space data
@@ -498,6 +526,58 @@ function draw_multi()
   end
 
   -- restore sprites + state
+  pal()
+  memcpy(0x0000,0x4600,0x0400)
+  palt(14,true)
+  camera(cam_x,cam_y)
+end
+
+function draw_mono()
+  local nl=min(act_nl or #lights,#lights)
+  local _sq,_mx,_mn=sqrt,max,min
+  local wp=lights[1].pals
+  local ld={}
+  for i=1,nl do
+    local lt=lights[i]
+    local sx,sy=lt.x-cam_x,lt.y-cam_y
+    local s=lt.fo/4
+    ld[i]={sx=sx,sy=sy,rad=lt.ir+lt.fo,
+      r1=lt.ir+s,r2=lt.ir+s*2,r3=lt.ir+s*3}
+  end
+  memcpy(0x0000,0x6000,0x2000)
+  memset(0x6000,0,0x2000)
+  camera()
+  palt(0,false) palt(14,false)
+  local p=wp[1]
+  for c=0,15 do pal(c,p[c+1]) end
+  for li=1,nl do
+    local d=ld[li]
+    sspr_disc(d.sx,d.sy,d.rad,_sq,_mx,_mn)
+  end
+  p=wp[2]
+  for c=0,15 do pal(c,p[c+1]) end
+  for li=1,nl do
+    local d=ld[li]
+    sspr_disc(d.sx,d.sy,d.r3,_sq,_mx,_mn)
+  end
+  if _dm_dup then
+    for y=0,126,2 do
+      memcpy(0x6000+(y+1)*64,0x6000+y*64,64)
+    end
+  end
+  if _sd_full then sspr_disc=_sd_full _sd_full=nil end
+  p=wp[3]
+  for c=0,15 do pal(c,p[c+1]) end
+  for li=1,nl do
+    local d=ld[li]
+    sspr_disc(d.sx,d.sy,d.r2,_sq,_mx,_mn)
+  end
+  p=wp[4]
+  for c=0,15 do pal(c,p[c+1]) end
+  for li=1,nl do
+    local d=ld[li]
+    sspr_disc(d.sx,d.sy,d.r1,_sq,_mx,_mn)
+  end
   pal()
   memcpy(0x0000,0x4600,0x0400)
   palt(14,true)

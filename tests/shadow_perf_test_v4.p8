@@ -374,7 +374,7 @@ end
 -- brightest wins via overwrite
 ----------------------------
 function draw_multi()
-  local nl=act_nl or #lights
+  local nl=min(act_nl or #lights,#lights)
   local _sq,_mx,_mn=sqrt,max,min
 
   -- precompute screen-space data
