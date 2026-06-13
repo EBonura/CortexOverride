@@ -108,8 +108,8 @@ function dist_trig(dx,dy)
   return dx*cos(ang)+dy*sin(ang)
 end
 
-function check_tile_flag(x,y)
-  return fget(mget(flr(x/8),flr(y/8)),0)
+function check_tile_flag(x,y,f)
+  return fget(mget(flr(x/8),flr(y/8)),f or 0)
 end
 
 -- color name -> pico color + light rgb
@@ -206,9 +206,7 @@ function terminal:draw()
   end
   spr(23,self.x,self.y)
   spr(39,self.x,self.y+8)
-  pal()
-  palt(0,false)
-  palt(14,true)
+  reset_pal()
 end
 
 -- entity lists
@@ -224,6 +222,10 @@ end
 ----------------------------
 -- player light (banded falloff)
 ----------------------------
+function setpal(t)
+  for c=0,15 do pal(c,t[c+1]) end
+end
+
 function draw_multi()
   local _sq,_mx,_mn=sqrt,max,min
   local sx,sy=flr(player.x+4-cam_x),flr(player.y+4-cam_y)
@@ -240,15 +242,15 @@ function draw_multi()
   -- ambient base: whole scene at darkest shade,
   -- so geometry stays visible outside the light
   -- (effect 3: _dk3 carries a cool cast)
-  for c=0,15 do pal(c,_dk3[c+1]) end
+  setpal(_dk3)
   sspr(0,0,128,128,0,0)
 
   -- brighten inward, each band preceded by a
   -- dithered half-step (effect 1) to fuzz the ring
-  for c=0,15 do pal(c,_dk2[c+1]) end
+  setpal(_dk2)
   sspr_disc(sx,sy,(r3+rad)/2,2,_sq,_mx,_mn)
   sspr_disc(sx,sy,r3,1,_sq,_mx,_mn)
-  for c=0,15 do pal(c,_dk1[c+1]) end
+  setpal(_dk1)
   sspr_disc(sx,sy,(r2+r3)/2,2,_sq,_mx,_mn)
   sspr_disc(sx,sy,r2,1,_sq,_mx,_mn)
   pal() palt(0,false) palt(14,false)
@@ -293,7 +295,7 @@ function textpanel.new(x,y,h,w,txt,reveal)
     x=x,y=y,h=h,w=w,
     txt=txt or "",sel=false,
     active=true,reveal=reveal,
-    cc=0,exp=0,loff=0
+    cc=0,exp=0,loff=0,shk=0
   },textpanel)
 end
 
@@ -307,12 +309,14 @@ function textpanel:update()
   if self.reveal and self.cc<#self.txt then
     self.cc+=2
   end
+  if self.shk>0 then self.shk-=1 end
 end
 
 function textpanel:draw()
   if not self.active then return end
   local dx=cam.x+self.x-self.exp
   local dy=cam.y+self.y
+  if self.shk>0 then dx+=rnd(4)-2 dy+=rnd(4)-2 end
   local w=self.w+self.exp*2
   local dy2=dy+self.h
   rectfill(dx-1,dy-1,dx+2,dy2+1,3)
@@ -335,6 +339,12 @@ end
 function reset_pal(_cls)
   pal() palt(0) palt(14,true)
   if _cls then cls() end
+end
+
+function menubg()
+  reset_pal(true)
+  map(4,37,0,0,128,48)
+  dks()
 end
 
 function print_centered(t,x,y,c)
@@ -424,10 +434,8 @@ function update_intro()
 end
 
 function draw_intro()
-  reset_pal(true)
   camera(rnd(2*_shake)-_shake,rnd(2*_shake)-_shake)
-  map(4,37,0,0,128,48)
-  dks()
+  menubg()
   draw_stars()
   if sin(t())<.9 then circfill(63,64,3,2) end
   -- after slam, slowly dock the logos to the top
@@ -447,7 +455,7 @@ function init_mission_select()
   music(0)
   cam.x,cam.y=0,0
   camera(0,0)
-  _minfo=textpanel.new(50,35,66,76,"",true)
+  _minfo=textpanel.new(50,35,74,76,"",true)
   _arm=textpanel.new(4,30,9,38,"ARMORY",true)
   _msel=1
   _mpanels={}
@@ -473,7 +481,7 @@ function update_mission_select()
   if btnp(5) then
     if _msel==0 then change_state("loadout_select")
     elseif armed() then change_state("gameplay") return
-    else sfx(29) end
+    else sfx(29) _mpanels[_msel].shk=5 end
   end
   if btnp(4) then change_state("intro") end
   _arm.sel=_msel==0
@@ -483,14 +491,16 @@ function update_mission_select()
 end
 
 function draw_mission_select()
-  reset_pal(true)
-  map(4,37,0,0,128,48)
-  dks()
+  menubg()
   display_logo(15,45,0)
   _arm:draw()
   for p in all(_mpanels) do p:draw() end
   if _msel==0 then
-    _minfo.txt="ARMORY\n\nUNLOCK WEAPONS\nHERE - EACH\nREFILLS EVERY\nMISSION"
+    local s="ARMORY\n\nGEAR UP - REFILLS\nEVERY MISSION:\n"
+    for w in all(wpns) do
+      s=s.."\n"..w.name.." "..(w.owned and "x"..w.mag or "$"..w.cost)
+    end
+    _minfo.txt=s
     _minfo:draw()
   elseif _mshow_brief then
     _minfo.txt=mission_briefings[current_mission]
@@ -510,8 +520,8 @@ function draw_mission_select()
   end
   -- view-toggle hint (missions only)
   if _msel>=1 then
-    rectfill(94,93,120,100,0)
-    ?(_mshow_brief and "\x8bSTATS" or "BRIEF\x91"),96,94,11
+    rectfill(94,101,120,108,0)
+    ?(_mshow_brief and "\x8bSTATS" or "BRIEF\x91"),96,102,11
   end
   if _msel==0 then
     print_centered("\x8e OPEN ARMORY",64,117,11)
@@ -529,7 +539,7 @@ function init_loadout_select()
   camera(0,0)
   init_stars()
   _lsel=1
-  -- 4 weapons + deploy, one column
+  -- 4 weapons + back-to-missions button
   _lpanels={}
   for i=1,5 do
     add(_lpanels,textpanel.new(14,24+(i-1)*14,10,100,"",true))
@@ -542,42 +552,39 @@ function update_loadout_select()
   if btnp(3) then _lsel=_lsel%5+1 sfx(19) end
   if btnp(4) then change_state("mission_select") return end
   if btnp(5) then
-    if _lsel<=4 then
-      local w=wpns[_lsel]
-      if not w.owned and credits>=w.cost then
-        w.owned=true credits-=w.cost sfx(19)
-      else sfx(29) end
-    elseif armed() then
-      change_state("gameplay") return
-    else sfx(29) end
+    if _lsel==5 then change_state("mission_select") return end
+    local w=wpns[_lsel]
+    if not w.owned and credits>=w.cost then
+      w.owned=true credits-=w.cost sfx(19)
+    else
+      sfx(29) _lpanels[_lsel].shk=5
+    end
   end
   for i,p in ipairs(_lpanels) do
     p.sel=(i==_lsel)
     if i<=4 then
       local w=wpns[i]
       p.txt=w.name.."  "..(w.owned and "x"..w.mag or "$"..w.cost)
+      p.tc=(w.owned or credits>=w.cost) and (p.sel and 11 or 5) or 2
     else
-      p.txt="DEPLOY \x8e"
+      p.txt="\x8b MISSION SELECT"
+      p.tc=p.sel and 11 or 5
     end
     p:update()
   end
 end
 
 function draw_loadout_select()
-  reset_pal(true)
-  map(4,37,0,0,128,48)
-  dks()
+  menubg()
   draw_stars()
   print_centered("ARMORY",64,8,11)
   print_shadow("CREDITS: "..credits,14,16)
   for p in all(_lpanels) do p:draw() end
-  local info="\x94\x83 SELECT  \x97 BACK\n"
+  local act="\x8e CONFIRM"
   if _lsel<=4 then
-    info=info..(wpns[_lsel].owned and "EQUIPPED" or "\x8e BUY")
-  else
-    info=info.."\x8e CONFIRM"
+    act=wpns[_lsel].owned and "EQUIPPED" or "\x8e BUY"
   end
-  ?info,14,110,11
+  ?"\x94\x83 SELECT  "..act,14,110,11
 end
 
 -- gameplay
@@ -614,21 +621,21 @@ parts={}
 
 -- enemy types: col,hp,atk_range,kill,wpn
 _et={
-  dervish={15,50,60,100,2},
-  vanguard={13,70,50,120,1},
-  warden={1,100,70,200,3},
-  cyberseer={6,160,80,300,{1,3}},
-  quantumcleric={1,170,70,320,{2,4}}
+  dERVISH={15,50,60,100,2},
+  vANGUARD={13,70,50,120,1},
+  wARDEN={1,100,70,200,3},
+  cYBERSEER={6,160,80,300,{1,3}},
+  qUANTUMCLERIC={1,170,70,320,{2,4}}
 }
 enemies={}
 data_fragments={}
 barrels={}
 _frag_spr=split"50,51,52,53,53,53,53,54,55"
 _espawn={
-  "448,64,dervish|432,232,vanguard|376,272,vanguard|426,354,dervish|356,404,warden|312,152,vanguard|232,360,dervish|40,100,dervish|200,152,dervish|32,232,warden|88,232,vanguard|248,248,cyberseer",
-  "528,144,dervish|624,160,vanguard|688,288,dervish|616,48,cyberseer|824,136,warden|680,96,dervish|920,32,dervish|984,96,warden|896,160,vanguard|904,312,quantumcleric|976,248,vanguard|800,376,warden|728,336,vanguard|816,320,vanguard|608,360,warden",
-  "240,416,warden|88,336,dervish|160,368,vanguard|24,416,warden|216,104,vanguard|256,40,dervish|296,72,dervish|136,80,cyberseer|32,88,dervish|32,32,dervish|40,160,warden|344,344,vanguard|456,336,quantumcleric|368,416,dervish|416,128,vanguard|344,136,vanguard|424,96,quantumcleric|352,240,vanguard|432,264,vanguard|496,152,warden",
-  "880,412,dervish|760,408,dervish|696,424,vanguard|600,360,warden|552,400,warden|592,256,vanguard|528,280,cyberseer|528,208,vanguard|560,168,vanguard|688,296,dervish|688,360,dervish|760,304,warden|912,344,quantumcleric|848,344,dervish|712,192,warden|776,200,warden|888,192,warden|984,184,cyberseer|992,256,vanguard|640,32,vanguard|632,104,vanguard|664,32,dervish|664,104,dervish|704,32,dervish|704,104,dervish|896,40,quantumcleric|968,96,cyberseer"
+  "448,64,dERVISH|432,232,vANGUARD|376,272,vANGUARD|426,354,dERVISH|356,404,wARDEN|312,152,vANGUARD|232,360,dERVISH|40,100,dERVISH|200,152,dERVISH|32,232,wARDEN|88,232,vANGUARD|248,248,cYBERSEER",
+  "528,144,dERVISH|624,160,vANGUARD|688,288,dERVISH|616,48,cYBERSEER|824,136,wARDEN|680,96,dERVISH|920,32,dERVISH|984,96,wARDEN|896,160,vANGUARD|904,312,qUANTUMCLERIC|976,248,vANGUARD|800,376,wARDEN|728,336,vANGUARD|816,320,vANGUARD|608,360,wARDEN",
+  "240,416,wARDEN|88,336,dERVISH|160,368,vANGUARD|24,416,wARDEN|216,104,vANGUARD|256,40,dERVISH|296,72,dERVISH|136,80,cYBERSEER|32,88,dERVISH|32,32,dERVISH|40,160,wARDEN|344,344,vANGUARD|456,336,qUANTUMCLERIC|368,416,dERVISH|416,128,vANGUARD|344,136,vANGUARD|424,96,qUANTUMCLERIC|352,240,vANGUARD|432,264,vANGUARD|496,152,wARDEN",
+  "880,412,dERVISH|760,408,dERVISH|696,424,vANGUARD|600,360,wARDEN|552,400,wARDEN|592,256,vANGUARD|528,280,cYBERSEER|528,208,vANGUARD|560,168,vANGUARD|688,296,dERVISH|688,360,dERVISH|760,304,wARDEN|912,344,qUANTUMCLERIC|848,344,dERVISH|712,192,wARDEN|776,200,wARDEN|888,192,wARDEN|984,184,cYBERSEER|992,256,vANGUARD|640,32,vANGUARD|632,104,vANGUARD|664,32,dERVISH|664,104,dERVISH|704,32,dERVISH|704,104,dERVISH|896,40,qUANTUMCLERIC|968,96,cYBERSEER"
 }
 _bounds={"0,0,64,56","64,0,128,56","0,0,64,56","64,0,128,56"}
 _doors_m={
@@ -664,7 +671,7 @@ function init_gameplay()
   data_fragments={} barrels={}
   _wsel=1 _wcd={0,0,0,0}
   _wmenu=false _dead=false _won=false
-  _evac=1000 player=nil credits_shown=credits
+  _evac=1000 player=nil credits_shown=credits _ptox=0
   -- refill owned weapons; select lowest owned
   for i=1,4 do
     wpns[i].ammo=wpns[i].owned and wpns[i].mag or 0
@@ -745,6 +752,11 @@ function update_gameplay()
   _wmenu=false
   player:update()
   if player.flash>0 then player.flash-=1 end
+  -- toxic pools (flag 2) hurt over time
+  if check_tile_flag(player.x+4,player.y+4,2) then
+    _ptox+=1
+    if _ptox%6<1 then damage(player,1) end
+  else _ptox=0 end
   update_target()
   cam:update()
   for t in all(terminals) do t:update() end
@@ -811,7 +823,7 @@ function update_gameplay()
     if not _won and dist_trig(player.x-player_spawn_x,player.y-player_spawn_y)<=32 then
       _won=true
       mission_data[current_mission][1]=1
-      if n_enemies()==0 then mission_data[current_mission][2]=1 end
+      if #enemies==0 then mission_data[current_mission][2]=1 end
       if n_fragments()==0 then mission_data[current_mission][3]=1 end
     end
     if _won and btnp(4) then change_state("mission_select") return end
@@ -953,9 +965,7 @@ function mg_update()
   for i=0,3 do
     if btnp(i) then
       add(_mg.inp,_dirs[i+1])
-      if #_mg.inp==#_mg.seq then
-        mg_check()
-      end
+      if #_mg.inp==#_mg.seq then mg_check() end
       return
     end
   end
@@ -974,6 +984,7 @@ end
 function mg_end(win)
   local t=_mg.term
   _mg={active=false}
+  _mgf=20 _mgw=win
   if win then
     sfx(15)
     t.done=true
@@ -992,21 +1003,18 @@ function mg_draw()
   rectfill(cx-35,cy-20,cx+35,cy+20,0)
   rect(cx-35,cy-20,cx+35,cy+20,3)
   local sw=#_mg.seq*12-4
-  -- target sequence
   local sx=cx-sw/2
-  for d in all(_mg.seq) do
-    ?d,sx,cy-10,7
-    sx+=12
+  local cur=#_mg.inp+1
+  -- single row: done(green/red), current(bob), upcoming(dim)
+  for i,d in ipairs(_mg.seq) do
+    local c,yo=5,0
+    if i<cur then c=_mg.inp[i]==d and 11 or 8
+    elseif i==cur then c=7 yo=sin(t()*2)*2 end
+    ?d,sx+(i-1)*12,cy-2+yo,c
   end
-  -- player input
-  sx=cx-sw/2
-  for i,d in ipairs(_mg.inp) do
-    ?d,sx,cy,d==_mg.seq[i] and 11 or 8
-    sx+=12
-  end
-  -- timer (seconds)
-  local tt="TIME: "..flr(_mg.timer/30)
-  ?tt,cx-#tt*2,cy+10,8
+  -- time bar (green->yellow->red)
+  local tr=_mg.timer/180
+  rectfill(cx-30,cy+12,cx-30+60*tr,cy+15,tr>.5 and 11 or tr>.25 and 10 or 8)
 end
 
 -- weapons: aim + fire
@@ -1131,9 +1139,10 @@ function enemy_fire(e,wi)
   if w.homing then
     spawn_missiles(w,e,false)
   else
-    for i=1,min(w.n,3) do
+    local n=min(w.n,3)
+    for i=1,n do
       fire_single(w,aim,
-        (i-1-(min(w.n,3)-1)/2)*(w.fan or 0),e)
+        (i-1-(n-1)/2)*(w.fan or 0),e)
     end
   end
   sfx(w.sfx)
@@ -1226,19 +1235,19 @@ function update_bullets()
       -- entity collision
       if not dead and b.plr then
         for e in all(enemies) do
-          if abs(b.x-e.x-4)<5 and abs(b.y-e.y-4)<5 then
+          if bhit(b,e) then
             hurt(e,b) dead=true break
           end
         end
       elseif not dead and b.plr==false then
-        if abs(b.x-player.x-4)<5 and abs(b.y-player.y-4)<5 then
+        if bhit(b,player) then
           hurt(player,b) dead=true
         end
       end
       -- barrel collision
       if not dead then
         for bar in all(barrels) do
-          if not bar.exp and abs(b.x-bar.x-4)<5 and abs(b.y-bar.y-4)<5 then
+          if not bar.exp and bhit(b,bar) then
             bar:take_damage(b.dmg) bullet_hit(b) dead=true break
           end
         end
@@ -1263,6 +1272,10 @@ function bullet_hit(b)
   else
     spawn_impact(b.x,b.y)
   end
+end
+
+function bhit(b,o)
+  return abs(b.x-o.x-4)<5 and abs(b.y-o.y-4)<5
 end
 
 -- radial particle burst (shared by impacts,
@@ -1299,7 +1312,6 @@ function n_fragments()
   end
   return c
 end
-function n_enemies() return #enemies end
 
 -- data fragments
 data_fragment={} data_fragment.__index=data_fragment
@@ -1417,7 +1429,7 @@ function wmenu_update()
   end
   _winfo.txt=
     "DATA SHARDS LEFT: "..n_fragments().."\n"..
-    "HOSTILE UNITS:    "..n_enemies().."\n"..
+    "HOSTILE UNITS:    "..#enemies.."\n"..
     "TERMINALS LEFT:   "..n_terminals()
 end
 
@@ -1460,14 +1472,11 @@ function draw_hud()
       ay-=6
     end
   end
-  -- minimap (upper-right)
-  local pmx,pmy=flr(player.x/8),flr(player.y/8)
-  for i=0,255 do
-    local tx,ty=i%16-8,flr(i/16)-8
-    pset(120+tx,9+ty,
-      fget(mget(pmx+tx,pmy+ty),0) and 1 or 11)
+  -- hack result flash
+  if _mgf and _mgf>0 then
+    _mgf-=1
+    rect(0,0,127,127,_mgw and 11 or 8)
   end
-  pset(120,9,7)
 end
 
 -- entity
@@ -1620,7 +1629,7 @@ function entity:draw()
   local s=(self.last_dir=="up" and 32 or self.last_dir=="horizontal" and 0 or 16)+(moving and 2 or 0)
   s+=flr(t()*(moving and 10+min(spd/self.max_speed,1)*10 or 3))%2
   spr(s,self.x,self.y,1,1,self.vx<0)
-  pal() palt(0,false) palt(14,true)
+  reset_pal()
   -- alert/attack icon above enemy (v2 style)
   local ind=self.ai=="chase" and 36 or self.ai=="atk" and 20
   if ind then spr(ind,self.x+4,self.y-8) end
