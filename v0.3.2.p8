@@ -482,6 +482,20 @@ function init_loadout_select()
   cam.x,cam.y=0,0
   camera(0,0)
   _lsel=1
+  -- bordered panel per weapon + ammo count,
+  -- plus a begin-mission panel (matches v2)
+  _lpanels={}
+  _cpanels={}
+  for i=1,5 do
+    add(_lpanels,textpanel.new(
+      i<5 and 10 or 34,
+      i<5 and 20+(i-1)*20 or 98,
+      9,56,
+      i==5 and "BEGIN MISSION" or "",true))
+    if i<5 then
+      add(_cpanels,textpanel.new(80,20+(i-1)*20,9,33,"",true))
+    end
+  end
 end
 
 function update_loadout_select()
@@ -502,36 +516,35 @@ function update_loadout_select()
       credits-=ch*w.cost
     end
   elseif _lsel==5 and btnp(5) and has then
-    change_state("gameplay")
+    change_state("gameplay") return
   end
+  for i,p in ipairs(_lpanels) do
+    p.sel=(i==_lsel)
+    if i<=4 then
+      p.txt=wpns[i].name
+      _cpanels[i].txt=wpns[i].ammo.." AMMO"
+    else
+      p.active=has
+    end
+    p:update()
+  end
+  for p in all(_cpanels) do p:update() end
 end
 
 function draw_loadout_select()
   reset_pal(true)
   map(4,37,0,0,128,48)
   dks()
-  ?"CREDITS: "..credits,8,6,7
-  local has=false
-  for w in all(wpns) do if w.ammo>0 then has=true end end
-  for i=1,4 do
-    local w=wpns[i]
-    local y=20+(i-1)*15
-    if i==_lsel then rectfill(5,y-2,122,y+9,1) end
-    ?w.name,8,y-1,i==_lsel and 11 or 5
-    ?w.ammo.." ammo",82,y-1,w.ammo>0 and 11 or 2
-  end
-  local by=20+4*15
-  if has then
-    if _lsel==5 then rectfill(36,by-2,92,by+9,1) end
-    print_centered("begin mission",64,by-1,_lsel==5 and 11 or 5)
-  end
-  color(11)
-  ?"\x94\x83 select",8,108
+  print_shadow("CREDITS: "..credits,10,8)
+  for p in all(_lpanels) do p:draw() end
+  for p in all(_cpanels) do p:draw() end
+  local info="\x94\x83 SELECT\n"
   if _lsel<=4 then
-    ?"\x8b sell \x91 buy ("..wpns[_lsel].cost.."/unit)",8,116
-  elseif has then
-    ?"\x8e begin mission",8,116
+    info=info.."\x8b SELL \x91 BUY  "..wpns[_lsel].cost.." CREDITS"
+  elseif _lpanels[5].active then
+    info=info.."\x8e BEGIN MISSION"
   end
+  ?info,10,112,11
 end
 
 -- gameplay
