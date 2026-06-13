@@ -39,9 +39,12 @@ function _init()
     split"0,1,2,3,2,5,13,6,8,9,9,11,12,5,14,6",
     split"0,0,1,1,2,1,5,13,2,4,4,3,1,1,14,5",
     split"0,0,0,0,0,0,1,1,0,0,1,0,1,1,14,1"
-  _dk3t={}
+  -- menu darkening palette (v2 intro look:
+  -- black bg, white->maroon, blue stays)
+  local md=split"0,1,0,0,0,0,0,2,0,0,0,0,0,0,0,0"
+  _mdt={}
   for i=0,255 do
-    _dk3t[i]=bor(shl(_dk3[i\16+1],4),_dk3[i%16+1])
+    _mdt[i]=bor(shl(md[i\16+1],4),md[i%16+1])
   end
 
   cam=gamecam.new()
@@ -343,7 +346,7 @@ end
 
 function dks()
   for a=0x6000,0x7fff do
-    poke(a,_dk3t[@a])
+    poke(a,_mdt[@a])
   end
 end
 
