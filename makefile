@@ -1,6 +1,9 @@
 # run the current build:  make run
-# if pico-8 isn't on your PATH, override:
-#   make run PICO8=/path/to/pico8
+# pico-8 resolves from PATH by default. for a non-standard
+# install, put your path in local.mk (gitignored), e.g.:
+#   PICO8 = /path/to/pico8
+# or override per-invocation: make run PICO8=/path/to/pico8
+-include local.mk
 PICO8 ?= pico8
 CART ?= v0.3.2.p8
 
