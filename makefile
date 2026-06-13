@@ -5,7 +5,7 @@
 # or override per-invocation: make run PICO8=/path/to/pico8
 -include local.mk
 PICO8 ?= pico8
-CART ?= v0.3.2.p8
+CART ?= v0.3.p8
 
 run:
 	$(PICO8) -run $(CART)
