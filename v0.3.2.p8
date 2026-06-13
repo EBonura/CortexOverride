@@ -48,7 +48,7 @@ function _init()
 
   -- build state table from naming convention
   states={}
-  for name in all(split("intro,mission_select,gameplay",",")) do
+  for name in all(split("intro,mission_select,loadout_select,gameplay",",")) do
     states[name]={
       init=_ENV["init_"..name],
       update=_ENV["update_"..name],
@@ -56,7 +56,7 @@ function _init()
     }
   end
 
-  change_state("gameplay",true)
+  change_state("intro",true)
 end
 
 function _update()
@@ -429,7 +429,7 @@ function update_mission_select()
     _minfo.cc=0
     sfx(19)
   elseif btnp(5) then
-    change_state("gameplay")
+    change_state("loadout_select")
   elseif btnp(4) then
     change_state("intro")
   end
@@ -462,6 +462,64 @@ function draw_mission_select()
   ?"   \x8e START MISSION",25,122
 end
 
+-- loadout select (buy ammo with credits)
+function init_loadout_select()
+  music(0)
+  cam.x,cam.y=0,0
+  camera(0,0)
+  _lsel=1
+end
+
+function update_loadout_select()
+  local has=false
+  for w in all(wpns) do if w.ammo>0 then has=true end end
+  local n=has and 5 or 4
+  if btnp(2) then _lsel=(_lsel-2)%n+1 sfx(19) end
+  if btnp(3) then _lsel=_lsel%n+1 sfx(19) end
+  if btnp(4) then
+    change_state("mission_select")
+  elseif _lsel<=4 then
+    local w=wpns[_lsel]
+    local ch=(btnp(0) and -25) or (btnp(1) and 25) or 0
+    if ch<0 and w.ammo>=25
+      or ch>0 and credits>=25*w.cost then
+      sfx(19)
+      w.ammo+=ch
+      credits-=ch*w.cost
+    end
+  elseif _lsel==5 and btnp(5) and has then
+    change_state("gameplay")
+  end
+end
+
+function draw_loadout_select()
+  reset_pal(true)
+  map(4,37,0,0,128,48)
+  dks()
+  ?"CREDITS: "..credits,8,6,7
+  local has=false
+  for w in all(wpns) do if w.ammo>0 then has=true end end
+  for i=1,4 do
+    local w=wpns[i]
+    local y=20+(i-1)*15
+    if i==_lsel then rectfill(5,y-2,122,y+9,1) end
+    ?w.name,8,y-1,i==_lsel and 11 or 5
+    ?w.ammo.." ammo",82,y-1,w.ammo>0 and 11 or 2
+  end
+  local by=20+4*15
+  if has then
+    if _lsel==5 then rectfill(36,by-2,92,by+9,1) end
+    print_centered("begin mission",64,by-1,_lsel==5 and 11 or 5)
+  end
+  color(11)
+  ?"\x94\x83 select",8,108
+  if _lsel<=4 then
+    ?"\x8b sell \x91 buy ("..wpns[_lsel].cost.."/unit)",8,116
+  elseif has then
+    ?"\x8e begin mission",8,116
+  end
+end
+
 -- gameplay
 light_ir=40
 light_fo=18
@@ -473,19 +531,22 @@ _dirs={"\x8b","\x91","\x94","\x83"}
 wpns={
   {name="RIFLE BURST",cd=15,sfx=27,
     n=5,spd=4,fan=0.005,life=30,
-    dmg=3,recoil=5.5,sz=1,col=8},
+    dmg=3,recoil=5.5,sz=1,col=8,
+    ammo=0,cost=20},
   {name="MACHINE GUN",cd=30,sfx=14,
     n=10,spd=6,spread=0.03,life=20,
     dmg=3,recoil=0.15,sz=1,col=8,
-    burst=2},
+    burst=2,ammo=0,cost=25},
   {name="MISSILES",cd=45,sfx=6,
     n=3,spd=0,life=60,
     dmg=15,sz=1,col=8,
-    homing=true,orbit=15,aoe=16,aoe_dmg=4},
+    homing=true,orbit=15,aoe=16,aoe_dmg=4,
+    ammo=0,cost=50},
   {name="PLASMA CANNON",cd=60,sfx=10,
     n=1,spd=5,life=120,
     dmg=75,recoil=5.5,sz=4,col=12,
-    charge=20,aoe=16,aoe_dmg=10},
+    charge=20,aoe=16,aoe_dmg=10,
+    ammo=0,cost=75},
 }
 bullets={}
 parts={}
@@ -871,6 +932,16 @@ end
 function fire_weapon(wi)
   if _wcd[wi]>0 then return end
   local w=wpns[wi]
+  if w.ammo<=0 then
+    -- out of ammo: switch to one that has some
+    for i=1,4 do
+      if wpns[i].ammo>0 then
+        _wsel=i fire_weapon(i) return
+      end
+    end
+    sfx(29) return
+  end
+  w.ammo-=1
   local ax,ay=get_aim()
   _wcd[wi]=w.cd
 
@@ -1257,9 +1328,10 @@ function draw_hud()
   camera()
   local w=wpns[_wsel]
   local pct=1-_wcd[_wsel]/w.cd
-  -- weapon name
-  ?w.name,2,2,0
-  ?w.name,1,1,7
+  -- weapon name + ammo
+  local lbl=w.name.." "..w.ammo
+  ?lbl,2,2,0
+  ?lbl,1,1,w.ammo>0 and 7 or 8
   -- cooldown bar
   rectfill(1,8,61,10,1)
   if pct>0 then
