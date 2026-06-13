@@ -180,7 +180,9 @@ function terminal.new(x,y,door,tut)
     pulse=0
   },terminal)
   if tut then
-    local w=max(40,#tut*4+12)
+    -- measure true pixel width (wide glyphs!) for
+    -- a snug, symmetrically-padded panel
+    local w=print(tut,0,-99)+4
     t.panel=textpanel.new(64-w/2,114,9,w,tut,true)
     t.panel.sel=true
   end
