@@ -327,7 +327,7 @@ function textpanel:draw()
   end
   local t=self.reveal
     and sub(self.txt,1,self.cc) or self.txt
-  ?t,dx+2,dy+2,self.sel and 11 or 5
+  ?t,dx+2,dy+2,self.tc or (self.sel and 11 or 5)
 end
 
 function display_logo(xc,xp,y)
@@ -694,6 +694,16 @@ function update_gameplay()
     mg_update()
     return
   end
+  -- weapon menu (hold O): pauses the game
+  if btn(4) then
+    if not _wmenu then wmenu_open() end
+    _wmenu=true
+    if btnp(2) then _wsel=(_wsel-2)%4+1 sfx(19) end
+    if btnp(3) then _wsel=_wsel%4+1 sfx(19) end
+    wmenu_update()
+    return
+  end
+  _wmenu=false
   player:update()
   if player.flash>0 then player.flash-=1 end
   update_target()
@@ -713,15 +723,6 @@ function update_gameplay()
   -- weapon cooldowns
   for i=1,4 do
     if _wcd[i]>0 then _wcd[i]-=1 end
-  end
-
-  -- weapon menu (hold O)
-  if btn(4) then
-    _wmenu=true
-    if btnp(2) then _wsel=(_wsel-2)%4+1 sfx(19) end
-    if btnp(3) then _wsel=_wsel%4+1 sfx(19) end
-  else
-    _wmenu=false
   end
 
   -- burst fire (machine gun)
@@ -998,6 +999,19 @@ function get_aim()
   else return 0,1 end
 end
 
+-- spawn a volley of orbiting homing missiles
+function spawn_missiles(w,src,plr)
+  local px,py=src.x+4,src.y+4
+  for i=1,w.n do
+    local a=rnd()
+    add(bullets,{x=px+cos(a)*15,y=py+sin(a)*15,
+      vx=0,vy=0,life=w.life,sz=w.sz,col=w.col,
+      dmg=w.dmg,aoe=w.aoe,aoe_dmg=w.aoe_dmg,
+      orbit=w.orbit,orb_a=a,orb_r=5+rnd(10),
+      spd=1,dir=a,mx_spd=3,own=src,plr=plr})
+  end
+end
+
 function fire_weapon(wi)
   if _wcd[wi]>0 then return end
   local w=wpns[wi]
@@ -1027,18 +1041,7 @@ function fire_weapon(wi)
     player._charge={w=w,aim={ax,ay},
       t=w.charge}
   elseif w.homing then
-    -- missiles: spawn orbiting
-    local px,py=player.x+4,player.y+4
-    for i=1,w.n do
-      local a=rnd()
-      local off=10+rnd(10)
-      add(bullets,{x=px+cos(a)*off,y=py+sin(a)*off,
-        vx=0,vy=0,life=w.life,sz=w.sz,
-        col=w.col,dmg=w.dmg,
-        aoe=w.aoe,aoe_dmg=w.aoe_dmg,
-        orbit=w.orbit,orb_a=a,orb_r=5+rnd(10),
-        spd=1,dir=a,mx_spd=3,plr=true,own=player})
-    end
+    spawn_missiles(w,player,true)
     sfx(w.sfx)
   else
     -- rifle: instant fan
@@ -1086,15 +1089,7 @@ function enemy_fire(e,wi)
   if d<1 then return end
   local aim={dx/d,dy/d}
   if w.homing then
-    local px,py=e.x+4,e.y+4
-    for i=1,w.n do
-      local a=rnd()
-      add(bullets,{x=px+cos(a)*10,y=py+sin(a)*10,
-        vx=0,vy=0,life=w.life,sz=w.sz,col=w.col,
-        dmg=w.dmg,aoe=w.aoe,aoe_dmg=w.aoe_dmg,
-        orbit=w.orbit,orb_a=a,orb_r=5+rnd(10),
-        spd=1,dir=a,mx_spd=3,own=e,plr=false})
-    end
+    spawn_missiles(w,e,false)
   else
     for i=1,min(w.n,3) do
       fire_single(w,aim,
@@ -1370,29 +1365,38 @@ function draw_parts()
 end
 
 -- weapon menu + hud
+-- weapon menu: bordered panels per weapon +
+-- an objectives info panel (matches v2)
+function wmenu_open()
+  _wpanels={}
+  for i=1,4 do
+    local p=textpanel.new(37,30+(i-1)*16,10,54,wpns[i].name)
+    p.wi=i
+    add(_wpanels,p)
+  end
+  _winfo=textpanel.new(13,94,20,102,"")
+  add(_wpanels,_winfo)
+end
+
+function wmenu_update()
+  for p in all(_wpanels) do
+    if p.wi then
+      p.sel=(p.wi==_wsel)
+      p.tc=wpns[p.wi].ammo>0 and (p.sel and 11 or 5) or 2
+    end
+    p:update()
+  end
+  _winfo.txt=
+    "DATA SHARDS LEFT: "..n_fragments().."\n"..
+    "HOSTILE UNITS:    "..n_enemies().."\n"..
+    "TERMINALS LEFT:   "..n_terminals()
+end
+
 function draw_weapon_menu()
   if not _wmenu then return end
+  camera(cam.x,cam.y)
+  for p in all(_wpanels) do p:draw() end
   camera()
-  rectfill(28,24,99,92,0)
-  rect(28,24,99,92,3)
-  ?"WEAPONS",44,26,3
-  for i=1,4 do
-    local w=wpns[i]
-    local y=34+(i-1)*14
-    local sel=i==_wsel
-    local c=sel and 11 or 5
-    if sel then
-      rectfill(30,y-1,97,y+10,1)
-    end
-    ?w.name,32,y,c
-    -- cooldown bar
-    local pct=1-_wcd[i]/w.cd
-    rectfill(32,y+8,90,y+9,1)
-    if pct>0 then
-      rectfill(32,y+8,32+flr(58*pct),y+9,
-        pct>=1 and 11 or 5)
-    end
-  end
 end
 
 function draw_hud()
