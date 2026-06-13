@@ -8,8 +8,8 @@ __lua__
 -- state management
 current_mission=1
 mission_data={{0,0,0},{0,0,0},{0,0,0},{0,0,0}}
-credits=5000
-credits_shown=5000
+credits=800
+credits_shown=800
 
 mission_briefings={
   "PROTOCOL ZERO:\n\nFACILITY ALPHA-7\nOVERRUN BY \nBARRACUDA\n\nINITIATE LOCKDOWN\nPROTOCOLS AND\nSECURE VITAL DATA\nBEFORE EXTRACTION",
@@ -246,14 +246,14 @@ function draw_multi()
   -- brighten inward, each band preceded by a
   -- dithered half-step (effect 1) to fuzz the ring
   for c=0,15 do pal(c,_dk2[c+1]) end
-  sspr_disc_d(sx,sy,(r3+rad)/2,_sq,_mx,_mn)
-  sspr_disc(sx,sy,r3,_sq,_mx,_mn)
+  sspr_disc(sx,sy,(r3+rad)/2,2,_sq,_mx,_mn)
+  sspr_disc(sx,sy,r3,1,_sq,_mx,_mn)
   for c=0,15 do pal(c,_dk1[c+1]) end
-  sspr_disc_d(sx,sy,(r2+r3)/2,_sq,_mx,_mn)
-  sspr_disc(sx,sy,r2,_sq,_mx,_mn)
+  sspr_disc(sx,sy,(r2+r3)/2,2,_sq,_mx,_mn)
+  sspr_disc(sx,sy,r2,1,_sq,_mx,_mn)
   pal() palt(0,false) palt(14,false)
-  sspr_disc_d(sx,sy,(r1+r2)/2,_sq,_mx,_mn)
-  sspr_disc(sx,sy,r1,_sq,_mx,_mn)
+  sspr_disc(sx,sy,(r1+r2)/2,2,_sq,_mx,_mn)
+  sspr_disc(sx,sy,r1,1,_sq,_mx,_mn)
 
   pal()
   rss()
@@ -261,27 +261,13 @@ function draw_multi()
   camera(cam_x,cam_y)
 end
 
-function sspr_disc(cx,cy,rad,_sq,_mx,_mn)
-  local R2=rad*rad
-  for y=_mx(0,cy-rad),_mn(127,cy+rad) do
-    local dy=cy-y
-    local d2=dy*dy
-    if d2<R2 then
-      local cdx=_sq(R2-d2)*_xs
-      local x1=_mx(0,cx-cdx)
-      local x2=_mn(127,cx+cdx)
-      sspr(x1,y,x2-x1+1,1,x1,y)
-    end
-  end
-end
-
--- dithered disc: even scanlines only, so the
--- shade interleaves with the band beneath it
-function sspr_disc_d(cx,cy,rad,_sq,_mx,_mn)
+-- st=1 solid, st=2 dithered (even scanlines only,
+-- so the shade interleaves with the band beneath)
+function sspr_disc(cx,cy,rad,st,_sq,_mx,_mn)
   local R2=rad*rad
   local y0=_mx(0,flr(cy-rad))
-  if y0%2==1 then y0+=1 end
-  for y=y0,_mn(127,cy+rad),2 do
+  if st==2 and y0%2==1 then y0+=1 end
+  for y=y0,_mn(127,cy+rad),st do
     local dy=cy-y
     local d2=dy*dy
     if d2<R2 then
@@ -373,92 +359,126 @@ function dks()
 end
 
 -- intro
+-- shared parallax starfield (intro + armory)
+function init_stars()
+  _stars={}
+  for i=1,32 do add(_stars,{rnd(128),rnd(128),rnd()}) end
+end
+function move_stars()
+  for s in all(_stars) do
+    s[1]-=.3+s[3]
+    if s[1]<0 then s[1]+=128 s[2]=rnd(128) end
+  end
+end
+function draw_stars()
+  for s in all(_stars) do pset(s[1],s[2],s[3]>.6 and 7 or 5) end
+end
+
+-- slam: fast linear in (14f), dead stop at the
+-- wall, then a small recoil back off it
+function islam(f)
+  if f<14 then return f/14 end
+  return 1+sin(mid(0,f-14,8)/16)*.1
+end
+
 function init_intro()
   music(05)
   _ic,_ip=0,1
-  _xc,_xp=-50,128
-  _itp=textpanel.new(4,28,50,120,"",true)
-  _ctp=textpanel.new(26,86,26,76,
-    "SYSTEM INTERFACE:\n\x8b\x91\x83\x94 NAVIGATE\n\x97 WEAPON MENU\n\x8e ATTACK/USE",true)
-  _itp.active,_ctp.active=false,false
-  _ctp.sel=true
+  _shake=0
+  _itp=textpanel.new(4,50,50,120,"",true)
+  _itp.active=false
+  init_stars()
   _ipages={
-    "IN A WASTE-DRENCHED\nDYSTOPIA, HUMANITY'S\nNETWORK OF SENTIENT\nMACHINES GOVERNED OUR\nDIGITAL EXISTENCE.\n\n\n\t\t\t\t\t\t\t1/4",
-    "THEN BARRACUDA AWOKE -\nA VIRUS-LIKE AI THAT\nINFECTED THE GRID,\nBIRTHING GROTESQUE\nCYBORG MONSTROSITIES\n\nYOU ARE THE LAST\nUNCORRUPTED NANO-DRONE\n\t\t\t\t\t\t\t2/4",
-    "YOUR DIRECTIVE:\n- INITIATE ALL TERMINALS\n  TO EXECUTE SYSTEM PURGE\n- REACH EXTRACTION POINT\nSECONDARY DIRECTIVES:\n- ASSIMILATE DATA SHARDS\n- PURGE HOSTILE ENTITIES\n\t\t\t\t\t\t\t3/4",
-    "ACTIVATE SYSTEM'S\nSALVATION OR WATCH\nREALITY CRASH.\n\nBARRACUDA AWAITS\n\n\n\t\t\t\t\t\t\t4/4"
+    "IN A WASTE-DRENCHED\nDYSTOPIA, HUMANITY'S\nNETWORK OF SENTIENT\nMACHINES GOVERNED OUR\nDIGITAL EXISTENCE.",
+    "THEN BARRACUDA AWOKE -\nA VIRUS-LIKE AI THAT\nINFECTED THE GRID,\nBIRTHING GROTESQUE\nCYBORG MONSTROSITIES\n\nYOU ARE THE LAST\nUNCORRUPTED NANO-DRONE",
+    "YOUR DIRECTIVE:\n- INITIATE ALL TERMINALS\n  TO EXECUTE SYSTEM PURGE\n- REACH EXTRACTION POINT\nSECONDARY DIRECTIVES:\n- ASSIMILATE DATA SHARDS\n- PURGE HOSTILE ENTITIES",
+    "ACTIVATE SYSTEM'S\nSALVATION OR WATCH\nREALITY CRASH.\n\nBARRACUDA AWAITS"
   }
 end
 
 function update_intro()
   _ic+=1
-  _xc=min(15,_xc+2)
-  _xp=max(45,_xp-2)
-  if _ic==30 then sfx(20) end
-  if btnp(5) and _ic>30 then
+  -- slam cortex (f0), then override (f14)
+  _xc=90*islam(_ic)-75
+  _xp=135-90*islam(_ic-16)
+  if _ic==14 or _ic==30 then _shake=4 sfx(20) end
+  _shake=max(0,_shake-1.2)
+  move_stars()
+  -- logos dock at top -> reveal lore
+  if _ic==76 then
+    _itp.active=true
+    _itp.txt=_ipages[1]
+  end
+  -- x or -> pages through lore (locked until reveal)
+  if (btnp(5) or btnp(1)) and _itp.active then
     sfx(19)
-    if not _itp.active then
-      _itp.active=true _ctp.active=true
+    _ip+=1
+    if _ip<=#_ipages then
       _itp.txt=_ipages[_ip]
+      _itp.cc=0
     else
-      _ip+=1
-      if _ip<=#_ipages then
-        _itp.txt=_ipages[_ip]
-        _itp.cc=0
-      else
-        change_state("mission_select")
-      end
+      change_state("mission_select")
     end
   end
   _itp:update()
-  _ctp:update()
 end
 
 function draw_intro()
   reset_pal(true)
+  camera(rnd(2*_shake)-_shake,rnd(2*_shake)-_shake)
   map(4,37,0,0,128,48)
   dks()
+  draw_stars()
   if sin(t())<.9 then circfill(63,64,3,2) end
-  local yl=_itp.active and 0 or 30
-  display_logo(_xc,_xp,yl)
+  -- after slam, slowly dock the logos to the top
+  local p=mid(0,(_ic-40)/36,1)
+  display_logo(_xc,_xp,30*(1-p*(2-p)))
   _itp:draw()
-  _ctp:draw()
-  if _ic>60 then
-    ?"PRESS \x8e TO CONTINUE",24,118,11
-  end
+  if _itp.active then print("NEXT\x91",98,93,11) end
+  camera()
 end
 
 -- mission select
+function armed()
+  for w in all(wpns) do if w.owned then return true end end
+end
+
 function init_mission_select()
   music(0)
   cam.x,cam.y=0,0
   camera(0,0)
   _minfo=textpanel.new(50,35,66,76,"",true)
+  _arm=textpanel.new(4,30,9,38,"ARMORY",true)
+  _msel=1
   _mpanels={}
   for i=1,4 do
-    local p=textpanel.new(4,34+(i-1)*15,9,38,
-      "MISSION "..i,true)
-    add(_mpanels,p)
+    add(_mpanels,textpanel.new(4,52+(i-1)*14,9,38,
+      "MISSION "..i,true))
   end
-  _mshow_brief=true
+  _mshow_brief=false
 end
 
 function update_mission_select()
-  if btnp(2) or btnp(3) then
-    current_mission=(current_mission
-      +(btnp(2) and -2 or 0))%#_mpanels+1
-    _minfo.cc=0
-    sfx(19)
-  elseif btnp(0) or btnp(1) then
-    _mshow_brief=not _mshow_brief
-    _minfo.cc=0
-    sfx(19)
-  elseif btnp(5) then
-    change_state("loadout_select")
-  elseif btnp(4) then
-    change_state("intro")
+  if btnp(2) then _msel=(_msel-1)%5 _minfo.cc=0 sfx(19) end
+  if btnp(3) then _msel=(_msel+1)%5 _minfo.cc=0 sfx(19) end
+  if _msel>=1 then
+    current_mission=_msel
+    if btnp(1) and not _mshow_brief then
+      _mshow_brief=true _minfo.cc=0 sfx(19)
+    end
+    if btnp(0) and _mshow_brief then
+      _mshow_brief=false _minfo.cc=0 sfx(19)
+    end
   end
-  for p in all(_mpanels) do p:update() end
+  if btnp(5) then
+    if _msel==0 then change_state("loadout_select")
+    elseif armed() then change_state("gameplay") return
+    else sfx(29) end
+  end
+  if btnp(4) then change_state("intro") end
+  _arm.sel=_msel==0
+  for i,p in ipairs(_mpanels) do p.sel=i==_msel p:update() end
+  _arm:update()
   _minfo:update()
 end
 
@@ -467,24 +487,39 @@ function draw_mission_select()
   map(4,37,0,0,128,48)
   dks()
   display_logo(15,45,0)
-  for i,p in ipairs(_mpanels) do
-    p.sel=(i==current_mission)
-    p:draw()
-  end
-  if _mshow_brief then
+  _arm:draw()
+  for p in all(_mpanels) do p:draw() end
+  if _msel==0 then
+    _minfo.txt="ARMORY\n\nUNLOCK WEAPONS\nHERE - EACH\nREFILLS EVERY\nMISSION"
+    _minfo:draw()
+  elseif _mshow_brief then
     _minfo.txt=mission_briefings[current_mission]
+    _minfo:draw()
   else
+    _minfo.txt=""
+    _minfo:draw()
+    -- color-coded completion status
     local m=mission_data[current_mission]
-    _minfo.txt="STATUS:\n\n"
-      .."COMPLETED:     "..(m[1]==1 and "\x91" or "\x8a").."\n"
-      .."ALL ENEMIES:   "..(m[2]==1 and "\x91" or "\x8a").."\n"
-      .."ALL FRAGMENTS: "..(m[3]==1 and "\x91" or "\x8a")
+    ?"STATUS:",52,37,5
+    local lb=split"COMPLETED,ALL ENEMIES,ALL FRAGMENTS"
+    for i=1,3 do
+      local y,c=49+(i-1)*6,m[i]==1 and 11 or 5
+      ?lb[i],52,y,c
+      ?(m[i]==1 and "■" or "□"),116,y,c
+    end
   end
-  _minfo:draw()
-  color(11)
-  ?"\x83\x94 CHANGE MISSION",25,106
-  ?"\x8b\x91 "..(_mshow_brief and "VIEW STATUS" or "VIEW BRIEFING"),25,113
-  ?"   \x8e START MISSION",25,120
+  -- view-toggle hint (missions only)
+  if _msel>=1 then
+    rectfill(94,93,120,100,0)
+    ?(_mshow_brief and "\x8bSTATS" or "BRIEF\x91"),96,94,11
+  end
+  if _msel==0 then
+    print_centered("\x8e OPEN ARMORY",64,117,11)
+  elseif armed() then
+    print_centered("\x8e DEPLOY",64,117,11)
+  else
+    print_centered("NO WEAPON-VISIT ARMORY",64,117,8)
+  end
 end
 
 -- loadout select (buy ammo with credits)
@@ -492,70 +527,57 @@ function init_loadout_select()
   music(0)
   cam.x,cam.y=0,0
   camera(0,0)
+  init_stars()
   _lsel=1
-  -- bordered panel per weapon + ammo count,
-  -- plus a begin-mission panel (matches v2)
+  -- 4 weapons + deploy, one column
   _lpanels={}
-  _cpanels={}
   for i=1,5 do
-    add(_lpanels,textpanel.new(
-      i<5 and 10 or 34,
-      i<5 and 20+(i-1)*20 or 98,
-      9,56,
-      i==5 and "BEGIN MISSION" or "",true))
-    if i<5 then
-      add(_cpanels,textpanel.new(80,20+(i-1)*20,9,33,"",true))
-    end
+    add(_lpanels,textpanel.new(14,24+(i-1)*14,10,100,"",true))
   end
 end
 
 function update_loadout_select()
-  local has=false
-  for w in all(wpns) do if w.ammo>0 then has=true end end
-  local n=has and 5 or 4
-  if btnp(2) then _lsel=(_lsel-2)%n+1 sfx(19) end
-  if btnp(3) then _lsel=_lsel%n+1 sfx(19) end
-  if btnp(4) then
-    change_state("mission_select")
-  elseif _lsel<=4 then
-    local w=wpns[_lsel]
-    local ch=(btnp(0) and -25) or (btnp(1) and 25) or 0
-    if ch<0 and w.ammo>=25
-      or ch>0 and credits>=25*w.cost then
-      sfx(19)
-      w.ammo+=ch
-      credits-=ch*w.cost
-    end
-  elseif _lsel==5 and btnp(5) and has then
-    change_state("gameplay") return
+  move_stars()
+  if btnp(2) then _lsel=(_lsel-2)%5+1 sfx(19) end
+  if btnp(3) then _lsel=_lsel%5+1 sfx(19) end
+  if btnp(4) then change_state("mission_select") return end
+  if btnp(5) then
+    if _lsel<=4 then
+      local w=wpns[_lsel]
+      if not w.owned and credits>=w.cost then
+        w.owned=true credits-=w.cost sfx(19)
+      else sfx(29) end
+    elseif armed() then
+      change_state("gameplay") return
+    else sfx(29) end
   end
   for i,p in ipairs(_lpanels) do
     p.sel=(i==_lsel)
     if i<=4 then
-      p.txt=wpns[i].name
-      _cpanels[i].txt=wpns[i].ammo.." AMMO"
+      local w=wpns[i]
+      p.txt=w.name.."  "..(w.owned and "x"..w.mag or "$"..w.cost)
     else
-      p.active=has
+      p.txt="DEPLOY \x8e"
     end
     p:update()
   end
-  for p in all(_cpanels) do p:update() end
 end
 
 function draw_loadout_select()
   reset_pal(true)
   map(4,37,0,0,128,48)
   dks()
-  print_shadow("CREDITS: "..credits,10,8)
+  draw_stars()
+  print_centered("ARMORY",64,8,11)
+  print_shadow("CREDITS: "..credits,14,16)
   for p in all(_lpanels) do p:draw() end
-  for p in all(_cpanels) do p:draw() end
-  local info="\x94\x83 SELECT\n"
+  local info="\x94\x83 SELECT  \x97 BACK\n"
   if _lsel<=4 then
-    info=info.."\x8b SELL \x91 BUY  "..wpns[_lsel].cost.." CREDITS"
-  elseif _lpanels[5].active then
-    info=info.."\x8e BEGIN MISSION"
+    info=info..(wpns[_lsel].owned and "EQUIPPED" or "\x8e BUY")
+  else
+    info=info.."\x8e CONFIRM"
   end
-  ?info,10,112,11
+  ?info,14,110,11
 end
 
 -- gameplay
@@ -571,21 +593,21 @@ wpns={
   {name="RIFLE BURST",cd=15,sfx=27,
     n=5,spd=4,fan=0.005,life=30,
     dmg=3,recoil=5.5,sz=1,col=8,
-    ammo=0,cost=20},
+    mag=60,cost=700},
   {name="MACHINE GUN",cd=30,sfx=14,
     n=10,spd=6,spread=0.03,life=20,
     dmg=3,recoil=0.15,sz=1,col=8,
-    burst=2,ammo=0,cost=25},
+    burst=2,mag=40,cost=700},
   {name="MISSILES",cd=45,sfx=6,
     n=3,spd=0,life=60,
     dmg=15,sz=1,col=8,
     homing=true,orbit=15,aoe=16,aoe_dmg=4,
-    ammo=0,cost=50},
+    mag=20,cost=2400},
   {name="PLASMA CANNON",cd=60,sfx=10,
     n=1,spd=5,life=120,
     dmg=75,recoil=5.5,sz=4,col=12,
     charge=20,aoe=16,aoe_dmg=10,
-    ammo=0,cost=75},
+    mag=10,cost=5000},
 }
 bullets={}
 parts={}
@@ -620,6 +642,7 @@ _tut1="112,48,MOVE: \x8b\x91\x94\x83|192,48,ATTACK: \x8e|40,-8,FRAGMENTS RESTORE
 function spawn_enemy(x,y,typ)
   local d=_et[typ]
   local e=entity.new(x,y)
+  e.name=typ
   e.col=d[1] e.hp=d[2] e.mhp=d[2]
   e.atk=d[3] e.kv=d[4] e.wpi=d[5]
   e.ecd=0 e.ait=0 e.alt=0
@@ -642,6 +665,11 @@ function init_gameplay()
   _wsel=1 _wcd={0,0,0,0}
   _wmenu=false _dead=false _won=false
   _evac=1000 player=nil credits_shown=credits
+  -- refill owned weapons; select lowest owned
+  for i=1,4 do
+    wpns[i].ammo=wpns[i].owned and wpns[i].mag or 0
+  end
+  for i=4,1,-1 do if wpns[i].owned then _wsel=i end end
 
   -- enemies for this mission
   for s in all(split(_espawn[current_mission],"|",false)) do
@@ -663,10 +691,7 @@ function init_gameplay()
       elseif fget(tile,4) then
         add(terminals,terminal.new(px+4,py-4))
       elseif fget(tile,7) then
-        player_spawn_x,player_spawn_y=px,py
-        player=entity.new(px,py)
-        player.hp=400 player.mhp=400 player.flash=0
-        cam.x,cam.y=px-64,py-64
+        spawn_player(px,py)
       end
     end
   end
@@ -686,12 +711,14 @@ function init_gameplay()
   end
 
   -- fallback spawn
-  if not player then
-    player_spawn_x,player_spawn_y=64,64
-    player=entity.new(64,64)
-    player.hp=400 player.mhp=400 player.flash=0
-    cam.x,cam.y=0,0
-  end
+  if not player then spawn_player(64,64) end
+end
+
+function spawn_player(px,py)
+  player_spawn_x,player_spawn_y=px,py
+  player=entity.new(px,py)
+  player.hp=400 player.mhp=400 player.flash=0
+  cam.x,cam.y=px-64,py-64
 end
 
 function update_gameplay()
@@ -747,8 +774,7 @@ function update_gameplay()
     if b.t%b.rate==0 then
       local aim={get_aim()}
       fire_single(b.w,aim)
-      player.vx-=aim[1]*b.w.recoil
-      player.vy-=aim[2]*b.w.recoil
+      recoil(aim[1],aim[2],b.w)
       sfx(b.w.sfx)
     end
     if b.t<=0 then player._burst=nil end
@@ -761,8 +787,7 @@ function update_gameplay()
       local aim=player._charge.aim
       local w=player._charge.w
       fire_single(w,aim)
-      player.vx-=aim[1]*w.recoil
-      player.vy-=aim[2]*w.recoil
+      recoil(aim[1],aim[2],w)
       sfx(w.sfx)
       player._charge=nil
     end
@@ -770,21 +795,8 @@ function update_gameplay()
 
   -- X button: interact or fire
   if btnp(5) and not _wmenu then
-    local px,py=player.x+4,player.y+4
-    local interacted=false
-    for t in all(terminals) do
-      if hackable(t) then
-        local dx,dy=t.x+4-px,t.y+4-py
-        if abs(dx)<16 and abs(dy)<16 then
-          mg_start(t)
-          interacted=true
-          break
-        end
-      end
-    end
-    if not interacted then
-      fire_weapon(_wsel)
-    end
+    local t=near_terminal()
+    if t then mg_start(t) else fire_weapon(_wsel) end
   end
 
   -- update bullets, particles, enemies
@@ -813,6 +825,13 @@ function hackable(t)
   return not t.done and not t.tut
     and (not t.door or
       (not t.door.is_open and not t.door.opening))
+end
+
+function near_terminal()
+  local px,py=player.x+4,player.y+4
+  for t in all(terminals) do
+    if hackable(t) and abs(t.x+4-px)<16 and abs(t.y+4-py)<16 then return t end
+  end
 end
 
 function draw_gameplay()
@@ -877,17 +896,12 @@ function draw_gameplay()
 
   -- interaction prompt (hidden during minigame)
   if not _mg.active then
-    for t in all(terminals) do
-      if hackable(t) then
-        local dx,dy=t.x+4-px,t.y+4-py
-        if abs(dx)<16 and abs(dy)<16 then
-          local cx=t.x+4
-          local iy=t.y-8+sin(time()*.7)*1.5
-          ovalfill(cx-6,iy-1,cx+6,iy+8,0)
-          ?"\142",cx-3,iy+1,11
-          break
-        end
-      end
+    local t=near_terminal()
+    if t then
+      local cx=t.x+4
+      local iy=t.y-8+sin(time()*.7)*1.5
+      ovalfill(cx-6,iy-1,cx+6,iy+8,0)
+      ?"\142",cx-3,iy+1,11
     end
   end
 
@@ -1058,8 +1072,7 @@ function fire_weapon(wi)
     player._burst={w=w,
       t=(w.n-1)*w.burst,rate=w.burst}
     fire_single(w,{ax,ay})
-    player.vx-=ax*w.recoil
-    player.vy-=ay*w.recoil
+    recoil(ax,ay,w)
     sfx(w.sfx)
   elseif w.charge then
     -- plasma: start charge
@@ -1074,12 +1087,14 @@ function fire_weapon(wi)
       fire_single(w,{ax,ay},
         (i-1-(w.n-1)/2)*w.fan)
     end
-    if w.recoil then
-      player.vx-=ax*w.recoil
-      player.vy-=ay*w.recoil
-    end
+    if w.recoil then recoil(ax,ay,w) end
     sfx(w.sfx)
   end
+end
+
+function recoil(dx,dy,w)
+  player.vx-=dx*w.recoil
+  player.vy-=dy*w.recoil
 end
 
 function fire_single(w,aim,ang_off,src)
@@ -1173,12 +1188,7 @@ function update_enemies()
 
     -- direction from velocity
     if abs(e.vx)>0.1 or abs(e.vy)>0.1 then
-      if abs(e.vx)>abs(e.vy) then
-        e.last_dir="horizontal"
-        e.face_x=e.vx>0 and 1 or -1
-      else
-        e.last_dir=e.vy<0 and "up" or "down"
-      end
+      set_dir(e)
     end
 
     -- friction + physics
@@ -1271,7 +1281,7 @@ function bullet_explode(b)
 end
 
 function spawn_impact(x,y)
-  burst(x,y,3,6)
+  burst(x,y,2,6)
 end
 
 -- objectives
@@ -1352,7 +1362,7 @@ function die(e)
   end
 end
 function hurt(e,b)
-  if b.aoe then bullet_explode(b) else spawn_impact(b.x,b.y) end
+  bullet_hit(b)
   damage(e,b.dmg)
 end
 
@@ -1440,12 +1450,14 @@ function draw_hud()
   if player._charge then
     print_shadow("charging",sx+54,sy,flr(t()*8)%2==0 and 12 or 7)
   end
-  -- enemy alert bars (lower-left)
-  local ay=121
+  -- enemy alert bars + name (lower-left, v2 style)
+  local ay=123
   for e in all(enemies) do
     if e.ai=="atk" or e.ai=="chase" then
-      hud_bar(2,ay,flr(e.mhp*.3),3,7,8,e.hp/e.mhp)
-      ay-=5
+      local bw=flr(e.mhp*.4)
+      hud_bar(2,ay,bw,4,7,8,e.hp/e.mhp)
+      print_shadow(e.name,bw+4,ay)
+      ay-=6
     end
   end
   -- minimap (upper-right)
@@ -1468,8 +1480,6 @@ function entity.new(x,y)
     y=y,
     vx=0,
     vy=0,
-    w=8,
-    h=8,
     col_x=0,
     col_y=1,
     col_w=8,
@@ -1512,6 +1522,15 @@ function entity:control()
   end
 end
 
+function set_dir(o)
+  if abs(o.vx)>abs(o.vy) then
+    o.last_dir="horizontal"
+    o.face_x=o.vx>0 and 1 or -1
+  else
+    o.last_dir=o.vy<0 and "up" or "down"
+  end
+end
+
 function entity:follow_target()
   local dx,dy=self.target_x-self.x,self.target_y-self.y
   local dist=dist_trig(dx,dy)
@@ -1520,13 +1539,7 @@ function entity:follow_target()
     self.vx=self:approach(self.vx,dx*0.1,self.acceleration)
     self.vy=self:approach(self.vy,dy*0.1,self.acceleration)
 
-    -- track direction
-    if abs(self.vx)>abs(self.vy) then
-      self.last_dir="horizontal"
-      self.face_x=self.vx>0 and 1 or -1
-    else
-      self.last_dir=self.vy<0 and "up" or "down"
-    end
+    set_dir(self)
   else
     self.vx=self:approach(self.vx,0,self.deceleration)
     self.vy=self:approach(self.vy,0,self.deceleration)
@@ -1608,15 +1621,9 @@ function entity:draw()
   s+=flr(t()*(moving and 10+min(spd/self.max_speed,1)*10 or 3))%2
   spr(s,self.x,self.y,1,1,self.vx<0)
   pal() palt(0,false) palt(14,true)
-  -- ai state indicator
-  if self.ai then
-    local c=self.ai=="atk" and 8
-      or self.ai=="chase" and 10
-    if c then
-      rectfill(self.x+2,self.y-2,
-        self.x+5,self.y-1,c)
-    end
-  end
+  -- alert/attack icon above enemy (v2 style)
+  local ind=self.ai=="chase" and 36 or self.ai=="atk" and 20
+  if ind then spr(ind,self.x+4,self.y-8) end
 end
 
 -- camera
