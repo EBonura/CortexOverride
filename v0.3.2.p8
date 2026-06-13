@@ -556,8 +556,8 @@ _et={
   dervish={15,50,60,100,2},
   vanguard={13,70,50,120,1},
   warden={1,100,70,200,3},
-  cyberseer={6,160,80,300,1},
-  quantumcleric={1,170,70,320,2}
+  cyberseer={6,160,80,300,{1,3}},
+  quantumcleric={1,170,70,320,{2,4}}
 }
 enemies={}
 data_fragments={}
@@ -669,6 +669,7 @@ function update_gameplay()
   end
   player:update()
   if player.flash>0 then player.flash-=1 end
+  update_target()
   cam:update()
   for t in all(terminals) do t:update() end
   for d in all(doors) do d:update() end
@@ -810,6 +811,16 @@ function draw_gameplay()
     circfill(px+cos(a)*20,py+sin(a)*20,1,8)
   end
 
+  -- targeting reticle
+  if _ptarget and not _dead and not _mg.active then
+    local tx,ty=_ptarget.x+4,_ptarget.y+4
+    for i=0,3 do
+      local a=t()*.3+i*.25
+      line(tx+cos(a)*6,ty+sin(a)*6,
+        tx+cos(a+.25)*6,ty+sin(a+.25)*6,3)
+    end
+  end
+
   -- interaction prompt (hidden during minigame)
   if not _mg.active then
     for t in all(terminals) do
@@ -837,6 +848,20 @@ function draw_gameplay()
       print_centered("system purged",64,44,11)
       print_centered("return to spawn",64,52,7)
       print_centered("evac: "..flr(_evac/30),64,60,8)
+    end
+  end
+
+  -- tutorial hints (mission 1)
+  if not _mg.active and not _dead then
+    for tt in all(terminals) do
+      if tt.tut and dist_trig(tt.x-px,tt.y-py)<42 then
+        local m,w=tt.tut
+        w=#m*4+6
+        rectfill(64-w/2,98,64+w/2,107,0)
+        rect(64-w/2,98,64+w/2,107,3)
+        ?m,66-w/2,100,7
+        break
+      end
     end
   end
 end
@@ -918,7 +943,24 @@ function mg_draw()
 end
 
 -- weapons: aim + fire
+-- auto-aim: nearest enemy in range with sight
+function update_target()
+  _ptarget=nil
+  local bd=80
+  for e in all(enemies) do
+    local d=dist_trig(e.x-player.x,e.y-player.y)
+    if d<bd and los(player,e) then
+      bd=d _ptarget=e
+    end
+  end
+end
+
 function get_aim()
+  if _ptarget then
+    local dx,dy=_ptarget.x-player.x,_ptarget.y-player.y
+    local d=dist_trig(dx,dy)
+    if d>0 then return dx/d,dy/d end
+  end
   local vx,vy=player.vx,player.vy
   local spd=dist_trig(vx,vy)
   if spd>0 then return vx/spd,vy/spd end
@@ -1053,8 +1095,10 @@ function update_enemies()
         and "horizontal"
         or (dy<0 and "up" or "down")
       if e.ecd<=0 then
-        enemy_fire(e,e.wpi)
-        e.ecd=wpns[e.wpi].cd*3
+        local wi=type(e.wpi)=="table"
+          and e.wpi[flr(rnd(#e.wpi))+1] or e.wpi
+        enemy_fire(e,wi)
+        e.ecd=wpns[wi].cd*3
       end
     elseif e.lsx then
       -- chase to last seen position
@@ -1347,11 +1391,29 @@ function draw_hud()
   rect(1,13,61,15,0)
   -- charge indicator
   if player._charge then
-    local ct=player._charge.t
-    local cw=player._charge.w
-    local p=1-ct/cw.charge
     ?"CHARGING",26,2,flr(t()*8)%2==0 and 12 or 0
   end
+  -- credits
+  ?"$"..credits,1,17,0
+  ?"$"..credits,1,16,10
+  -- enemy alert bars (lower-left)
+  local ay=121
+  for e in all(enemies) do
+    if e.ai=="atk" or e.ai=="chase" then
+      local bw=flr(e.mhp*.3)
+      rectfill(1,ay,1+bw,ay+2,7)
+      rectfill(1,ay,1+flr(bw*e.hp/e.mhp),ay+2,8)
+      ay-=4
+    end
+  end
+  -- minimap (upper-right)
+  local pmx,pmy=flr(player.x/8),flr(player.y/8)
+  for i=0,255 do
+    local tx,ty=i%16-8,flr(i/16)-8
+    pset(120+tx,9+ty,
+      fget(mget(pmx+tx,pmy+ty),0) and 1 or 11)
+  end
+  pset(120,9,7)
 end
 
 -- entity
