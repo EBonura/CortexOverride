@@ -167,13 +167,13 @@ end
 terminal={}
 terminal.__index=terminal
 
-function terminal.new(x,y,door)
-  local col=door and door.color or nil
-  local cm=col and color_map[col] or nil
+function terminal.new(x,y,door,tut)
   return setmetatable({
     x=x,y=y,
     door=door,
-    color=col,
+    color=door and door.color or nil,
+    tut=tut,
+    done=false,
     pulse=0
   },terminal)
 end
@@ -183,7 +183,7 @@ function terminal:update()
 end
 
 function terminal:draw()
-  if self.door and self.door.is_open then
+  if self.done or (self.door and self.door.is_open) then
     pal(7,5)
   elseif self.color then
     local cm=color_map[self.color]
@@ -499,9 +499,23 @@ _et={
   quantumcleric={1,170,70,320,2}
 }
 enemies={}
+data_fragments={}
+barrels={}
+_frag_spr=split"50,51,52,53,53,53,53,54,55"
 _espawn={
-  "448,64,dervish|432,232,vanguard|376,272,vanguard|426,354,dervish|356,404,warden|312,152,vanguard|232,360,dervish|40,100,dervish|200,152,dervish|32,232,warden|88,232,vanguard|248,248,cyberseer"
+  "448,64,dervish|432,232,vanguard|376,272,vanguard|426,354,dervish|356,404,warden|312,152,vanguard|232,360,dervish|40,100,dervish|200,152,dervish|32,232,warden|88,232,vanguard|248,248,cyberseer",
+  "528,144,dervish|624,160,vanguard|688,288,dervish|616,48,cyberseer|824,136,warden|680,96,dervish|920,32,dervish|984,96,warden|896,160,vanguard|904,312,quantumcleric|976,248,vanguard|800,376,warden|728,336,vanguard|816,320,vanguard|608,360,warden",
+  "240,416,warden|88,336,dervish|160,368,vanguard|24,416,warden|216,104,vanguard|256,40,dervish|296,72,dervish|136,80,cyberseer|32,88,dervish|32,32,dervish|40,160,warden|344,344,vanguard|456,336,quantumcleric|368,416,dervish|416,128,vanguard|344,136,vanguard|424,96,quantumcleric|352,240,vanguard|432,264,vanguard|496,152,warden",
+  "880,412,dervish|760,408,dervish|696,424,vanguard|600,360,warden|552,400,warden|592,256,vanguard|528,280,cyberseer|528,208,vanguard|560,168,vanguard|688,296,dervish|688,360,dervish|760,304,warden|912,344,quantumcleric|848,344,dervish|712,192,warden|776,200,warden|888,192,warden|984,184,cyberseer|992,256,vanguard|640,32,vanguard|632,104,vanguard|664,32,dervish|664,104,dervish|704,32,dervish|704,104,dervish|896,40,quantumcleric|968,96,cyberseer"
 }
+_bounds={"0,0,64,56","64,0,128,56","0,0,64,56","64,0,128,56"}
+_doors_m={
+  "444,130,472,80,red|354,66,248,368,green",
+  "808,252,712,48,green|824,252,952,56,red|840,252,568,376,blue",
+  "184,2,160,392,green|392,282,144,224,red|360,170,320,408,blue",
+  "620,2,552,304,green|652,2,904,280,red|684,2,984,272,blue"
+}
+_tut1="112,48,MOVE \x8b\x91\x94\x83|192,48,ATTACK \x8e|264,-2,MENU \x97|368,-2,DEFEAT ENEMY"
 
 function spawn_enemy(x,y,typ)
   local d=_et[typ]
@@ -515,46 +529,69 @@ end
 
 function init_gameplay()
   decompress_map()
+  music(0)
 
   -- backup full sprite sheet + map data
   memcpy(0x4300,0x0000,0x1000)
   memcpy(0x5300,0x1000,0x0C00)
 
-  -- create door-terminal pairs (mission 1)
-  terminals={}
-  doors={}
-  create_door_terminal_pair(444,130,472,80,"red")
-  create_door_terminal_pair(354,66,248,368,"green")
+  -- reset state
+  terminals={} doors={}
+  enemies={} bullets={} parts={}
+  data_fragments={} barrels={}
+  _wsel=1 _wcd={0,0,0,0}
+  _wmenu=false _dead=false _won=false
+  _evac=1000 player=nil
 
-  -- combat state
-  bullets={}
-  parts={}
-  enemies={}
-  _wsel=1
-  _wcd={0,0,0,0}
-  _wmenu=false
-  _dead=false
+  -- enemies for this mission
+  for s in all(split(_espawn[current_mission],"|",false)) do
+    local d=split(s,",")
+    spawn_enemy(d[1]+0,d[2]+0,d[3])
+  end
 
-  -- find spawn point (flag 7)
-  for ty=0,63 do
-    for tx=0,127 do
-      if fget(mget(tx,ty),7) then
-        player=entity.new(tx*8,ty*8)
+  -- scan map region: barrels(6) fragments(5)
+  -- standalone terminals(4) spawn point(7)
+  local bd=split(_bounds[current_mission])
+  for ty=bd[2],bd[4] do
+    for tx=bd[1],bd[3] do
+      local tile=mget(tx,ty)
+      local px,py=tx*8,ty*8
+      if fget(tile,6) then
+        add(barrels,barrel.new(px,py))
+      elseif fget(tile,5) then
+        add(data_fragments,data_fragment.new(px,py))
+      elseif fget(tile,4) then
+        add(terminals,terminal.new(px+4,py-4))
+      elseif fget(tile,7) then
+        player_spawn_x,player_spawn_y=px,py
+        player=entity.new(px,py)
         player.hp=400 player.mhp=400 player.flash=0
-        cam.x=player.x-64
-        cam.y=player.y-64
-        -- spawn enemies
-        for s in all(split(_espawn[current_mission],"|",false)) do
-          local d=split(s,",")
-          spawn_enemy(d[1]+0,d[2]+0,d[3])
-        end
-        return
+        cam.x,cam.y=px-64,py-64
       end
     end
   end
-  player=entity.new(64,64)
-  player.hp=400 player.mhp=400 player.flash=0
-  cam.x,cam.y=0,0
+
+  -- door+terminal pairs for this mission
+  for s in all(split(_doors_m[current_mission],"|",false)) do
+    local d=split(s,",")
+    create_door_terminal_pair(d[1],d[2],d[3],d[4],d[5])
+  end
+
+  -- tutorial hints (mission 1 only)
+  if current_mission==1 then
+    for s in all(split(_tut1,"|",false)) do
+      local d=split(s,",")
+      add(terminals,terminal.new(d[1],d[2],nil,d[3]))
+    end
+  end
+
+  -- fallback spawn
+  if not player then
+    player_spawn_x,player_spawn_y=64,64
+    player=entity.new(64,64)
+    player.hp=400 player.mhp=400 player.flash=0
+    cam.x,cam.y=0,0
+  end
 end
 
 function update_gameplay()
@@ -574,6 +611,15 @@ function update_gameplay()
   cam:update()
   for t in all(terminals) do t:update() end
   for d in all(doors) do d:update() end
+  for b in all(barrels) do b:update() end
+
+  -- fragment pickup
+  for f in all(data_fragments) do
+    if not f.got and dist_trig(f.x-player.x,f.y-player.y)<8 then
+      player.hp=min(player.hp+25,player.mhp)
+      credits+=50 f.got=true sfx(7)
+    end
+  end
 
   -- weapon cooldowns
   for i=1,4 do
@@ -651,12 +697,14 @@ function draw_gameplay()
   camera(cam_x,cam_y)
   map(0,0,0,0,128,56)
 
-  -- draw doors and terminals
+  -- draw doors, terminals, fragments
   for d in all(doors) do d:draw() end
   for t in all(terminals) do t:draw() end
+  for f in all(data_fragments) do f:draw() end
 
   if not _dead then player:draw() end
   for e in all(enemies) do e:draw() end
+  for b in all(barrels) do b:draw() end
 
   -- plasma charge visual
   if player._charge then
@@ -974,6 +1022,14 @@ function update_bullets()
           hurt(player,b) dead=true
         end
       end
+      -- barrel collision
+      if not dead then
+        for bar in all(barrels) do
+          if not bar.exp and abs(b.x-bar.x-4)<5 and abs(b.y-bar.y-4)<5 then
+            bar:take_damage(b.dmg) bullet_hit(b) dead=true break
+          end
+        end
+      end
       -- tile collision
       if not dead and check_tile_flag(b.x,b.y) then
         bullet_hit(b) dead=true
@@ -1015,40 +1071,97 @@ function spawn_impact(x,y)
   end
 end
 
--- damage system
-function hurt(e,b)
-  e.hp-=b.dmg
-  e.flash=2
-  if b.aoe then
-    bullet_explode(b)
-  else
-    spawn_impact(b.x,b.y)
+-- objectives
+function n_terminals()
+  local c=0
+  for t in all(terminals) do
+    if not (t.done or t.tut) then c+=1 end
   end
-  if e.hp<=0 then
-    if e.kv then
-      -- enemy death
-      credits+=e.kv
-      for i=1,15 do
-        local a,s=rnd(),0.5+rnd(1.5)
-        add(parts,{x=e.x+4,y=e.y+4,
-          vx=cos(a)*s,vy=sin(a)*s,
-          life=20+rnd(10),sz=1+flr(rnd(2)),
-          col=({8,9,10})[flr(rnd(3))+1]})
-      end
-      del(enemies,e) sfx(30)
-    else
-      -- player death
+  return c
+end
+function n_fragments()
+  local c=0
+  for f in all(data_fragments) do
+    if not f.got then c+=1 end
+  end
+  return c
+end
+function n_enemies() return #enemies end
+
+-- data fragments
+data_fragment={} data_fragment.__index=data_fragment
+function data_fragment.new(x,y)
+  return setmetatable({x=x,y=y,got=false},data_fragment)
+end
+function data_fragment:draw()
+  if not self.got then
+    spr(_frag_spr[flr(t()/.15)%#_frag_spr+1],self.x,self.y-4)
+  end
+end
+
+-- exploding barrels
+barrel={} barrel.__index=barrel
+function barrel.new(x,y)
+  return setmetatable({x=x,y=y,
+    poison=rnd()>.5,hp=1,exp=false,et=0},barrel)
+end
+function barrel:take_damage(a) self.hp=max(0,self.hp-a) end
+function barrel:draw()
+  if not self.exp then spr(self.poison and 5 or 6,self.x,self.y-8) end
+end
+function barrel:update()
+  if self.hp<=0 and not self.exp then self.exp=true self.et=0 end
+  if n_terminals()==0
+    and dist_trig(player.x-self.x,player.y-self.y)<50
+    and rnd()<.01 then self.hp=0 end
+  if self.exp then
+    self.et+=1
+    if self.et==1 then
       for i=1,20 do
-        local a,s=rnd(),0.5+rnd(1.5)
-        add(parts,{x=e.x+4,y=e.y+4,
-          vx=cos(a)*s,vy=sin(a)*s,
-          life=20+rnd(10),sz=1+flr(rnd(2)),
-          col=({8,9,10})[flr(rnd(3))+1]})
+        local a,s=rnd(),1+rnd(2)
+        add(parts,{x=self.x+4,y=self.y+4,
+          vx=cos(a)*s,vy=sin(a)*s*.5,
+          life=20+rnd(10),sz=1+rnd(2),
+          col=self.poison and 3 or 8})
       end
-      sfx(30)
-      _dead=true _dead_t=60
+      for e in all(enemies) do barrel_dmg(self,e) end
+      barrel_dmg(self,player)
+      sfx(28)
     end
+    mset(flr(self.x/8),flr(self.y/8),self.poison and 10 or 26)
+    if self.et>=15 then del(barrels,self) end
   end
+end
+function barrel_dmg(b,e)
+  local nd=dist_trig((e.x+4-b.x-4)/64,(e.y+4-b.y-4)/32)
+  if nd<.5 then damage(e,20*(1-nd*2)*(b.poison and 1.5 or 1)) end
+end
+
+-- damage + death
+function damage(e,amt)
+  e.hp-=amt
+  e.flash=2
+  if e.hp<=0 then die(e) end
+end
+function die(e)
+  for i=1,e.kv and 15 or 20 do
+    local a,s=rnd(),0.5+rnd(1.5)
+    add(parts,{x=e.x+4,y=e.y+4,
+      vx=cos(a)*s,vy=sin(a)*s,
+      life=20+rnd(10),sz=1+flr(rnd(2)),
+      col=({8,9,10})[flr(rnd(3))+1]})
+  end
+  sfx(30)
+  if e.kv then
+    credits+=e.kv
+    del(enemies,e)
+  else
+    _dead=true _dead_t=60
+  end
+end
+function hurt(e,b)
+  if b.aoe then bullet_explode(b) else spawn_impact(b.x,b.y) end
+  damage(e,b.dmg)
 end
 
 -- particles (visual only)
