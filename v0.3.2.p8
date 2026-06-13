@@ -9,6 +9,7 @@ __lua__
 current_mission=1
 mission_data={{0,0,0},{0,0,0},{0,0,0},{0,0,0}}
 credits=5000
+credits_shown=5000
 
 mission_briefings={
   "PROTOCOL ZERO:\n\nFACILITY ALPHA-7\nOVERRUN BY \nBARRACUDA\n\nINITIATE LOCKDOWN\nPROTOCOLS AND\nSECURE VITAL DATA\nBEFORE EXTRACTION",
@@ -128,8 +129,9 @@ function laser_door.new(x,y,col)
   for _,ox in pairs({11,9,7}) do
     local bx=x+ox
     local by=y+(_==1 and 4 or _==2 and 8 or 12)
-    local ey=by
-    while not check_tile_flag(bx,ey) do ey+=1 end
+    -- start search below the door body (v2: sy+10)
+    local ey=by+10
+    while not check_tile_flag(bx,ey) and ey<by+200 do ey+=1 end
     add(beams,{x=bx,y1=by,y2=ey-1})
   end
   return setmetatable({
@@ -153,16 +155,17 @@ end
 
 function laser_door:draw()
   spr(14,self.x,self.y,2,2)
-  if self.opening then
-    if flr(t()*8)%2==0 then
-      for b in all(self.beams) do
-        line(b.x,b.y1,b.x,b.y2,self.beam_col)
-      end
-    end
-  elseif not self.is_open then
-    for b in all(self.beams) do
-      line(b.x,b.y1,b.x,b.y2,self.beam_col)
-    end
+end
+
+-- beams glow above the lighting pass
+function laser_door:draw_beams()
+  if self.is_open then return end
+  if self.opening and flr(t()*8)%2!=0 then return end
+  -- stagger bottom ends opposite to the tops for
+  -- a fanned perspective (v2)
+  for i=1,#self.beams do
+    local b=self.beams[i]
+    line(b.x,b.y1,b.x,b.y2+(#self.beams-i+1)*2,self.beam_col)
   end
 end
 
@@ -264,7 +267,7 @@ function sspr_disc(cx,cy,rad,_sq,_mx,_mn)
     local dy=cy-y
     local d2=dy*dy
     if d2<R2 then
-      local cdx=_sq(R2-d2)
+      local cdx=_sq(R2-d2)*_xs
       local x1=_mx(0,cx-cdx)
       local x2=_mn(127,cx+cdx)
       sspr(x1,y,x2-x1+1,1,x1,y)
@@ -282,7 +285,7 @@ function sspr_disc_d(cx,cy,rad,_sq,_mx,_mn)
     local dy=cy-y
     local d2=dy*dy
     if d2<R2 then
-      local cdx=_sq(R2-d2)
+      local cdx=_sq(R2-d2)*_xs
       local x1=_mx(0,cx-cdx)
       local x2=_mn(127,cx+cdx)
       sspr(x1,y,x2-x1+1,1,x1,y)
@@ -556,6 +559,7 @@ function draw_loadout_select()
 end
 
 -- gameplay
+_xs=1.3 -- light horizontal stretch (1=circle)
 light_ir=40
 light_fo=18
 cam_x,cam_y=0,0
@@ -637,7 +641,7 @@ function init_gameplay()
   data_fragments={} barrels={}
   _wsel=1 _wcd={0,0,0,0}
   _wmenu=false _dead=false _won=false
-  _evac=1000 player=nil
+  _evac=1000 player=nil credits_shown=credits
 
   -- enemies for this mission
   for s in all(split(_espawn[current_mission],"|",false)) do
@@ -724,9 +728,12 @@ function update_gameplay()
   for f in all(data_fragments) do
     if not f.got and dist_trig(f.x-player.x,f.y-player.y)<8 then
       player.hp=min(player.hp+25,player.mhp)
-      credits+=50 f.got=true sfx(7)
+      credits+=50 f.got=true sfx(7) pop(f.x,f.y,50)
     end
   end
+
+  -- smooth credit counter
+  credits_shown+=ceil((credits-credits_shown)*.3)
 
   -- weapon cooldowns
   for i=1,4 do
@@ -841,6 +848,17 @@ function draw_gameplay()
   local px,py=player.x+4,player.y+4
   draw_multi()
 
+  -- laser beams glow over the darkness
+  for d in all(doors) do d:draw_beams() end
+
+  -- credit popups, bright over the lighting
+  for p in all(parts) do
+    if p.txt then
+      ?p.txt,p.x,p.y+1,0
+      ?p.txt,p.x,p.y,p.col
+    end
+  end
+
   -- extraction indicator (points to spawn)
   if n_terminals()==0 and not _won and not _dead then
     local a=atan2(player_spawn_x-player.x,player_spawn_y-player.y)
@@ -863,7 +881,10 @@ function draw_gameplay()
       if hackable(t) then
         local dx,dy=t.x+4-px,t.y+4-py
         if abs(dx)<16 and abs(dy)<16 then
-          ?"\142",player.x+2,player.y-6,7
+          local cx=t.x+4
+          local iy=t.y-8+sin(time()*.7)*1.5
+          ovalfill(cx-6,iy-1,cx+6,iy+8,0)
+          ?"\142",cx-3,iy+1,11
           break
         end
       end
@@ -1234,23 +1255,23 @@ function bullet_hit(b)
   end
 end
 
-function bullet_explode(b)
-  for i=1,10 do
-    local a,s=rnd(),0.5+rnd(1)
-    add(parts,{x=b.x,y=b.y,
-      vx=cos(a)*s,vy=sin(a)*s,
-      life=20+rnd(10),sz=2,col=9})
+-- radial particle burst (shared by impacts,
+-- explosions, deaths, barrels)
+function burst(x,y,n,c)
+  for i=1,n do
+    local a,s=rnd(),.5+rnd(1.5)
+    add(parts,{x=x,y=y,vx=cos(a)*s,vy=sin(a)*s,
+      life=20+rnd(10),sz=1+flr(rnd(2)),col=c})
   end
+end
+
+function bullet_explode(b)
+  burst(b.x,b.y,10,9)
   sfx(28)
 end
 
 function spawn_impact(x,y)
-  for i=1,3 do
-    local a,s=rnd(),0.5+rnd(1)
-    add(parts,{x=x,y=y,
-      vx=cos(a)*s,vy=sin(a)*s,
-      life=10+rnd(5),sz=1,col=6})
-  end
+  burst(x,y,3,6)
 end
 
 -- objectives
@@ -1299,13 +1320,7 @@ function barrel:update()
   if self.exp then
     self.et+=1
     if self.et==1 then
-      for i=1,20 do
-        local a,s=rnd(),1+rnd(2)
-        add(parts,{x=self.x+4,y=self.y+4,
-          vx=cos(a)*s,vy=sin(a)*s*.5,
-          life=20+rnd(10),sz=1+rnd(2),
-          col=self.poison and 3 or 8})
-      end
+      burst(self.x+4,self.y+4,20,self.poison and 3 or 8)
       for e in all(enemies) do barrel_dmg(self,e) end
       barrel_dmg(self,player)
       sfx(28)
@@ -1326,16 +1341,11 @@ function damage(e,amt)
   if e.hp<=0 then die(e) end
 end
 function die(e)
-  for i=1,e.kv and 15 or 20 do
-    local a,s=rnd(),0.5+rnd(1.5)
-    add(parts,{x=e.x+4,y=e.y+4,
-      vx=cos(a)*s,vy=sin(a)*s,
-      life=20+rnd(10),sz=1+flr(rnd(2)),
-      col=({8,9,10})[flr(rnd(3))+1]})
-  end
+  burst(e.x+4,e.y+4,e.kv and 15 or 20,9)
   sfx(30)
   if e.kv then
     credits+=e.kv
+    pop(e.x+4,e.y,e.kv)
     del(enemies,e)
   else
     _dead=true _dead_t=60
@@ -1362,9 +1372,14 @@ function draw_bullets()
   end
 end
 
+-- floating credit popup (rides the parts list)
+function pop(x,y,n)
+  add(parts,{x=x,y=y,vx=0,vy=-.7,life=40,col=11,txt="+"..n})
+end
+
 function draw_parts()
   for p in all(parts) do
-    circfill(p.x,p.y,p.sz,p.col)
+    if not p.txt then circfill(p.x,p.y,p.sz,p.col) end
   end
 end
 
@@ -1420,7 +1435,7 @@ function draw_hud()
   local ac=w.ammo>0 and 7 or (flr(t()*4)%2<1 and 2 or 7)
   print_shadow(w.name.." ▶"..w.ammo.."◀",sx,cy+5,ac)
   -- credits
-  print_shadow("credits: "..credits,sx,cy+12)
+  print_shadow("credits: "..credits_shown,sx,cy+12)
   -- charge indicator
   if player._charge then
     print_shadow("charging",sx+54,sy,flr(t()*8)%2==0 and 12 or 7)
