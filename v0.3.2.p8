@@ -954,25 +954,22 @@ function mg_draw()
   local cx,cy=64,64
   rectfill(cx-35,cy-20,cx+35,cy+20,0)
   rect(cx-35,cy-20,cx+35,cy+20,3)
+  local sw=#_mg.seq*12-4
   -- target sequence
-  local sw=#_mg.seq*8
   local sx=cx-sw/2
-  for i,d in ipairs(_mg.seq) do
-    ?d,sx+(i-1)*8,cy-12,7
+  for d in all(_mg.seq) do
+    ?d,sx,cy-10,7
+    sx+=12
   end
   -- player input
+  sx=cx-sw/2
   for i,d in ipairs(_mg.inp) do
-    local c=d==_mg.seq[i] and 11 or 8
-    ?d,sx+(i-1)*8,cy-2,c
+    ?d,sx,cy,d==_mg.seq[i] and 11 or 8
+    sx+=12
   end
-  -- timer bar
-  local tw=60*_mg.timer/180
-  local bx=cx-30
-  rectfill(bx,cy+10,bx+60,cy+13,1)
-  local tc=_mg.timer>60 and 11 or 8
-  rectfill(bx,cy+10,bx+tw,cy+13,tc)
-  -- label
-  ?"HACK TERMINAL",cx-26,cy-19,3
+  -- timer (seconds)
+  local tt="TIME: "..flr(_mg.timer/30)
+  ?tt,cx-#tt*2,cy+10,8
 end
 
 -- weapons: aim + fire
