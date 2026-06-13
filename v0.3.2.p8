@@ -668,8 +668,7 @@ function update_gameplay()
     local px,py=player.x+4,player.y+4
     local interacted=false
     for t in all(terminals) do
-      if t.door and not t.door.is_open
-        and not t.door.opening then
+      if hackable(t) then
         local dx,dy=t.x+4-px,t.y+4-py
         if abs(dx)<16 and abs(dy)<16 then
           mg_start(t)
@@ -687,6 +686,28 @@ function update_gameplay()
   update_bullets()
   update_parts()
   update_enemies()
+
+  -- mission cleared -> extraction
+  if n_terminals()==0 and not _dead then
+    if _evac==1000 then music(7) end
+    _evac-=1
+    if not _won and dist_trig(player.x-player_spawn_x,player.y-player_spawn_y)<=32 then
+      _won=true
+      mission_data[current_mission][1]=1
+      if n_enemies()==0 then mission_data[current_mission][2]=1 end
+      if n_fragments()==0 then mission_data[current_mission][3]=1 end
+    end
+    if _won and btnp(4) then change_state("mission_select") return end
+    if _evac<=0 then die(player) end
+  end
+end
+
+-- a terminal can be hacked if not done, not a
+-- tutorial, and its door (if any) is still shut
+function hackable(t)
+  return not t.done and not t.tut
+    and (not t.door or
+      (not t.door.is_open and not t.door.opening))
 end
 
 function draw_gameplay()
@@ -722,11 +743,16 @@ function draw_gameplay()
   local px,py=player.x+4,player.y+4
   draw_multi()
 
+  -- extraction indicator (points to spawn)
+  if n_terminals()==0 and not _won and not _dead then
+    local a=atan2(player_spawn_x-player.x,player_spawn_y-player.y)
+    circfill(px+cos(a)*20,py+sin(a)*20,1,8)
+  end
+
   -- interaction prompt (hidden during minigame)
   if not _mg.active then
     for t in all(terminals) do
-      if t.door and not t.door.is_open
-        and not t.door.opening then
+      if hackable(t) then
         local dx,dy=t.x+4-px,t.y+4-py
         if abs(dx)<16 and abs(dy)<16 then
           ?"\142",player.x+2,player.y-6,7
@@ -740,6 +766,18 @@ function draw_gameplay()
   draw_hud()
   draw_weapon_menu()
   mg_draw()
+
+  -- extraction ui
+  if n_terminals()==0 and not _dead then
+    if _won then
+      print_centered("extraction ready",64,50,11)
+      print_centered("\x97 to evacuate",64,58,7)
+    else
+      print_centered("system purged",64,44,11)
+      print_centered("return to spawn",64,52,7)
+      print_centered("evac: "..flr(_evac/30),64,60,8)
+    end
+  end
 end
 
 -- minigame (simon says hacking)
@@ -782,8 +820,11 @@ function mg_end(win)
   _mg={active=false}
   if win then
     sfx(15)
-    t.door.opening=true
-    t.door.open_t=20
+    t.done=true
+    if t.door then
+      t.door.opening=true
+      t.door.open_t=20
+    end
   else
     sfx(29)
   end
@@ -1416,6 +1457,9 @@ end
 function gamecam:update()
   self.x+=(player.x-self.x-64)*0.2
   self.y+=(player.y-self.y-64)*0.2
+  if n_terminals()==0 then
+    self.x+=rnd(4)-2 self.y+=rnd(4)-2
+  end
   camera(self.x,self.y)
 end
 
