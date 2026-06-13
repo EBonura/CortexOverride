@@ -171,7 +171,7 @@ terminal={}
 terminal.__index=terminal
 
 function terminal.new(x,y,door,tut)
-  return setmetatable({
+  local t=setmetatable({
     x=x,y=y,
     door=door,
     color=door and door.color or nil,
@@ -179,6 +179,12 @@ function terminal.new(x,y,door,tut)
     done=false,
     pulse=0
   },terminal)
+  if tut then
+    local w=max(40,#tut*4+12)
+    t.panel=textpanel.new(64-w/2,114,9,w,tut,true)
+    t.panel.sel=true
+  end
+  return t
 end
 
 function terminal:update()
@@ -603,7 +609,7 @@ _doors_m={
   "184,2,160,392,green|392,282,144,224,red|360,170,320,408,blue",
   "620,2,552,304,green|652,2,904,280,red|684,2,984,272,blue"
 }
-_tut1="112,48,MOVE \x8b\x91\x94\x83|192,48,ATTACK \x8e|264,-2,MENU \x97|368,-2,DEFEAT ENEMY"
+_tut1="112,48,MOVE: \x8b\x91\x94\x83|192,48,ATTACK: \x8e|40,-8,FRAGMENTS RESTORE HP|264,-2,WEAPONS MENU: \x97|368,-2,DEFEAT ENEMY"
 
 function spawn_enemy(x,y,typ)
   local d=_et[typ]
@@ -879,18 +885,17 @@ function draw_gameplay()
     end
   end
 
-  -- tutorial hints (mission 1)
+  -- tutorial hints (mission 1): bottom panel
   if not _mg.active and not _dead then
+    camera(cam.x,cam.y)
     for tt in all(terminals) do
       if tt.tut and dist_trig(tt.x-px,tt.y-py)<42 then
-        local m,w=tt.tut
-        w=#m*4+6
-        rectfill(64-w/2,98,64+w/2,107,0)
-        rect(64-w/2,98,64+w/2,107,3)
-        ?m,66-w/2,100,7
+        tt.panel:update()
+        tt.panel:draw()
         break
       end
     end
+    camera()
   end
 end
 
