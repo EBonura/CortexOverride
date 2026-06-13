@@ -3,7 +3,7 @@ version 43
 __lua__
 
 -- cortex override v0.3.2
--- sspr+pal colored lighting
+-- single player light, banded falloff
 
 -- state management
 current_mission=1
@@ -208,50 +208,39 @@ function create_door_terminal_pair(dx,dy,tx,ty,col)
 end
 
 ----------------------------
--- sspr+pal multi-light
+-- player light (banded falloff)
 ----------------------------
 function draw_multi()
-  local nl=#lights
   local _sq,_mx,_mn=sqrt,max,min
-  local ld={}
-  for i=1,nl do
-    local lt=lights[i]
-    local sx,sy=flr(lt.x-cam_x),flr(lt.y-cam_y)
-    local s=lt.fo/4
-    ld[i]={sx=sx,sy=sy,rad=lt.ir+lt.fo,
-      r1=lt.ir+s,r2=lt.ir+s*2,r3=lt.ir+s*3}
-  end
+  local sx,sy=flr(player.x+4-cam_x),flr(player.y+4-cam_y)
+  -- effect 2: breathing + subtle flicker
+  local fo=light_fo+sin(t()*0.4)*2+sin(t()*1.3)*0.8
+  local ir=light_ir
+  local s=fo/4
+  local r1,r2,r3,rad=ir+s,ir+s*2,ir+s*3,ir+fo
+
   memcpy(0x0000,0x6000,0x2000)
-  memset(0x6000,0,0x2000)
   camera()
   palt(0,false) palt(14,false)
+
+  -- ambient base: whole scene at darkest shade,
+  -- so geometry stays visible outside the light
+  -- (effect 3: _dk3 carries a cool cast)
   for c=0,15 do pal(c,_dk3[c+1]) end
-  for li=1,nl do
-    local d=ld[li]
-    sspr_disc(d.sx,d.sy,d.rad,_sq,_mx,_mn)
-  end
+  sspr(0,0,128,128,0,0)
+
+  -- brighten inward, each band preceded by a
+  -- dithered half-step (effect 1) to fuzz the ring
   for c=0,15 do pal(c,_dk2[c+1]) end
-  for li=1,nl do
-    local d=ld[li]
-    sspr_disc(d.sx,d.sy,d.r3,_sq,_mx,_mn)
-  end
-  if _dm_dup then
-    for y=0,126,2 do
-      memcpy(0x6000+(y+1)*64,0x6000+y*64,64)
-    end
-  end
-  if _sd_full then sspr_disc=_sd_full _sd_full=nil end
+  sspr_disc_d(sx,sy,(r3+rad)/2,_sq,_mx,_mn)
+  sspr_disc(sx,sy,r3,_sq,_mx,_mn)
   for c=0,15 do pal(c,_dk1[c+1]) end
-  for li=1,nl do
-    local d=ld[li]
-    sspr_disc(d.sx,d.sy,d.r2,_sq,_mx,_mn)
-  end
+  sspr_disc_d(sx,sy,(r2+r3)/2,_sq,_mx,_mn)
+  sspr_disc(sx,sy,r2,_sq,_mx,_mn)
   pal() palt(0,false) palt(14,false)
-  for li=1,nl do
-    local d=ld[li]
-    sspr_disc(d.sx,d.sy,d.r1,_sq,_mx,_mn)
-  end
-  -- restore sprites + map + state
+  sspr_disc_d(sx,sy,(r1+r2)/2,_sq,_mx,_mn)
+  sspr_disc(sx,sy,r1,_sq,_mx,_mn)
+
   pal()
   rss()
   palt(14,true)
@@ -272,207 +261,22 @@ function sspr_disc(cx,cy,rad,_sq,_mx,_mn)
   end
 end
 
--- sqrt-free disc via precomputed table
-function sspr_disc_dt(cx,cy,rad,_,_mx,_mn)
-  local dt=_dtabs[rad]
-  local ir=flr(rad)
-  for y=_mx(0,flr(cy)-ir),_mn(127,flr(cy)+ir) do
-    local cdx=dt[flr(abs(cy-y))]
-    if cdx then
-      local x1=_mx(0,cx-cdx)
-      local x2=_mn(127,cx+cdx)
-      sspr(x1,y,x2-x1+1,1,x1,y)
-    end
-  end
-end
-
--- disc table + half-res (skip, row dup)
-function sspr_disc_dt_h2s(cx,cy,rad,_,_mx,_mn)
-  local dt=_dtabs[rad]
-  local ir=flr(rad)
-  local y0=_mx(0,flr(cy)-ir)
+-- dithered disc: even scanlines only, so the
+-- shade interleaves with the band beneath it
+function sspr_disc_d(cx,cy,rad,_sq,_mx,_mn)
+  local R2=rad*rad
+  local y0=_mx(0,flr(cy-rad))
   if y0%2==1 then y0+=1 end
-  for y=y0,_mn(127,flr(cy)+ir),2 do
-    local cdx=dt[flr(abs(cy-y))]
-    if cdx then
+  for y=y0,_mn(127,cy+rad),2 do
+    local dy=cy-y
+    local d2=dy*dy
+    if d2<R2 then
+      local cdx=_sq(R2-d2)
       local x1=_mx(0,cx-cdx)
       local x2=_mn(127,cx+cdx)
       sspr(x1,y,x2-x1+1,1,x1,y)
     end
   end
-end
-
-function dk_span_torch(y,l,r)
-  if l>r then return end
-  for ti=1,_ntch do
-    local t=_tch[ti]
-    local dy=flr(abs(t[2]-y))
-    local cdx=t[3][dy]
-    if cdx then
-      local tl=flr(t[1]-cdx)
-      local tr=flr(t[1]+cdx)
-      if tl<=r and tr>=l then
-        if l<tl then sspr(l,y,tl-l,1,l,y) end
-        l=tr+1
-        if l>r then return end
-      end
-    end
-  end
-  sspr(l,y,r-l+1,1,l,y)
-end
-
-function build_clip()
-  _cl={}
-  for y=0,127 do
-    local dy=_ly-y
-    local d2=dy*dy
-    if d2<_lr2 then
-      local cdx=sqrt(_lr2-d2)
-      local rl=max(0,_lx-cdx)
-      local rr=min(127,_lx+cdx)
-      _cl[y]={(flr(rl/2)+1)*2,
-        flr((rr+1)/2)*2-1}
-    end
-  end
-end
-
-function shadow_poly_merged(lx,ly,rad)
-  local px,py=lx+cam_x,ly+cam_y
-  local ox,oy=cam_x,cam_y
-  local t1,t2=max(0,flr((py-rad)/8)),min(63,flr((py+rad)/8))
-  local x1,x2=max(0,flr((px-rad)/8)),min(127,flr((px+rad)/8))
-  local function w(tx,ty)
-    return tx>=0 and tx<=127 and ty>=0 and ty<=63
-      and fget(mget(tx,ty),0)
-  end
-  for ty=t1,t2 do
-    local rs=nil
-    for tx=x1,x2+1 do
-      if tx<=x2 and w(tx,ty) and not w(tx,ty-1) then
-        if not rs then rs=tx end
-      elseif rs then
-        opt_edge(lx,ly,rs*8-ox,ty*8-oy,tx*8-ox,ty*8-oy,rad)
-        rs=nil
-      end
-    end
-  end
-  for ty=t1,t2 do
-    local rs=nil
-    for tx=x1,x2+1 do
-      if tx<=x2 and w(tx,ty) and not w(tx,ty+1) then
-        if not rs then rs=tx end
-      elseif rs then
-        opt_edge(lx,ly,tx*8-ox,(ty+1)*8-oy,rs*8-ox,(ty+1)*8-oy,rad)
-        rs=nil
-      end
-    end
-  end
-  for tx=x1,x2 do
-    local rs=nil
-    for ty=t1,t2+1 do
-      if ty<=t2 and w(tx,ty) and not w(tx+1,ty) then
-        if not rs then rs=ty end
-      elseif rs then
-        opt_edge(lx,ly,(tx+1)*8-ox,rs*8-oy,(tx+1)*8-ox,ty*8-oy,rad)
-        rs=nil
-      end
-    end
-  end
-  for tx=x1,x2 do
-    local rs=nil
-    for ty=t1,t2+1 do
-      if ty<=t2 and w(tx,ty) and not w(tx-1,ty) then
-        if not rs then rs=ty end
-      elseif rs then
-        opt_edge(lx,ly,tx*8-ox,ty*8-oy,tx*8-ox,rs*8-oy,rad)
-        rs=nil
-      end
-    end
-  end
-end
-
-function opt_edge(lx,ly,x1,y1,x2,y2,rad)
-  local mx,my=(x1+x2)/2,(y1+y2)/2
-  local nx,ny=-(y2-y1),(x2-x1)
-  if nx*(lx-mx)+ny*(ly-my)<=0 then return end
-  local d1x,d1y=x1-lx,y1-ly
-  local d2x,d2y=x2-lx,y2-ly
-  local len1=max(1,max(abs(d1x),abs(d1y)))
-  local len2=max(1,max(abs(d2x),abs(d2y)))
-  local ext=rad*2
-  fq_dda(x1,y1,x2,y2,
-    lx+d2x/len2*ext,ly+d2y/len2*ext,
-    lx+d1x/len1*ext,ly+d1y/len1*ext)
-end
-
-function fq_dda(x1,y1,x2,y2,x3,y3,x4,y4)
-  local _fl,_mx,_mn=flr,max,min
-  local miny=_mx(0,_fl(_mn(_mn(y1,y2),_mn(y3,y4))))
-  local maxy=_mn(127,_fl(_mx(_mx(y1,y2),_mx(y3,y4))))
-  local s1=y1~=y2 and (x2-x1)/(y2-y1) or 0
-  local s2=y2~=y3 and (x3-x2)/(y3-y2) or 0
-  local s3=y3~=y4 and (x4-x3)/(y4-y3) or 0
-  local s4=y4~=y1 and (x1-x4)/(y1-y4) or 0
-  local ex1=x1+s1*(miny-y1)
-  local ex2=x2+s2*(miny-y2)
-  local ex3=x3+s3*(miny-y3)
-  local ex4=x4+s4*(miny-y4)
-  local ds1,ds2,ds3,ds4=s1*2,s2*2,s3*2,s4*2
-  for y=miny,maxy,2 do
-    local c=_cl[y]
-    if c then
-      local xn,xx=127,0
-      if y1~=y2 and (y-y1)*(y-y2)<=0 then
-        if ex1<xn then xn=ex1 end
-        if ex1>xx then xx=ex1 end
-      end
-      if y2~=y3 and (y-y2)*(y-y3)<=0 then
-        if ex2<xn then xn=ex2 end
-        if ex2>xx then xx=ex2 end
-      end
-      if y3~=y4 and (y-y3)*(y-y4)<=0 then
-        if ex3<xn then xn=ex3 end
-        if ex3>xx then xx=ex3 end
-      end
-      if y4~=y1 and (y-y4)*(y-y1)<=0 then
-        if ex4<xn then xn=ex4 end
-        if ex4>xx then xx=ex4 end
-      end
-      if xn<=xx then
-        local l,r=_mx(c[1],_fl(xn)),_mn(c[2],_fl(xx))
-        dk_span_torch(y,l,r)
-        if y+1<=127 then dk_span_torch(y+1,l,r) end
-      end
-    end
-    ex1+=ds1 ex2+=ds2
-    ex3+=ds3 ex4+=ds4
-  end
-end
-
-function draw_player_shadow()
-  local pl=lights[1] local rad=pl.ir+pl.fo
-  _lx,_ly=pl.x-cam_x,pl.y-cam_y
-  _lr2=rad*rad
-  _tch={} _ntch=0
-  for li=2,#lights do
-    local lt=lights[li]
-    local r=lt.ir+lt.fo
-    local dt=_dtabs[r]
-    if dt then
-      _ntch+=1
-      _tch[_ntch]={lt.x-cam_x,lt.y-cam_y,dt}
-    end
-  end
-  build_clip()
-  camera()
-  memcpy(0x0000,0x6000,0x2000)
-  palt(0,false) palt(14,false)
-  for c=0,15 do pal(c,_dk3[c+1]) end
-  shadow_poly_merged(_lx,_ly,rad)
-  pal()
-  rss()
-  palt(0,false) palt(14,true)
-  camera(cam_x,cam_y)
 end
 
 function rss()
@@ -661,9 +465,6 @@ end
 -- gameplay
 light_ir=40
 light_fo=18
-ir_vals={16,24,32,40,48,56,64}
-env_ir=20
-env_fo=12
 cam_x,cam_y=0,0
 _mg={active=false}
 _dirs={"\x8b","\x91","\x94","\x83"}
@@ -718,22 +519,6 @@ function init_gameplay()
   -- backup full sprite sheet + map data
   memcpy(0x4300,0x0000,0x1000)
   memcpy(0x5300,0x1000,0x0C00)
-
-  -- precompute disc tables
-  _dtabs={}
-  local function ensure_dtab(r)
-    if not _dtabs[r] then
-      local t={} local R2=r*r
-      for dy=0,flr(r) do t[dy]=sqrt(R2-dy*dy) end
-      _dtabs[r]=t
-    end
-  end
-  for _,ir in pairs(ir_vals) do
-    local s=light_fo/4
-    for _,r in pairs({ir+light_fo,ir+s*3,ir+s*2,ir+s}) do ensure_dtab(r) end
-  end
-  local s=env_fo/4
-  for _,r in pairs({env_ir+env_fo,env_ir+s*3,env_ir+s*2,env_ir+s}) do ensure_dtab(r) end
 
   -- create door-terminal pairs (mission 1)
   terminals={}
@@ -885,58 +670,9 @@ function draw_gameplay()
   draw_bullets()
   draw_parts()
 
-  -- build lights array: player + nearest 3 env
+  -- lighting pass (single player light)
   local px,py=player.x+4,player.y+4
-  lights={{x=px,y=py,ir=light_ir,fo=light_fo,
-  }}
-
-  -- find nearest 3 light-emitting entities
-  local b1,b2,b3=32767,32767,32767
-  local s1,s2,s3=nil,nil,nil
-  for d in all(doors) do
-    if not d.is_open then
-      local dx,dy=d.x+8-px,d.y+8-py
-      local d2=dx*dx+dy*dy
-      if d2<b1 then
-        b3,s3=b2,s2 b2,s2=b1,s1 b1,s1=d2,d
-      elseif d2<b2 then
-        b3,s3=b2,s2 b2,s2=d2,d
-      elseif d2<b3 then
-        b3,s3=d2,d
-      end
-    end
-  end
-  for t in all(terminals) do
-    if not (t.door and t.door.is_open) then
-      local dx,dy=t.x+4-px,t.y+4-py
-      local d2=dx*dx+dy*dy
-      if d2<b1 then
-        b3,s3=b2,s2 b2,s2=b1,s1 b1,s1=d2,t
-      elseif d2<b2 then
-        b3,s3=b2,s2 b2,s2=d2,t
-      elseif d2<b3 then
-        b3,s3=d2,t
-      end
-    end
-  end
-
-  local near={s1,s2,s3}
-  for i=1,3 do
-    local src=near[i]
-    if src then
-      add(lights,{x=src.x+4,y=src.y+4,
-        ir=env_ir,fo=env_fo})
-    end
-  end
-
-  -- lighting pass (h2dup mode)
-  local orig=sspr_disc
-  _sd_full=sspr_disc_dt
-  _dm_dup=true
-  sspr_disc=sspr_disc_dt_h2s
   draw_multi()
-  sspr_disc=orig _sd_full=nil _dm_dup=nil
-  draw_player_shadow()
 
   -- interaction prompt (hidden during minigame)
   if not _mg.active then
