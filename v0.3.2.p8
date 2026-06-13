@@ -411,7 +411,7 @@ function init_mission_select()
   music(0)
   cam.x,cam.y=0,0
   camera(0,0)
-  _minfo=textpanel.new(50,35,69,76,"",true)
+  _minfo=textpanel.new(50,35,66,76,"",true)
   _mpanels={}
   for i=1,4 do
     local p=textpanel.new(4,20+(i-1)*15,9,38,
@@ -460,9 +460,9 @@ function draw_mission_select()
   end
   _minfo:draw()
   color(11)
-  ?"\x83\x94 CHANGE MISSION",25,108
-  ?"\x8b\x91 "..(_mshow_brief and "VIEW STATUS" or "VIEW BRIEFING"),25,115
-  ?"   \x8e START MISSION",25,122
+  ?"\x83\x94 CHANGE MISSION",25,106
+  ?"\x8b\x91 "..(_mshow_brief and "VIEW STATUS" or "VIEW BRIEFING"),25,113
+  ?"   \x8e START MISSION",25,120
 end
 
 -- loadout select (buy ammo with credits)
