@@ -52,7 +52,7 @@ function _init()
 
   -- build state table from naming convention
   states={}
-  for name in all(split("intro,mission_select,loadout_select,gameplay",",")) do
+  for name in all(split"intro,mission_select,loadout_select,gameplay") do
     states[name]={
       init=_ENV["init_"..name],
       update=_ENV["update_"..name],
@@ -680,7 +680,7 @@ function init_gameplay()
 
   -- enemies for this mission
   for s in all(split(_espawn[current_mission],"|",false)) do
-    local d=split(s,",")
+    local d=split(s)
     spawn_enemy(d[1]+0,d[2]+0,d[3])
   end
 
@@ -705,14 +705,14 @@ function init_gameplay()
 
   -- door+terminal pairs for this mission
   for s in all(split(_doors_m[current_mission],"|",false)) do
-    local d=split(s,",")
+    local d=split(s)
     create_door_terminal_pair(d[1],d[2],d[3],d[4],d[5])
   end
 
   -- tutorial hints (mission 1 only)
   if current_mission==1 then
     for s in all(split(_tut1,"|",false)) do
-      local d=split(s,",")
+      local d=split(s)
       add(terminals,terminal.new(d[1],d[2],nil,d[3]))
     end
   end
@@ -1475,7 +1475,7 @@ function draw_hud()
   -- hack result flash
   if _mgf and _mgf>0 then
     _mgf-=1
-    rect(0,0,127,127,_mgw and 11 or 8)
+    print_centered(_mgw and "ACCESS GRANTED" or "ACCESS DENIED",64,60,_mgw and 11 or 8)
   end
 end
 
