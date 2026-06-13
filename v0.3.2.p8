@@ -344,6 +344,17 @@ function print_centered(t,x,y,c)
   ?t,x-#t*2,y,c
 end
 
+function print_shadow(t,x,y,c)
+  ?t,x+1,y+1,0
+  ?t,x,y,c or 7
+end
+
+function hud_bar(x,y,w,h,bg,fl,p)
+  rectfill(x,y,x+w-1,y+h-1,bg)
+  if p>0 then rectfill(x,y,x+max(1,flr(w*p))-1,y+h-1,fl) end
+  rect(x,y,x+w-1,y+h-1,0)
+end
+
 function dks()
   for a=0x6000,0x7fff do
     poke(a,_mdt[@a])
@@ -1374,39 +1385,31 @@ end
 function draw_hud()
   camera()
   local w=wpns[_wsel]
-  local pct=1-_wcd[_wsel]/w.cd
-  -- weapon name + ammo
-  local lbl=w.name.." "..w.ammo
-  ?lbl,2,2,0
-  ?lbl,1,1,w.ammo>0 and 7 or 8
-  -- cooldown bar
-  rectfill(1,8,61,10,1)
-  if pct>0 then
-    rectfill(1,8,1+flr(60*pct),10,
-      pct>=1 and 11 or 12)
-  end
-  rect(1,8,61,10,0)
-  -- health bar
+  local sx,sy=2,2
+  if player.flash>0 then sx+=rnd(2)-1 sy+=rnd(2)-1 end
+  -- health bar (white bg, colored fill) + readout
   local hp=player.hp/player.mhp
-  local hc=hp>0.6 and 11 or hp>0.3 and 10 or 8
-  rectfill(1,13,61,15,1)
-  if hp>0 then rectfill(1,13,1+flr(60*hp),15,hc) end
-  rect(1,13,61,15,0)
+  local hc=hp>.6 and 11 or hp>.3 and 10 or 8
+  hud_bar(sx,sy,80,5,7,hc,hp)
+  print_shadow(flr(player.hp).."/"..player.mhp,sx+82,sy)
+  -- cooldown bar (blue), below health
+  local cy=sy+5
+  hud_bar(sx,cy,80,3,1,12,1-_wcd[_wsel]/w.cd)
+  -- weapon name + ammo, below bars
+  local ac=w.ammo>0 and 7 or (flr(t()*4)%2<1 and 2 or 7)
+  print_shadow(w.name.." ▶"..w.ammo.."◀",sx,cy+5,ac)
+  -- credits
+  print_shadow("credits: "..credits,sx,cy+12)
   -- charge indicator
   if player._charge then
-    ?"CHARGING",26,2,flr(t()*8)%2==0 and 12 or 0
+    print_shadow("charging",sx+54,sy,flr(t()*8)%2==0 and 12 or 7)
   end
-  -- credits
-  ?"$"..credits,1,17,0
-  ?"$"..credits,1,16,10
   -- enemy alert bars (lower-left)
   local ay=121
   for e in all(enemies) do
     if e.ai=="atk" or e.ai=="chase" then
-      local bw=flr(e.mhp*.3)
-      rectfill(1,ay,1+bw,ay+2,7)
-      rectfill(1,ay,1+flr(bw*e.hp/e.mhp),ay+2,8)
-      ay-=4
+      hud_bar(2,ay,flr(e.mhp*.3),3,7,8,e.hp/e.mhp)
+      ay-=5
     end
   end
   -- minimap (upper-right)
