@@ -425,7 +425,7 @@ function init_mission_select()
   _minfo=textpanel.new(50,35,66,76,"",true)
   _mpanels={}
   for i=1,4 do
-    local p=textpanel.new(4,20+(i-1)*15,9,38,
+    local p=textpanel.new(4,34+(i-1)*15,9,38,
       "MISSION "..i,true)
     add(_mpanels,p)
   end
