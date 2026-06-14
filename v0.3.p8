@@ -125,13 +125,16 @@ laser_door.__index=laser_door
 function laser_door.new(x,y,col)
   local cm=color_map[col]
   local beams={}
-  for _,ox in pairs({11,9,7}) do
-    local bx=x+ox
-    local by=y+(_==1 and 4 or _==2 and 8 or 12)
-    -- start search below the door body (v2: sy+10)
-    local ey=by+10
-    while not check_tile_flag(bx,ey) and ey<by+200 do ey+=1 end
-    add(beams,{x=bx,y1=by,y2=ey-1})
+  -- the door can be embedded in a wall: skip its solid body down
+  -- to the doorway floor, then find the wall below. all 3 beams
+  -- share that depth so they fan cleanly (offsets 11,4|9,8|7,12)
+  local cx=x+8
+  local fy=y+4
+  while check_tile_flag(cx,fy) and fy<y+24 do fy+=1 end
+  local wy=fy
+  while not check_tile_flag(cx,wy) and wy<fy+48 do wy+=1 end
+  for i=1,3 do
+    add(beams,{x=x+13-i*2,y1=y+i*4,y2=wy-1})
   end
   return setmetatable({
     x=x,y=y,
@@ -548,7 +551,8 @@ function update_loadout_select()
     p.sel=(i==_lsel)
     if i<=4 then
       local w=wpns[i]
-      p.txt=w.name.."  "..wstat(w)
+      local s=wstat(w)
+      p.txt=w.name..sub("            ",1,23-#w.name-#s)..s
       p.tc=w.owned and 13 or credits>=w.cost and (p.sel and 11 or 5) or 2
     else
       p.txt="\x8b MISSION SELECT"
@@ -803,9 +807,9 @@ function hackable(t)
 end
 
 function near_terminal()
-  local px,py=player.x+4,player.y+4
+  if _foe then return end
   for t in all(terminals) do
-    if hackable(t) and abs(t.x+4-px)<16 and abs(t.y+4-py)<16 then return t end
+    if hackable(t) and abs(t.x-player.x)<16 and abs(t.y-player.y)<16 then return t end
   end
 end
 
@@ -1028,12 +1032,12 @@ end
 function spawn_missiles(w,src,plr)
   local px,py=src.x+4,src.y+4
   for i=1,w.n do
+    -- release like drones in a spread, then home in
     local a=rnd()
-    add(bullets,{x=px+cos(a)*15,y=py+sin(a)*15,
-      vx=0,vy=0,life=w.life,sz=w.sz,col=w.col,
+    add(bullets,{x=px,y=py,vx=cos(a)*2,vy=sin(a)*2,
+      life=w.life,sz=w.sz,col=w.col,
       dmg=w.dmg,aoe=w.aoe,aoe_dmg=w.aoe_dmg,
-      orbit=w.orbit,orb_a=a,orb_r=5+rnd(10),
-      spd=1,dir=a,mx_spd=3,own=src,plr=plr})
+      homing=true,plr=plr})
   end
 end
 
@@ -1127,9 +1131,11 @@ function enemy_fire(e,wi)
 end
 
 function update_enemies()
+  _foe=false
   for e in all(enemies) do
     local dx,dy=player.x-e.x,player.y-e.y
     local d=dist_trig(dx,dy)
+    _foe=_foe or d<48
     e.ecd=max(0,e.ecd-1)
     e.alt=max(0,e.alt-1)
     local see=d<=e.atk and los(e,player)
@@ -1172,48 +1178,41 @@ function update_bullets()
     b.life-=1
     local dead=false
 
-    if b.orbit and b.orbit>0 then
-      -- missile orbit phase
-      b.orbit-=1
-      b.orb_a+=0.02
-      local s=b.own or player
-      local px,py=s.x+4,s.y+4
-      b.x=px+cos(b.orb_a)*b.orb_r
-      b.y=py+sin(b.orb_a)*b.orb_r
-    else
-      b.x+=b.vx
-      b.y+=b.vy
-      -- missile scatter
-      if b.mx_spd then
-        b.spd=min(b.spd+0.05,b.mx_spd)
-        b.dir+=(rnd()-0.5)*0.1
-        b.vx=cos(b.dir)*b.spd
-        b.vy=sin(b.dir)*b.spd
+    -- homing missiles steer toward their target
+    if b.homing then
+      local tg=b.plr and _ptarget or not b.plr and player
+      if tg then
+        local tx,ty=tg.x-b.x,tg.y-b.y
+        local td=dist_trig(tx,ty)+1
+        b.vx+=(tx/td*2-b.vx)*.08
+        b.vy+=(ty/td*2-b.vy)*.08
       end
-      -- entity collision
-      if not dead and b.plr then
-        for e in all(enemies) do
-          if bhit(b,e) then
-            hurt(e,b) dead=true break
-          end
-        end
-      elseif not dead and b.plr==false then
-        if bhit(b,player) then
-          hurt(player,b) dead=true
+    end
+    b.x+=b.vx
+    b.y+=b.vy
+    -- entity collision (dead still false here)
+    if b.plr then
+      for e in all(enemies) do
+        if bhit(b,e) then
+          hurt(e,b) dead=true break
         end
       end
-      -- barrel collision
-      if not dead then
-        for bar in all(barrels) do
-          if not bar.exp and bhit(b,bar) then
-            bar:take_damage(b.dmg) bullet_hit(b) dead=true break
-          end
+    elseif b.plr==false then
+      if bhit(b,player) then
+        hurt(player,b) dead=true
+      end
+    end
+    -- barrel collision
+    if not dead then
+      for bar in all(barrels) do
+        if not bar.exp and bhit(b,bar) then
+          bar:take_damage(b.dmg) bullet_hit(b) dead=true break
         end
       end
-      -- tile collision
-      if not dead and check_tile_flag(b.x,b.y) then
-        bullet_hit(b) dead=true
-      end
+    end
+    -- tile collision
+    if not dead and check_tile_flag(b.x,b.y) then
+      bullet_hit(b) dead=true
     end
 
     if not dead and b.life<=0 then
@@ -1632,7 +1631,9 @@ function decompress_to_mem(data,dest)
   end
 
   while true do
-    if read_bits()==0 then
+    local f=read_bits()
+    if not f then return end
+    if f==0 then
       local byte=read_bits(8)
       if not byte then return end
       poke(di,byte)
