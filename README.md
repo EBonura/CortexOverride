@@ -98,8 +98,7 @@ Title font: [Vermin Vibes 1989](https://www.dafont.com/vermin-vibes-1989.font?te
 
 ## Author
 
-Cortex Override is a passion project by Emanuele Bonura.
+Cortex Override is a passion project by Emanuele Bonura (Bonnie Studios).
 
-- Itch.io: [https://izzy88izzy.itch.io/](https://izzy88izzy.itch.io/)
+- Play on itch.io: [https://bonnie-studios.itch.io/cortex-override](https://bonnie-studios.itch.io/cortex-override)
 - GitHub: [https://github.com/EBonura/CortexOverride](https://github.com/EBonura/CortexOverride)
-- Instagram: [https://www.instagram.com/izzy88izzy/](https://www.instagram.com/izzy88izzy/)
