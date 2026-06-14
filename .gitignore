@@ -12,3 +12,10 @@ notes
 # itch.io HTML5 export artifacts (re-include despite *.html / *.js above)
 !export/index.html
 !export/index.js
+
+# maptool: keep the editor (despite *.html), drop regenerable build intermediates
+!maptool/editor.html
+maptool/m72_*.hex
+maptool/m72_lua.txt
+__pycache__/
+*.pyc

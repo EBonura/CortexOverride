@@ -1,0 +1,287 @@
+<!doctype html><html><head><meta charset=utf-8>
+<title>Cortex Override - Map Editor</title>
+<style>
+ *{box-sizing:border-box}
+ body{background:#111;color:#ddd;font:12px monospace;margin:0;display:flex;height:100vh;overflow:hidden}
+ #side{width:240px;padding:8px;overflow:auto;background:#1a1a1a;flex:none}
+ #main{flex:1;position:relative;overflow:auto;background:#000}
+ #cv{image-rendering:pixelated;display:block}
+ #hud{position:fixed;top:6px;right:12px;background:#000a;padding:4px 8px;border:1px solid #444}
+ button{background:#333;color:#ddd;border:1px solid #555;margin:1px;padding:3px 5px;cursor:pointer;font:11px monospace}
+ button.on{background:#0a6;color:#fff;border-color:#0f8}
+ .grp{margin:7px 0;border-top:1px solid #444;padding-top:5px}
+ h3{margin:3px 0;color:#0f8;font-size:11px}
+ #pick{display:grid;grid-template-columns:repeat(16,1fr);gap:0}
+ #pick canvas{width:100%;aspect-ratio:1;image-rendering:pixelated;cursor:pointer;border:1px solid #222}
+ #pick canvas.on{border:1px solid #0f8}
+ input[type=file]{width:100%;font-size:10px}
+ .row{display:flex;align-items:center;gap:4px}
+</style></head><body>
+<div id=side>
+ <h3>CARTRIDGE</h3>
+ <input id=file type=file accept=".p8">
+ <div class=row><button id=expbtn>⬇ EXPORT .p8</button></div>
+ <div id=status style="color:#888;font-size:10px;margin-top:3px">load a .p8 to begin</div>
+ <div class=grp><h3>MISSION</h3><div id=missions></div></div>
+ <div class=grp><h3>TOOL</h3><div id=tools></div></div>
+ <div class=grp><h3>LAYERS</h3>
+  <label><input type=checkbox id=lyTiles checked> tiles</label><br>
+  <label><input type=checkbox id=lyEnts checked> entities</label></div>
+ <div class=grp><h3>TERRAIN</h3><div id=terrain></div></div>
+ <div class=grp><h3>ENTITIES</h3><div id=entsbar></div></div>
+ <div class=grp><h3>TILE PICKER</h3><div id=pick></div></div>
+ <div class=grp style="font-size:10px;color:#888">
+  wheel = zoom · right-drag = pan · pick a tile/entity = brush (switches to Draw) ·
+  Draw paints the brush · Select: drag = marquee, drag inside = move, drag entity = move ·
+  Ctrl+Z undo · C copy · V paste · X cut · Ctrl+D duplicate · Del clear</div>
+</div>
+<div id=main><canvas id=cv></canvas></div>
+<div id=hud></div>
+<script>
+// ================= LZ (byte-matches the cart) =================
+function lzDecompress(d){let bi=0,bt=0,o=[];const rb=(n=1)=>{let v=0;for(let k=0;k<n;k++){if(bi>=d.length)return null;v=(v<<1)|((d[bi]>>(7-bt))&1);bt++;if(bt==8){bt=0;bi++}}return v};
+ while(1){const f=rb();if(f===null)return o;if(f==0){const b=rb(8);if(b===null)return o;o.push(b)}else{const off=rb(12),ln=rb(4);if(off===null)return o;let p=o.length-off-1,L=ln+1;for(let k=0;k<L;k++){o.push(0<=p&&p<o.length?o[p]:0);p++}}}}
+function lzCompress(data){const b=[];let c=0,n=0;const w=(v,bits)=>{for(let i=bits-1;i>=0;i--){c=(c<<1)|((v>>i)&1);n++;if(n==8){b.push(c);c=0;n=0}}};
+ const N=data.length;const best=i=>{let bl=0,bo=0;for(let j=Math.max(0,i-4096);j<i;j++){let l=0;while(l<16&&i+l<N&&data[j+l]==data[i+l])l++;if(l>bl){bl=l;bo=i-j-1;if(l==16)break}}return[bl,bo]};
+ let i=0;while(i<N){let[bl,bo]=best(i);if(bl>=2&&i+1<N){const[nl]=best(i+1);if(nl>bl){w(0,1);w(data[i],8);i++;continue}}if(bl>=2){w(1,1);w(bo,12);w(bl-1,4);i+=bl}else{w(0,1);w(data[i],8);i++}}
+ if(n)b.push(c<<(8-n));return b}
+
+// ================= constants =================
+const PAL=['#000000','#1D2B53','#7E2553','#008751','#AB5236','#5F574F','#C2C3C7','#FFF1E8','#FF004D','#FFA300','#FFEC27','#00E436','#29ADFF','#83769C','#FF77A8','#FFCCAA'];
+const ENAMES=['dERVISH','vANGUARD','wARDEN','cYBERSEER','qUANTUMCLERIC'], ECOL=[15,13,1,6,1];
+const COLORS=['red','green','blue'], DCOL=[8,11,12];
+const E0=192,D0=200,T0=203,S0=206, MAPW=72, MAPH=72, FLOOR=122, WALL=96;
+
+// ================= state =================
+let cartText='', sheet=null, sheetCv=null, flags=[];
+let tiles=[[],[],[],[]], ents=[[],[],[],[]], logoBlob=[];
+let mission=0, zoom=10, tool={kind:'draw'}, brush={kind:'tile',v:FLOOR}, paintV=FLOOR;
+let sel=null, clip=null, drag=null, loaded=false, pasteMode=false, selEnt=null;
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+ctx.imageSmoothingEnabled=false;
+const status=s=>document.getElementById('status').textContent=s;
+
+// ================= .p8 sections =================
+function sectionBodies(text){
+  // returns {order:[names], bodies:{name:body}, code:before-first-section}
+  const re=/^__(\w+)__$/gm; let m, marks=[];
+  while((m=re.exec(text)))marks.push({name:m[1],s:m.index,e:m.index+m[0].length});
+  const code=marks.length?text.slice(0,marks[0].s):text;
+  const bodies={};
+  for(let i=0;i<marks.length;i++){const end=i+1<marks.length?marks[i+1].s:text.length;bodies[marks[i].name]=text.slice(marks[i].e,end).replace(/^\n|\n$/g,'')}
+  return {code,bodies,marks};
+}
+
+// ================= load =================
+document.getElementById('file').onchange=e=>{
+  const f=e.target.files[0]; if(!f)return; const r=new FileReader();
+  r.onload=()=>{try{loadCart(r.result)}catch(err){status('ERROR: '+err.message);console.error(err)}};
+  r.readAsText(f);
+};
+function loadCart(text){
+  cartText=text; const {code,bodies}=sectionBodies(text);
+  const gfx=(bodies.gfx||'').replace(/\n/g,''), mp=(bodies.map||'').replace(/\n/g,''), gff=(bodies.gff||'').replace(/\n/g,'');
+  const mem=new Uint8Array(0x3000);
+  for(let r=0;r<128;r++)for(let b=0;b<64;b++){const i=r*128+2*b;mem[r*64+b]=(parseInt(gfx[i]||'0',16))|(parseInt(gfx[i+1]||'0',16)<<4)}
+  for(let r=0;r<32;r++)for(let c=0;c<128;c++)mem[0x2000+r*128+c]=parseInt(mp.substr(r*256+2*c,2)||'0',16);
+  flags=[];for(let i=0;i<256;i++)flags.push(parseInt(gff.substr(2*i,2)||'0',16));
+  sheet=[];for(let y=0;y<64;y++){const row=[];for(let x=0;x<128;x++){const byte=mem[y*64+(x>>1)];row.push(x&1?byte>>4:byte&15)}sheet.push(row)}
+  buildSheetCanvas(); prerenderEnts();
+  let off=0x100a, lens=[];for(let i=0;i<5;i++)lens.push((mem[0x1000+2*i]<<8)|mem[0x1001+2*i]);
+  const blobs=[];for(const L of lens){blobs.push(Array.from(mem.slice(off,off+L)));off+=L}
+  logoBlob=blobs[4];
+  const grid=blob=>{const d=lzDecompress(blob),g=[];for(let y=0;y<MAPH;y++){const row=[];for(let x=0;x<MAPW;x++)row.push(d[y*MAPW+x]||0);g.push(row)}return g};
+  tiles=[grid(blobs[0]),grid(blobs[1]),grid(blobs[2]),grid(blobs[3])];
+  ents=[[],[],[],[]];
+  const lua=bodies.lua||code;
+  const esp=parseTbl(lua,'_espawn'), dor=parseTbl(lua,'_doors_m'), psp=parseTbl(lua,'_pspawn');
+  for(let m=0;m<4;m++){
+    for(const u of (esp[m]||'').split('|')){if(!u)continue;const[x,y,t]=u.split(',');const ti=ENAMES.indexOf(t);if(ti<0)continue;ents[m].push({v:E0+ti,x:Math.floor(+x/8),y:Math.floor(+y/8)})}
+    for(const u of (dor[m]||'').split('|')){if(!u)continue;const[dx,dy,tx,ty,col]=u.split(',');const ci=COLORS.indexOf(col);if(ci<0)continue;
+      ents[m].push({v:D0+ci,x:Math.round(+dx/8),y:Math.round(+dy/8)});
+      ents[m].push({v:T0+ci,x:Math.round(+tx/8),y:Math.round(+ty/8)})}
+    const ps=(psp[m]||'').split(',');if(ps.length==2)ents[m].push({v:S0,x:Math.floor(+ps[0]/8),y:Math.floor(+ps[1]/8)});
+  }
+  buildPicker(); loaded=true; syncUI(); status('loaded ✓'); draw();
+}
+function parseTbl(code,name){const m=code.match(new RegExp(name+'=\\{([\\s\\S]*?)\\}'));if(!m)return [];return (m[1].match(/"([^"]*)"/g)||[]).map(s=>s.slice(1,-1))}
+
+// ================= sprite sheet =================
+function buildSheetCanvas(){
+  sheetCv=document.createElement('canvas');sheetCv.width=128;sheetCv.height=64;
+  const c=sheetCv.getContext('2d'),img=c.createImageData(128,64);
+  for(let y=0;y<64;y++)for(let x=0;x<128;x++){const col=PAL[sheet[y][x]],i=(y*128+x)*4;
+    img.data[i]=parseInt(col.substr(1,2),16);img.data[i+1]=parseInt(col.substr(3,2),16);img.data[i+2]=parseInt(col.substr(5,2),16);img.data[i+3]=255}
+  c.putImageData(img,0,0);
+}
+function blitSpr(t,dx,dy,w,h){w=w||1;h=h||1;ctx.drawImage(sheetCv,(t%16)*8,((t/16)|0)*8,8*w,8*h,dx,dy,zoom*w,zoom*h)}
+// recolored entity sprites: color14->transparent, color7->repl (the pal swap)
+let enemyImg=[],doorImg=null,termImg=[];
+function entImg(s,w,h,repl){const c=document.createElement('canvas');c.width=8*w;c.height=8*h;const cc=c.getContext('2d'),img=cc.createImageData(8*w,8*h);
+  for(let ty=0;ty<h;ty++)for(let tx=0;tx<w;tx++){const t=s+ty*16+tx,bx=(t%16)*8,by=((t/16)|0)*8;
+    for(let py=0;py<8;py++)for(let px=0;px<8;px++){let idx=sheet[by+py][bx+px],a=255;if(idx===14)a=0;else if(idx===7&&repl!=null)idx=repl;
+      const col=PAL[idx],ox=tx*8+px,oy=ty*8+py,i=(oy*8*w+ox)*4;img.data[i]=parseInt(col.substr(1,2),16);img.data[i+1]=parseInt(col.substr(3,2),16);img.data[i+2]=parseInt(col.substr(5,2),16);img.data[i+3]=a}}
+  cc.putImageData(img,0,0);return c}
+// cyberseer(3)/quantumcleric(4) are the 2x3 "preacher" (sprite 8); rest are 1x1 sprite 16
+function prerenderEnts(){enemyImg=ECOL.map((c,i)=>i>=3?entImg(8,2,3,c):entImg(16,1,1,c));doorImg=entImg(14,2,2,null);termImg=DCOL.map(c=>entImg(23,1,2,c))}
+const titleCase=s=>s[0].toUpperCase()+s.slice(1).toLowerCase();
+const NAME=v=>v>=S0?'Spawn':v>=T0?COLORS[v-T0]+' term':v>=D0?COLORS[v-D0]+' door':titleCase(ENAMES[v-E0]);
+
+// ================= rendering =================
+function draw(){
+  if(!loaded){cv.width=420;cv.height=80;ctx.fillStyle='#444';ctx.font='14px monospace';ctx.fillText('Load a .p8 cartridge to start',20,45);return}
+  cv.width=MAPW*zoom; cv.height=MAPH*zoom; ctx.imageSmoothingEnabled=false; ctx.fillStyle='#000'; ctx.fillRect(0,0,cv.width,cv.height);
+  const g=tiles[mission];
+  if(document.getElementById('lyTiles').checked)
+    for(let y=0;y<MAPH;y++)for(let x=0;x<MAPW;x++)blitSpr(g[y][x],x*zoom,y*zoom);
+  if(document.getElementById('lyEnts').checked){
+    ctx.setLineDash([3,3]);ctx.lineWidth=1;
+    for(let c=0;c<3;c++){const d=ents[mission].find(e=>e.v==D0+c),t=ents[mission].find(e=>e.v==T0+c);
+      if(d&&t){ctx.strokeStyle=PAL[DCOL[c]];ctx.beginPath();ctx.moveTo((d.x+1)*zoom,(d.y+1)*zoom);ctx.lineTo((t.x+.5)*zoom,(t.y+.5)*zoom);ctx.stroke()}}
+    ctx.setLineDash([]);
+    for(const e of ents[mission])drawEntity(e);
+    if(selEnt&&ents[mission].includes(selEnt)){const b=entBox(selEnt);ctx.strokeStyle='#ff0';ctx.lineWidth=2;ctx.strokeRect(b[0]+1,b[1]+1,b[2]-2,b[3]-2)}
+  }
+  if(drag&&drag.move){const d=drag.move.d;for(let j=0;j<d.h;j++)for(let i=0;i<d.w;i++)blitSpr(d.d[j][i],(sel.x+i)*zoom,(sel.y+j)*zoom)}
+  if(sel){ctx.strokeStyle='#0f8';ctx.lineWidth=2;ctx.strokeRect(sel.x*zoom,sel.y*zoom,sel.w*zoom,sel.h*zoom)}
+  hud();
+}
+function drawEntity(e){
+  const dx=e.x*zoom, dy=e.y*zoom; let top=dy, cx=dx+zoom/2;
+  if(e.v>=S0){ctx.fillStyle=PAL[11];ctx.beginPath();ctx.arc(cx,dy+zoom/2,zoom*.42,0,7);ctx.fill();ctx.strokeStyle='#000';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#000';ctx.font='bold '+((zoom*.7)|0)+'px monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('P',cx,dy+zoom/2+1);ctx.textBaseline='alphabetic'}
+  else if(e.v<D0){const ti=e.v-E0;
+    if(ti>=3){ctx.drawImage(enemyImg[ti],dx-zoom/2,dy-zoom*2,zoom*2,zoom*3);top=dy-zoom*2}
+    else ctx.drawImage(enemyImg[ti],dx,dy,zoom,zoom)}
+  else if(e.v<T0){ctx.drawImage(doorImg,dx,dy,zoom*2,zoom*2);ctx.strokeStyle=PAL[DCOL[e.v-D0]];ctx.lineWidth=1;ctx.strokeRect(dx+.5,dy+.5,zoom*2-1,zoom*2-1);cx=dx+zoom}
+  else ctx.drawImage(termImg[e.v-T0],dx,dy,zoom,zoom*2);
+  const nm=NAME(e.v);ctx.font='bold 9px monospace';ctx.textAlign='center';
+  const w=ctx.measureText(nm).width+4;
+  ctx.fillStyle='rgba(0,0,0,.7)';ctx.fillRect(cx-w/2,top-11,w,10);
+  ctx.fillStyle='#0f8';ctx.fillText(nm,cx,top-2);
+}
+function hud(){const bn=brush.kind=='tile'?'tile '+brush.v:NAME(brush.v);document.getElementById('hud').textContent='M'+(mission+1)+'  zoom '+zoom+'  '+ents[mission].length+' ents  tool: '+tool.kind+(tool.kind=='select'||tool.kind=='erase'?'':'  brush: '+bn)}
+
+// ================= mouse / tools =================
+function cell(ev){const r=cv.getBoundingClientRect();return [Math.floor((ev.clientX-r.left)/zoom),Math.floor((ev.clientY-r.top)/zoom)]}
+function entAt(x,y){return ents[mission].find(e=>{
+  if(e.v>=S0) return x==e.x&&y==e.y;                     // spawn 1x1
+  if(e.v>=T0) return x==e.x&&y>=e.y&&y<e.y+2;            // terminal 1x2
+  if(e.v>=D0) return x>=e.x&&y>=e.y&&x<e.x+2&&y<e.y+2;   // door 2x2
+  if(e.v-E0>=3) return x>=e.x&&x<e.x+2&&y<=e.y&&y>e.y-3; // preacher 2x3 (rows e.y-2..e.y)
+  return x==e.x&&y==e.y;                                  // grunt 1x1
+})}
+function entBox(e){const dx=e.x*zoom,dy=e.y*zoom;
+  if(e.v>=S0)return[dx,dy,zoom,zoom];
+  if(e.v>=T0)return[dx,dy,zoom,zoom*2];
+  if(e.v>=D0)return[dx,dy,zoom*2,zoom*2];
+  if(e.v-E0>=3)return[dx-zoom/2,dy-zoom*2,zoom*2,zoom*3];
+  return[dx,dy,zoom,zoom]}
+function inSel(x,y){return sel&&x>=sel.x&&y>=sel.y&&x<sel.x+sel.w&&y<sel.y+sel.h}
+let undo=[], pan=null; const main=document.getElementById('main');
+function pushUndo(){undo.push({m:mission,t:tiles[mission].map(r=>r.slice()),e:ents[mission].map(o=>({...o}))});if(undo.length>80)undo.shift()}
+main.oncontextmenu=e=>e.preventDefault();
+cv.onmousedown=ev=>{
+  if(!loaded)return;
+  if(ev.button==2){pan={sx:main.scrollLeft,sy:main.scrollTop,mx:ev.clientX,my:ev.clientY};return}
+  if(ev.button!=0)return; const [x,y]=cell(ev);
+  if(pasteMode&&clip){pushUndo();for(let j=0;j<clip.h;j++)for(let i=0;i<clip.w;i++){const ty=y+j,tx=x+i;if(tx<MAPW&&ty<MAPH)tiles[mission][ty][tx]=clip.d[j][i]}
+    if(clip.ents)for(const c of clip.ents){const ex=x+c.dx,ey=y+c.dy;if(ex>=0&&ey>=0&&ex<MAPW&&ey<MAPH){ents[mission]=ents[mission].filter(e=>!(e.x==ex&&e.y==ey));ents[mission].push({v:c.v,x:ex,y:ey})}}
+    pasteMode=false;draw();return}
+  if(tool.kind=='select'){
+    if(inSel(x,y)){pushUndo();drag={move:{d:copyRect(sel),ox:x-sel.x,oy:y-sel.y,ents:entsInRect(sel).map(e=>({e,dx:e.x-sel.x,dy:e.y-sel.y}))}};fillRect(sel,FLOOR);draw()}
+    else{const e=entsVis()&&entAt(x,y);if(e){selEnt=e;pushUndo();drag={ent:e,ox:x-e.x,oy:y-e.y};draw()}else{selEnt=null;drag={selStart:[x,y]};sel={x,y,w:1,h:1};draw()}}
+  }
+  else if(tool.kind=='erase'){pushUndo();drag={erase:1};paint(x,y,FLOOR,true)}
+  else if(tool.kind=='fill'){if(brush.kind=='tile')floodFill(x,y,brush.v)}
+  else if(brush.kind=='ent'){pushUndo();ents[mission]=ents[mission].filter(e=>!(e.x==x&&e.y==y)&&!(brush.v>=S0&&e.v>=S0));ents[mission].push({v:brush.v,x,y});draw()}
+  else{pushUndo();drag={paint:1};paint(x,y,brush.v,false)}
+};
+window.onmousemove=ev=>{
+  if(pan){main.scrollLeft=pan.sx-(ev.clientX-pan.mx);main.scrollTop=pan.sy-(ev.clientY-pan.my);return}
+  if(!loaded||!drag)return; const [x,y]=cell(ev);
+  if(drag.move){sel.x=Math.max(0,Math.min(MAPW-sel.w,x-drag.move.ox));sel.y=Math.max(0,Math.min(MAPH-sel.h,y-drag.move.oy));for(const m of drag.move.ents){m.e.x=sel.x+m.dx;m.e.y=sel.y+m.dy}draw()}
+  else if(drag.ent){drag.ent.x=Math.max(0,Math.min(MAPW-1,x-drag.ox));drag.ent.y=Math.max(0,Math.min(MAPH-1,y-drag.oy));draw()}
+  else if(drag.selStart){const[sx,sy]=drag.selStart;sel={x:Math.min(sx,x),y:Math.min(sy,y),w:Math.abs(x-sx)+1,h:Math.abs(y-sy)+1};draw()}
+  else if(drag.paint)paint(x,y,brush.v,false);
+  else if(drag.erase)paint(x,y,FLOOR,true);
+};
+window.onmouseup=()=>{if(drag&&drag.move){const d=drag.move.d;for(let j=0;j<d.h;j++)for(let i=0;i<d.w;i++){const ty=sel.y+j,tx=sel.x+i;if(tx<MAPW&&ty<MAPH)tiles[mission][ty][tx]=d.d[j][i]}draw()}drag=null;pan=null};
+function paint(x,y,v,erase){if(x<0||y<0||x>=MAPW||y>=MAPH)return;tiles[mission][y][x]=v;if(erase)ents[mission]=ents[mission].filter(e=>!(e.x==x&&e.y==y));draw()}
+function floodFill(sx,sy,nv){if(sx<0||sy<0||sx>=MAPW||sy>=MAPH)return;const tg=tiles[mission][sy][sx];if(tg===nv)return;pushUndo();const st=[[sx,sy]];while(st.length){const[x,y]=st.pop();if(x<0||y<0||x>=MAPW||y>=MAPH||tiles[mission][y][x]!==tg)continue;tiles[mission][y][x]=nv;st.push([x+1,y],[x-1,y],[x,y+1],[x,y-1])}draw()}
+let wheelAcc=0;
+document.getElementById('main').onwheel=ev=>{ev.preventDefault();wheelAcc+=ev.deltaY;
+  if(Math.abs(wheelAcc)>=100){zoom=Math.max(3,Math.min(28,zoom+(wheelAcc<0?1:-1)));wheelAcc=0;draw()}};
+window.onkeydown=ev=>{
+  if(!loaded)return; const k=ev.key.toLowerCase();
+  if((ev.ctrlKey||ev.metaKey)&&k=='z'){ev.preventDefault();const u=undo.pop();if(u){mission=u.m;tiles[mission]=u.t;ents[mission]=u.e;sel=null;[...mz.children].forEach((c,i)=>c.classList.toggle('on',i==mission));draw();status('undo')}return}
+  if((ev.ctrlKey||ev.metaKey)&&k=='d'){ev.preventDefault();if(sel){clip=copyRect(sel);pasteMode=true;status('click to place duplicate')}return}
+  if(k=='c'&&sel)clip=copyRect(sel),status('copied '+sel.w+'x'+sel.h);
+  else if(k=='x'&&sel){pushUndo();clip=copyRect(sel);fillRect(sel,FLOOR);clearEntsIn(sel);draw();status('cut '+sel.w+'x'+sel.h)}
+  else if(k=='v'&&clip){pasteMode=true;status('click to paste '+clip.w+'x'+clip.h)}
+  else if(k=='delete'||k=='backspace'){if(selEnt){pushUndo();ents[mission]=ents[mission].filter(e=>e!=selEnt);selEnt=null;draw()}else if(sel){pushUndo();fillRect(sel,FLOOR);clearEntsIn(sel);sel=null;draw()}}
+};
+function copyRect(s){const d=[];for(let j=0;j<s.h;j++){const r=[];for(let i=0;i<s.w;i++)r.push(tiles[mission][s.y+j][s.x+i]);d.push(r)}return{w:s.w,h:s.h,d,ents:entsInRect(s).map(e=>({v:e.v,dx:e.x-s.x,dy:e.y-s.y}))}}
+function fillRect(s,v){for(let j=0;j<s.h;j++)for(let i=0;i<s.w;i++)tiles[mission][s.y+j][s.x+i]=v}
+function entsVis(){return document.getElementById('lyEnts').checked}
+function entsInRect(s){return entsVis()?ents[mission].filter(e=>e.x>=s.x&&e.y>=s.y&&e.x<s.x+s.w&&e.y<s.y+s.h):[]}
+function clearEntsIn(s){if(entsVis())ents[mission]=ents[mission].filter(e=>!(e.x>=s.x&&e.y>=s.y&&e.x<s.x+s.w&&e.y<s.y+s.h))}
+
+// ================= toolbars =================
+function mkBtn(par,label){const b=document.createElement('button');b.textContent=label;par.appendChild(b);return b}
+function syncUI(){
+  [...tlz.children].forEach(b=>b.classList.toggle('on',b.dataset.tool==tool.kind));
+  const bk=brush.kind+':'+brush.v;[...tz.children,...ez.children].forEach(b=>b.classList.toggle('on',b.dataset.brush==bk));
+  [...document.getElementById('pick').children].forEach((c,i)=>c.classList.toggle('on',brush.kind=='tile'&&brush.v==i));
+  hud();
+}
+// picking a material sets the brush and switches to the Draw tool;
+// Select / Draw / Fill / Erase are separate persistent actions that keep the brush
+function setBrush(b){brush=b;if(b.kind=='tile')paintV=b.v;tool={kind:'draw'};syncUI();draw()}
+const mz=document.getElementById('missions');for(let m=0;m<4;m++){const b=document.createElement('button');b.textContent='M'+(m+1);b.onclick=()=>{mission=m;sel=null;selEnt=null;[...mz.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');draw()};mz.appendChild(b)}mz.firstChild.classList.add('on');
+const tlz=document.getElementById('tools');[['Select','select'],['Draw','draw'],['Fill','fill'],['Erase','erase']].forEach(([n,k])=>{const b=mkBtn(tlz,n);b.dataset.tool=k;b.onclick=()=>{tool={kind:k};syncUI();draw()}});
+const tz=document.getElementById('terrain');[['Floor',FLOOR],['Wall',WALL],['Barrel',4],['Fragment',119],['Terminal',46]].forEach(([n,v])=>{const b=mkBtn(tz,n);b.dataset.brush='tile:'+v;b.onclick=()=>setBrush({kind:'tile',v})});
+const ez=document.getElementById('entsbar');
+function matEnt(label,v){const b=mkBtn(ez,label);b.dataset.brush='ent:'+v;b.onclick=()=>setBrush({kind:'ent',v})}
+matEnt('Spawn',S0);ENAMES.forEach((n,i)=>matEnt(n.slice(0,4),E0+i));COLORS.forEach((c,i)=>matEnt('Dr'+c[0].toUpperCase(),D0+i));COLORS.forEach((c,i)=>matEnt('Tm'+c[0].toUpperCase(),T0+i));
+syncUI();
+function buildPicker(){const pk=document.getElementById('pick');pk.innerHTML='';for(let t=0;t<128;t++){const c=document.createElement('canvas');c.width=8;c.height=8;c.getContext('2d').drawImage(sheetCv,(t%16)*8,((t/16)|0)*8,8,8,0,0,8,8);c.title='tile '+t;c.onclick=()=>setBrush({kind:'tile',v:t});pk.appendChild(c)}}
+
+// ================= export =================
+document.getElementById('expbtn').onclick=()=>{
+  if(!loaded){alert('load a .p8 first');return}
+  const blobs=[];for(let m=0;m<4;m++){const flat=[];for(let y=0;y<MAPH;y++)for(let x=0;x<MAPW;x++)flat.push(tiles[m][y][x]);blobs.push(lzCompress(flat))}
+  blobs.push(logoBlob);
+  const hdr=[];for(const b of blobs)hdr.push((b.length>>8)&255,b.length&255);
+  let region=hdr.concat(...blobs);
+  if(region.length>0x2000){alert('OVER by '+(region.length-0x2000)+' bytes — simplify maps');return}
+  while(region.length<0x2000)region.push(0);
+  const {bodies}=sectionBodies(cartText);
+  const gfxRows=(bodies.gfx||'').split('\n').filter(r=>r);
+  const gfxOut=gfxRows.slice(0,64);
+  for(let r=0;r<64;r++){let s='';for(let b=0;b<64;b++){const v=region[r*64+b];s+=(v&15).toString(16)+(v>>4).toString(16)}gfxOut.push(s)}
+  const mapOut=[];for(let r=0;r<32;r++){let s='';for(let c=0;c<128;c++)s+=region[0x1000+r*128+c].toString(16).padStart(2,'0');mapOut.push(s)}
+  const esp=[],dor=[],psp=[],noSpawn=[];
+  for(let m=0;m<4;m++){const en=[],dr={},dt={};let sp=null;
+    for(const e of ents[m]){const wx=e.x*8,wy=e.y*8;
+      if(e.v>=S0)sp=wx+','+wy;else if(e.v>=T0)dt[e.v-T0]=[wx,wy];else if(e.v>=D0)dr[e.v-D0]=[wx,wy];else en.push(wx+','+wy+','+ENAMES[e.v-E0])}
+    esp.push(en.join('|'));const pr=[];for(let c=0;c<3;c++)if(dr[c]&&dt[c])pr.push(dr[c]+','+dt[c]+','+COLORS[c]);dor.push(pr.join('|'));
+    if(!sp)noSpawn.push(m+1);psp.push(sp||'64,64')}
+  if(noSpawn.length&&!confirm('No player spawn in mission '+noSpawn.join(', ')+' (defaulting to 64,64). Export anyway?'))return;
+  let out=cartText;
+  out=out.replace(/_espawn=\{[\s\S]*?\n\}/,'_espawn={\n  "'+esp.join('",\n  "')+'"\n}');
+  out=out.replace(/_doors_m=\{[\s\S]*?\n\}/,'_doors_m={\n  "'+dor.join('",\n  "')+'"\n}');
+  out=out.replace(/_pspawn=\{[\s\S]*?\}/,'_pspawn={"'+psp.join('","')+'"}');
+  out=replaceSection(out,'gfx',gfxOut.join('\n'));
+  out=replaceSection(out,'map',mapOut.join('\n'));
+  fetch('/save',{method:'POST',body:out}).then(r=>{if(!r.ok)throw 0;
+    status('saved v0.3.p8 ✓ ('+region.length+'/8192) — now `make run`')
+  }).catch(()=>{ // fallback to download if not served by make editor
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([out],{type:'text/plain'}));a.download='v0.3.p8';a.click();
+    status('downloaded (run via `make editor` to save directly)')});
+};
+function replaceSection(text,name,body){return text.replace(new RegExp('(__'+name+'__\\n)[\\s\\S]*?(?=\\n__\\w+__|$)'),'$1'+body)}
+document.getElementById('lyTiles').onchange=document.getElementById('lyEnts').onchange=draw;
+draw();
+// auto-load the cart when served via `make editor`
+fetch('../v0.3.p8').then(r=>{if(!r.ok)throw 0;return r.text()}).then(t=>loadCart(t)).catch(()=>status('drop a .p8 here (or run `make editor` to auto-load)'));
+</script></body></html>
