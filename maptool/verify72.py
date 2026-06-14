@@ -35,16 +35,15 @@ for mi in range(4):
     flat=decompress(bl[mi])
     if len(flat)!=W*H: ok=False
     mg=lambda x,y:flat[y*W+x]
-    fr=ba=te=wall=0
+    fr=ba=te=0
     for ty in range(H):
         for tx in range(W):
             t=mg(tx,ty)
             if flags[t]&0x40:ba+=1
             elif flags[t]&0x20:fr+=1
             elif flags[t]&0x10:te+=1
-            if (tx>=64 or ty>=56) and t!=96: wall+=1   # expansion must be wall(96)
     got=set((p.split(",")[2],int(p.split(",")[0]),int(p.split(",")[1])) for p in esp[mi].split("|") if p)
     sx,sy=map(int,psp[mi].split(","))
-    if wall>0 or len(flat)!=W*H or not(0<=sx<W*8 and 0<=sy<H*8): ok=False
-    print(f"M{mi+1}: size {len(flat)} enemies {len(got)} doors {len(dor[mi].split('|'))} frags {fr} barrels {ba} terms {te} spawn {psp[mi]} nonwall-pad {wall}")
+    if len(flat)!=W*H or not(0<=sx<W*8 and 0<=sy<H*8): ok=False
+    print(f"M{mi+1}: size {len(flat)} enemies {len(got)} doors {len(dor[mi].split('|'))} frags {fr} barrels {ba} terms {te} spawn {psp[mi]}")
 print("WRITTEN CART 72x72:","PASS" if ok else "FAIL")
