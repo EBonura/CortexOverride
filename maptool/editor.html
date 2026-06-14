@@ -4,6 +4,8 @@
  *{box-sizing:border-box}
  body{background:#111;color:#ddd;font:12px monospace;margin:0;display:flex;height:100vh;overflow:hidden}
  #side{width:240px;padding:8px;overflow:auto;background:#1a1a1a;flex:none}
+ #splitter{width:5px;flex:none;cursor:col-resize;background:#2a2a2a}
+ #splitter:hover,#splitter.drag{background:#0a6}
  #main{flex:1;position:relative;overflow:auto;background:#000}
  #cv{image-rendering:pixelated;display:block}
  #hud{position:fixed;top:6px;right:12px;background:#000a;padding:4px 8px;border:1px solid #444}
@@ -35,6 +37,7 @@
   Draw paints the brush · Select: drag = marquee, drag inside = move, drag entity = move ·
   Ctrl+Z undo · C copy · V paste · X cut · Ctrl+D duplicate · Del clear</div>
 </div>
+<div id=splitter></div>
 <div id=main><canvas id=cv></canvas></div>
 <div id=hud></div>
 <script>
@@ -244,6 +247,15 @@ const ez=document.getElementById('entsbar');
 function matEnt(label,v){const b=mkBtn(ez,label);b.dataset.brush='ent:'+v;b.onclick=()=>setBrush({kind:'ent',v})}
 matEnt('Spawn',S0);ENAMES.forEach((n,i)=>matEnt(n.slice(0,4),E0+i));COLORS.forEach((c,i)=>matEnt('Dr'+c[0].toUpperCase(),D0+i));COLORS.forEach((c,i)=>matEnt('Tm'+c[0].toUpperCase(),T0+i));
 syncUI();
+
+// resizable sidebar (persists width)
+(function(){const sp=document.getElementById('splitter'),sd=document.getElementById('side');
+  const sv=localStorage.getItem('sideW');if(sv)sd.style.width=sv+'px';
+  let rz=false;
+  sp.onmousedown=e=>{rz=true;sp.classList.add('drag');document.body.style.userSelect='none';e.preventDefault()};
+  window.addEventListener('mousemove',e=>{if(!rz)return;const w=Math.max(160,Math.min(640,e.clientX));sd.style.width=w+'px';localStorage.setItem('sideW',w)});
+  window.addEventListener('mouseup',()=>{if(rz){rz=false;sp.classList.remove('drag');document.body.style.userSelect=''}});
+})();
 function buildPicker(){const pk=document.getElementById('pick');pk.innerHTML='';for(let t=0;t<128;t++){const c=document.createElement('canvas');c.width=8;c.height=8;c.getContext('2d').drawImage(sheetCv,(t%16)*8,((t/16)|0)*8,8,8,0,0,8,8);c.title='tile '+t;c.onclick=()=>setBrush({kind:'tile',v:t});pk.appendChild(c)}}
 
 // ================= export =================
