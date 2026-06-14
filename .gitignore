@@ -7,3 +7,8 @@ uncompressed_map.txt
 *.js
 *.zip
 notes
+.DS_Store
+
+# itch.io HTML5 export artifacts (re-include despite *.html / *.js above)
+!export/index.html
+!export/index.js

@@ -1,0 +1,30 @@
+name: Deploy to itch.io
+
+# Pushes the prebuilt HTML5 export (export/) to itch.io via butler.
+# The cart is exported locally with `make export` / `make deploy`, so PICO-8
+# is never needed on CI. Triggers when export/ changes, or run manually.
+#
+# One-time setup in the GitHub repo (Settings):
+#   - Secrets -> BUTLER_API_KEY = your itch.io API key (itch.io/user/settings/api-keys)
+
+on:
+  push:
+    branches: [main, reorganize-structure]
+    paths:
+      - 'export/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push to itch.io via butler
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          curl -L -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          unzip butler.zip
+          chmod +x butler
+          ./butler push ./export bonnie-studios/cortex-override:html5
