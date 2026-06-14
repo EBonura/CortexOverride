@@ -634,10 +634,8 @@ function spawn_enemy(x,y,typ)
   local d=_et[typ]
   local e=entity.new(x,y)
   e.name=typ
-  e.col=d[1] e.hp=d[2] e.mhp=d[2]
-  e.atk=d[3] e.kv=d[4] e.wpi=d[5]
-  e.ecd=0 e.ait=0 e.alt=0
-  e.flash=0 e.max_speed=2
+  e.col,e.hp,e.mhp,e.atk,e.kv,e.wpi=d[1],d[2],d[2],d[3],d[4],d[5]
+  e.ecd,e.ait,e.alt,e.flash,e.max_speed=0,0,0,0,2
   add(enemies,e)
 end
 
@@ -849,10 +847,7 @@ function draw_gameplay()
 
   -- credit popups, bright over the lighting
   for p in all(parts) do
-    if p.txt then
-      ?p.txt,p.x,p.y+1,0
-      ?p.txt,p.x,p.y,p.col
-    end
+    if p.txt then print_shadow(p.txt,p.x,p.y,p.col) end
   end
 
   -- extraction indicator (points to spawn)
@@ -862,9 +857,13 @@ function draw_gameplay()
     circfill(px+cos(a)*20,py+sin(a)*20,1,8)
   end
 
-  -- targeting reticle (auto-aim lock)
+  -- targeting reticle: rotating red square, snaps in on lock (v2)
   if _ptarget and not _dead and not _mg.active then
-    circ(_ptarget.x+4,_ptarget.y+4,6,3)
+    local x,y,hs=_ptarget.x+4,_ptarget.y+4,6+max(0,18-_lt)
+    for i=0,3 do
+      local a=t()*.4+i*.25
+      line(x+cos(a)*hs,y+sin(a)*hs,x+cos(a+.25)*hs,y+sin(a+.25)*hs,8)
+    end
   end
 
   -- interaction prompt (hidden during minigame)
@@ -996,14 +995,17 @@ end
 -- weapons: aim + fire
 -- auto-aim: nearest enemy in range with sight
 function update_target()
+  local old=_ptarget
   _ptarget=nil
-  local bd=80
+  local bd=60
   for e in all(enemies) do
     local d=dist_trig(e.x-player.x,e.y-player.y)
     if d<bd and los(player,e) then
       bd=d _ptarget=e
     end
   end
+  -- reset snap-in timer whenever the locked target changes
+  _lt=_ptarget==old and (_lt or 0)+1 or 0
 end
 
 function get_aim()
@@ -1065,10 +1067,7 @@ function fire_weapon(wi)
     sfx(w.sfx)
   else
     -- rifle: instant fan
-    for i=1,w.n do
-      fire_single(w,{ax,ay},
-        (i-1-(w.n-1)/2)*w.fan)
-    end
+    firefan(w,{ax,ay},w.n)
     if w.recoil then recoil(ax,ay,w) end
     sfx(w.sfx)
   end
@@ -1082,6 +1081,11 @@ function shoot(w,aim)
   fire_single(w,aim)
   recoil(aim[1],aim[2],w)
   sfx(w.sfx)
+end
+function firefan(w,aim,n,src)
+  for i=1,n do
+    fire_single(w,aim,(i-1-(n-1)/2)*(w.fan or 0),src)
+  end
 end
 
 function fire_single(w,aim,ang_off,src)
@@ -1114,15 +1118,10 @@ function enemy_fire(e,wi)
   local dx,dy=player.x-e.x,player.y-e.y
   local d=dist_trig(dx,dy)
   if d<1 then return end
-  local aim={dx/d,dy/d}
   if w.homing then
     spawn_missiles(w,e,false)
   else
-    local n=min(w.n,3)
-    for i=1,n do
-      fire_single(w,aim,
-        (i-1-(n-1)/2)*(w.fan or 0),e)
-    end
+    firefan(w,{dx/d,dy/d},min(w.n,3),e)
   end
   sfx(w.sfx)
 end
@@ -1133,17 +1132,13 @@ function update_enemies()
     local d=dist_trig(dx,dy)
     e.ecd=max(0,e.ecd-1)
     e.alt=max(0,e.alt-1)
-
-    -- can see player? (within attack range + LOS)
-    if d<=e.atk and los(e,player) then
-      e.lsx,e.lsy=player.x,player.y
-      e.alt=180
-      -- attack: face + fire
-      e.ai="atk"
-      e.face_x=dx>0 and 1 or -1
-      e.last_dir=abs(dx)>abs(dy)
-        and "horizontal"
-        or (dy<0 and "up" or "down")
+    local see=d<=e.atk and los(e,player)
+    if see then
+      e.lsx,e.lsy,e.alt,e.ai=player.x,player.y,180,"atk"
+      -- approach when far, circle-strafe when in range
+      local nx,ny=dx/d,dy/d
+      if d<e.atk*.6 then e.vx,e.vy=-ny,nx
+      else e.vx,e.vy=nx,ny end
       if e.ecd<=0 then
         local wi=type(e.wpi)=="table"
           and e.wpi[flr(rnd(#e.wpi))+1] or e.wpi
@@ -1153,34 +1148,18 @@ function update_enemies()
     elseif e.lsx then
       -- chase to last seen position
       e.ai="chase"
-      dx,dy=e.lsx-e.x,e.lsy-e.y
-      d=dist_trig(dx,dy)
-      if d>1 then
-        e.vx,e.vy=dx/d,dy/d
-      else
-        e.vx,e.vy=0,0
-      end
+      local tx,ty=e.lsx-e.x,e.lsy-e.y
+      local td=dist_trig(tx,ty)
+      if td>2 then e.vx,e.vy=tx/td,ty/td end
     else
       -- idle wander
       e.ai="idle"
       e.ait-=1
-      if e.ait<=0 then
-        e.ait=30
-        local a,s=rnd(),rnd(1)
-        e.vx,e.vy=cos(a)*s,sin(a)*s
-      end
+      if e.ait<=0 then e.ait=30 local a=rnd() e.vx,e.vy=cos(a),sin(a) end
     end
-
-    -- forget last seen when alert expires
-    if e.alt<=0 then e.lsx,e.lsy=nil,nil end
-
-    -- direction from velocity
-    if abs(e.vx)>0.1 or abs(e.vy)>0.1 then
-      set_dir(e)
-    end
-
-    -- friction + physics
-    e.vx*=0.9 e.vy*=0.9
+    if e.alt<=0 then e.lsx=nil end
+    set_dir(e)
+    e.vx*=.9 e.vy*=.9
     e:apply_physics()
     if e.flash>0 then e.flash-=1 end
   end
@@ -1277,20 +1256,13 @@ function spawn_impact(x,y)
 end
 
 -- objectives
-function n_terminals()
+function ncount(l,k)
   local c=0
-  for t in all(terminals) do
-    if not t.done then c+=1 end
-  end
+  for o in all(l) do if not o[k] then c+=1 end end
   return c
 end
-function n_fragments()
-  local c=0
-  for f in all(data_fragments) do
-    if not f.got then c+=1 end
-  end
-  return c
-end
+function n_terminals() return ncount(terminals,"done") end
+function n_fragments() return ncount(data_fragments,"got") end
 
 -- data fragments
 data_fragment={} data_fragment.__index=data_fragment
@@ -1489,8 +1461,8 @@ function entity:update()
 end
 
 function entity:control()
-  local ix=(btn(1) and 1 or 0)-(btn(0) and 1 or 0)
-  local iy=(btn(3) and 1 or 0)-(btn(2) and 1 or 0)
+  local ix=btn()\2%2-btn()%2
+  local iy=btn()\8%2-btn()\4%2
 
   if ix==0 and iy==0 then
     self.target_x+=(self.x-self.target_x)*0.3
