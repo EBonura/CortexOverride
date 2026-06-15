@@ -86,12 +86,12 @@ Common tasks (via `make`):
 Set a non-standard PICO-8 path in a gitignored `local.mk` (`PICO8 = /path/to/pico8`).
 
 ### Repository layout
-- `v0.3.p8` — the game (active development)
-- `maptool/` — standalone map editor (`editor.html`) and the LZ map pipeline (`lz3.py`, `gen72.py`, `swap72.py`, `verify72.py`, `serve.py`)
-- `versions/` — earlier builds, kept as the project's lineage
-- `tests/` — lighting and shadow experiment carts
-- `export/` — prebuilt HTML5 build pushed to itch.io
-- `.github/workflows/deploy.yml` — itch.io deploy workflow
+- `v0.3.p8`: the game (active development)
+- `maptool/`: standalone map editor (`editor.html`) and the LZ map pipeline (`lz3.py`, `gen72.py`, `swap72.py`, `verify72.py`, `serve.py`)
+- `versions/`: earlier builds, kept as the project's lineage
+- `tests/`: lighting and shadow experiment carts
+- `export/`: prebuilt HTML5 build pushed to itch.io
+- `.github/workflows/deploy.yml`: itch.io deploy workflow
 
 Title font: [Vermin Vibes 1989](https://www.dafont.com/vermin-vibes-1989.font?text=cortex+override). Minified with [shrinko8](https://thisismypassport.github.io/shrinko8/).
 

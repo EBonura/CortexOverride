@@ -265,7 +265,7 @@ document.getElementById('expbtn').onclick=()=>{
   blobs.push(logoBlob);
   const hdr=[];for(const b of blobs)hdr.push((b.length>>8)&255,b.length&255);
   let region=hdr.concat(...blobs);
-  if(region.length>0x2000){alert('OVER by '+(region.length-0x2000)+' bytes — simplify maps');return}
+  if(region.length>0x2000){alert('OVER by '+(region.length-0x2000)+' bytes, simplify maps');return}
   while(region.length<0x2000)region.push(0);
   const {bodies}=sectionBodies(cartText);
   const gfxRows=(bodies.gfx||'').split('\n').filter(r=>r);
@@ -286,7 +286,7 @@ document.getElementById('expbtn').onclick=()=>{
   out=replaceSection(out,'gfx',gfxOut.join('\n'));
   out=replaceSection(out,'map',mapOut.join('\n'));
   fetch('/save',{method:'POST',body:out}).then(r=>{if(!r.ok)throw 0;
-    status('saved v0.3.p8 ✓ ('+region.length+'/8192) — now `make run`')
+    status('saved v0.3.p8 ✓ ('+region.length+'/8192), now `make run`')
   }).catch(()=>{ // fallback to download if not served by make editor
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([out],{type:'text/plain'}));a.download='v0.3.p8';a.click();
     status('downloaded (run via `make editor` to save directly)')});
