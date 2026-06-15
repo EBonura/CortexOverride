@@ -276,7 +276,7 @@ end
 
 function rss()
   memcpy(0x0000,0x4300,0x1000)
-  memcpy(0x1000,0x5300,0x0B00)
+  memcpy(0x1c00,0x5300,0x400)
 end
 
 -- textpanel: menu boxes with reveal + select anim
@@ -656,9 +656,11 @@ function init_gameplay()
   music(0)
   init_stars()
 
-  -- backup sprite sheet (stop at 0x5dff: 0x5e00+ is cartdata)
+  -- backup gameplay sprites (0-127) + the logo (224-255), so menus
+  -- restore clean after the lighting clobbers the sheet. 0x5300+0x400
+  -- stays below cartdata at 0x5e00
   memcpy(0x4300,0x0000,0x1000)
-  memcpy(0x5300,0x1000,0x0B00)
+  memcpy(0x5300,0x1c00,0x400)
 
   -- reset state
   terminals={} doors={}
