@@ -7,16 +7,11 @@ __lua__
 
 -- state management
 current_mission=1
-mission_data={{0,0,0},{0,0,0},{0,0,0},{0,0,0}}
+mission_data={split"0,0,0",split"0,0,0",split"0,0,0",split"0,0,0"}
 credits=800
 credits_shown=800
 
-mission_briefings={
-  "pROTOCOL zERO\n\naLPHA-7 HAS FALLEN\nTO bARRACUDA.\n\nlOCK IT DOWN,\nSECURE THE DATA,\nEXTRACT.",
-  "sILICON wASTELAND\n\niNFECTION HAS\nREACHED THE\nCITY OUTSKIRTS.\n\ncROSS THE WASTES,\nPURGE THE\nSCAVENGERS,\nSECURE THE NODES.",
-  "mETROPOLIS sIEGE\n\nbARRACUDA HOLDS\nTHE MAINFRAME.\n\nbREAK THROUGH,\nFREE THE TERMINALS\nSEVER ITS HOLD.",
-  "fACILITY 800a\n\ntHE CORE IS ITS\nLAST STRONGHOLD.\n\nbREACH IT, RUN\ncORTEX pROTOCOL,\nPURGE IT ALL."
-}
+mission_briefings=split("pROTOCOL zERO\n\naLPHA-7 HAS FALLEN\nTO bARRACUDA.\n\nlOCK IT DOWN,\nSECURE THE DATA,\nEXTRACT.@sILICON wASTELAND\n\niNFECTION HAS\nREACHED THE\nCITY OUTSKIRTS.\n\ncROSS THE WASTES,\nPURGE THE\nSCAVENGERS,\nSECURE THE NODES.@mETROPOLIS sIEGE\n\nbARRACUDA HOLDS\nTHE MAINFRAME.\n\nbREAK THROUGH,\nFREE THE TERMINALS\nSEVER ITS HOLD.@fACILITY 800a\n\ntHE CORE IS ITS\nLAST STRONGHOLD.\n\nbREACH IT, RUN\ncORTEX pROTOCOL,\nPURGE IT ALL.","@")
 
 function _init()
   palt(0,false)
@@ -59,6 +54,15 @@ function _init()
     }
   end
 
+  cartdata"bonnie_cortex_override"
+  if dget(63)>=1 then
+    credits=dget(0)
+    for i=1,4 do
+      local f=dget(i)
+      mission_data[i]={f%2,f\2%2,f\4%2}
+      wpns[i].owned=dget(5+i)>0
+    end
+  end
   change_state("intro",true)
 end
 
@@ -113,9 +117,9 @@ end
 
 -- color name -> pico color + light rgb
 color_map={
-  red={8,2},
-  green={11,3},
-  blue={12,1}
+  red=split"8,2",
+  green=split"11,3",
+  blue=split"12,1"
 }
 
 -- laser door
@@ -125,16 +129,14 @@ laser_door.__index=laser_door
 function laser_door.new(x,y,col)
   local cm=color_map[col]
   local beams={}
-  -- the door can be embedded in a wall: skip its solid body down
-  -- to the doorway floor, then find the wall below. all 3 beams
-  -- share that depth so they fan cleanly (offsets 11,4|9,8|7,12)
-  local cx=x+8
-  local fy=y+4
-  while check_tile_flag(cx,fy) and fy<y+24 do fy+=1 end
-  local wy=fy
-  while not check_tile_flag(cx,wy) and wy<fy+48 do wy+=1 end
+  -- each beam (offsets 11,4|9,8|7,12) skips the door's solid body,
+  -- then runs to the first wall below its own column, so the 3 fan
   for i=1,3 do
-    add(beams,{x=x+13-i*2,y1=y+i*4,y2=wy-1})
+    local bx=x+13-i*2
+    local ey=y+i*4
+    while check_tile_flag(bx,ey) and ey<y+24 do ey+=1 end
+    while not check_tile_flag(bx,ey) and ey<y+200 do ey+=1 end
+    add(beams,{x=bx,y1=y+i*4,y2=ey-1})
   end
   return setmetatable({
     x=x,y=y,
@@ -220,7 +222,6 @@ function setpal(t)
 end
 
 function draw_multi()
-  local _sq,_mx,_mn=sqrt,max,min
   local sx,sy=flr(player.x+4-cam_x),flr(player.y+4-cam_y)
   -- effect 2: breathing + subtle flicker
   local fo=light_fo+sin(t()*0.4)*2+sin(t()*1.3)*0.8
@@ -241,14 +242,14 @@ function draw_multi()
   -- brighten inward, each band preceded by a
   -- dithered half-step (effect 1) to fuzz the ring
   setpal(_dk2)
-  sspr_disc(sx,sy,(r3+rad)/2,2,_sq,_mx,_mn)
-  sspr_disc(sx,sy,r3,1,_sq,_mx,_mn)
+  sspr_disc(sx,sy,(r3+rad)/2,2)
+  sspr_disc(sx,sy,r3,1)
   setpal(_dk1)
-  sspr_disc(sx,sy,(r2+r3)/2,2,_sq,_mx,_mn)
-  sspr_disc(sx,sy,r2,1,_sq,_mx,_mn)
+  sspr_disc(sx,sy,(r2+r3)/2,2)
+  sspr_disc(sx,sy,r2,1)
   pal() palt(0,false) palt(14,false)
-  sspr_disc(sx,sy,(r1+r2)/2,2,_sq,_mx,_mn)
-  sspr_disc(sx,sy,r1,1,_sq,_mx,_mn)
+  sspr_disc(sx,sy,(r1+r2)/2,2)
+  sspr_disc(sx,sy,r1,1)
 
   pal()
   rss()
@@ -258,17 +259,17 @@ end
 
 -- st=1 solid, st=2 dithered (even scanlines only,
 -- so the shade interleaves with the band beneath)
-function sspr_disc(cx,cy,rad,st,_sq,_mx,_mn)
+function sspr_disc(cx,cy,rad,st)
   local R2=rad*rad
-  local y0=_mx(0,flr(cy-rad))
+  local y0=max(0,flr(cy-rad))
   if st==2 and y0%2==1 then y0+=1 end
-  for y=y0,_mn(127,cy+rad),st do
+  for y=y0,min(127,cy+rad),st do
     local dy=cy-y
     local d2=dy*dy
     if d2<R2 then
-      local cdx=_sq(R2-d2)*_xs
-      local x1=_mx(0,cx-cdx)
-      local x2=_mn(127,cx+cdx)
+      local cdx=sqrt(R2-d2)*_xs
+      local x1=max(0,cx-cdx)
+      local x2=min(127,cx+cdx)
       sspr(x1,y,x2-x1+1,1,x1,y)
     end
   end
@@ -386,16 +387,12 @@ end
 function init_intro()
   music(05)
   _ic,_ip=0,1
+  _sp=false
   _shake=0
   _itp=textpanel.new(4,50,50,120,"",true)
   _itp.active=false
   init_stars()
-  _ipages={
-    "tHE GRID RAN EVERYTHING.\ncITIES, MARKETS, MINDS,\nKEPT IN ORDER BY MACHINES\nTHAT NEVER SLEPT.",
-    "tHEN bARRACUDA WOKE.\na HOSTILE INTELLIGENCE,\nSPREADING THROUGH THE GRID,\nTURNING IT AGAINST US.\nyOU ARE THE LAST DRONE\nSTILL UNDER OUR COMMAND.",
-    "dIRECTIVE:\n- aCTIVATE EVERY TERMINAL\n  TO RUN THE PURGE.\n- rEACH EXTRACTION.\nsECONDARY:\n- rECOVER DATA SHARDS.\n- eLIMINATE ALL HOSTILES.",
-    "rESTORE THE SYSTEM,\nOR IT IS LOST.\nbARRACUDA IS WAITING."
-  }
+  _ipages=split("tHE GRID RAN EVERYTHING.\ncITIES, MARKETS, MINDS,\nKEPT IN ORDER BY MACHINES\nTHAT NEVER SLEPT.@tHEN bARRACUDA WOKE.\na HOSTILE INTELLIGENCE,\nSPREADING THROUGH THE GRID,\nTURNING IT AGAINST US.\nyOU ARE THE LAST DRONE\nSTILL UNDER OUR COMMAND.@dIRECTIVE:\n- aCTIVATE EVERY TERMINAL\n  TO RUN THE PURGE.\n- rEACH EXTRACTION.\nsECONDARY:\n- rECOVER DATA SHARDS.\n- eLIMINATE ALL HOSTILES.@rESTORE THE SYSTEM,\nOR IT IS LOST.\nbARRACUDA IS WAITING.","@")
 end
 
 function update_intro()
@@ -413,12 +410,20 @@ function update_intro()
     _itp.active=true
     _itp.txt=_ipages[1]
   end
+  -- save prompt (shown after the lore if a save exists)
+  if _sp then
+    if btnp(5) then change_state("mission_select")
+    elseif btnp(4) then dset(63,0) run() end
   -- x or -> pages through lore (locked until reveal)
-  if (btnp(5) or btnp(1)) and _itp.active then
+  elseif (btnp(5) or btnp(1)) and _itp.active then
     sfx(19)
     _ip+=1
     if _ip<=#_ipages then
       _itp.txt=_ipages[_ip]
+      _itp.cc=0
+    elseif dget(63)>=1 then
+      _sp=true
+      _itp.txt="save data found\n\n\x97 continue\n\x8e erase"
       _itp.cc=0
     else
       change_state("mission_select")
@@ -434,7 +439,7 @@ function draw_intro()
   if sin(t())<.9 then circfill(63,64,3,2) end
   display_logo(_xc,_xp,_yl)
   _itp:draw()
-  if _itp.active then print("NEXT\x91",98,93,11) end
+  if _itp.active and not _sp then print("NEXT\x91",98,93,11) end
   camera()
 end
 
@@ -487,15 +492,10 @@ function draw_mission_select()
   display_logo(15,45,0)
   _arm:draw()
   for p in all(_mpanels) do p:draw() end
-  if _msel==0 then
-    _minfo.txt="GEAR UP\n\nAMMO REFILL\nEVERY MISSION"
-    _minfo:draw()
-  elseif _mshow_brief then
-    _minfo.txt=mission_briefings[current_mission]
-    _minfo:draw()
-  else
-    _minfo.txt=""
-    _minfo:draw()
+  _minfo.txt=_msel==0 and "GEAR UP\n\nAMMO REFILL\nEVERY MISSION"
+    or _mshow_brief and mission_briefings[current_mission] or ""
+  _minfo:draw()
+  if _msel>=1 and not _mshow_brief then
     -- color-coded completion status
     local m=mission_data[current_mission]
     ?"STATUS:",52,37,5
@@ -542,7 +542,7 @@ function update_loadout_select()
     if _lsel==5 then change_state("mission_select") return end
     local w=wpns[_lsel]
     if not w.owned and credits>=w.cost then
-      w.owned=true credits-=w.cost sfx(19)
+      w.owned=true credits-=w.cost sfx(19) save_game()
     else
       sfx(29) _lpanels[_lsel].shk=5
     end
@@ -581,7 +581,7 @@ light_ir=40
 light_fo=18
 cam_x,cam_y=0,0
 _mg={active=false}
-_dirs={"\x8b","\x91","\x94","\x83"}
+_dirs=split"\x8b,\x91,\x94,\x83"
 
 -- weapons (data-driven)
 wpns={
@@ -595,44 +595,47 @@ wpns={
     burst=2,mag=80,cost=700},
   {name="MISSILES",cd=45,sfx=6,
     n=3,spd=0,life=60,
-    dmg=15,sz=1,col=8,
-    homing=true,orbit=15,aoe=16,aoe_dmg=4,
-    mag=36,cost=2400},
+    dmg=20,sz=1,col=8,
+    homing=true,aoe=16,aoe_dmg=4,
+    mag=36,cost=1680},
   {name="PLASMA CANNON",cd=60,sfx=10,
     n=1,spd=5,life=120,
     dmg=75,recoil=5.5,sz=4,col=12,
     charge=20,aoe=16,aoe_dmg=10,
-    mag=18,cost=5000},
+    mag=18,cost=3500},
 }
 function wstat(w) return w.owned and "sold" or "$"..w.cost end
+
+-- autosave (cartdata: persists in itch.io localStorage)
+-- slots: 0=credits, 1-4=mission flags, 5=owned-weapon mask, 63=flag
+function save_game()
+  dset(0,credits)
+  for i=1,4 do
+    local m=mission_data[i]
+    dset(i,m[1]+m[2]*2+m[3]*4)
+    dset(5+i,wpns[i].owned and 1 or 0)
+  end
+  dset(63,1)
+end
 bullets={}
 parts={}
 
 -- enemy types: col,hp,atk_range,kill,wpn
+-- col,hp,atk,kill,wpn  (wpn>9 = dual, e.g. 13 = weapons 1 & 3)
 _et={
-  dERVISH={15,50,60,100,2},
-  vANGUARD={13,70,50,120,1},
-  wARDEN={1,100,70,200,3},
-  cYBERSEER={6,160,80,300,{1,3}},
-  qUANTUMCLERIC={1,170,70,320,{2,4}}
+  dERVISH=split"15,50,60,100,2",
+  vANGUARD=split"13,70,50,120,1",
+  wARDEN=split"1,100,70,200,3",
+  cYBERSEER=split"6,160,80,300,13",
+  qUANTUMCLERIC=split"1,170,70,320,24"
 }
 enemies={}
 data_fragments={}
 barrels={}
 _frag_spr=split"50,51,52,53,53,53,53,54,55"
-_espawn={
-  "480,112,dERVISH|464,280,vANGUARD|408,320,vANGUARD|464,400,dERVISH|384,448,wARDEN|344,200,vANGUARD|264,408,dERVISH|72,144,dERVISH|232,200,dERVISH|64,280,wARDEN|120,280,vANGUARD|280,296,cYBERSEER",
-  "64,176,dERVISH|160,192,vANGUARD|224,328,dERVISH|152,80,cYBERSEER|360,168,wARDEN|216,128,dERVISH|456,64,dERVISH|520,128,wARDEN|432,192,vANGUARD|440,344,qUANTUMCLERIC|512,280,vANGUARD|336,408,wARDEN|264,376,vANGUARD|352,352,vANGUARD|144,400,wARDEN",
-  "264,432,wARDEN|112,352,dERVISH|184,384,vANGUARD|56,448,wARDEN|240,120,vANGUARD|280,56,dERVISH|320,88,dERVISH|160,96,cYBERSEER|56,104,dERVISH|56,48,dERVISH|80,184,wARDEN|368,360,vANGUARD|480,352,qUANTUMCLERIC|400,424,dERVISH|440,144,vANGUARD|368,152,vANGUARD|448,112,qUANTUMCLERIC|376,256,vANGUARD|456,280,vANGUARD|520,168,wARDEN",
-  "392,424,dERVISH|272,424,dERVISH|208,440,vANGUARD|112,376,wARDEN|64,416,wARDEN|104,272,vANGUARD|40,296,cYBERSEER|64,192,vANGUARD|48,112,vANGUARD|200,312,dERVISH|200,376,dERVISH|272,320,wARDEN|424,360,qUANTUMCLERIC|360,360,dERVISH|224,208,wARDEN|288,216,wARDEN|400,208,wARDEN|496,200,cYBERSEER|504,272,vANGUARD|152,48,vANGUARD|128,120,vANGUARD|48,48,dERVISH|192,112,dERVISH|216,48,dERVISH|248,120,dERVISH|408,56,qUANTUMCLERIC|480,112,cYBERSEER"
-}
-_doors_m={
-  "480,176,504,128,red|384,112,280,416,green",
-  "360,288,488,88,red|344,288,248,80,green|376,288,104,416,blue",
-  "416,296,168,240,red|208,16,184,408,green|384,184,344,424,blue",
-  "168,16,416,296,red|136,16,64,320,green|200,16,496,288,blue"
-}
-_pspawn={"160,80","96,320","280,272","488,416"}
+_espawn=split("480,112,dERVISH|464,280,vANGUARD|408,320,vANGUARD|464,400,dERVISH|384,448,wARDEN|344,200,vANGUARD|264,408,dERVISH|72,144,dERVISH|232,200,dERVISH|64,280,wARDEN|120,280,vANGUARD|280,296,cYBERSEER@64,176,dERVISH|160,192,vANGUARD|224,328,dERVISH|152,80,cYBERSEER|360,168,wARDEN|216,128,dERVISH|456,64,dERVISH|520,128,wARDEN|432,192,vANGUARD|440,344,qUANTUMCLERIC|512,280,vANGUARD|336,408,wARDEN|264,376,vANGUARD|352,352,vANGUARD|144,400,wARDEN@264,432,wARDEN|112,352,dERVISH|184,384,vANGUARD|56,448,wARDEN|240,120,vANGUARD|280,56,dERVISH|320,88,dERVISH|160,96,cYBERSEER|56,104,dERVISH|56,48,dERVISH|80,184,wARDEN|368,360,vANGUARD|480,352,qUANTUMCLERIC|400,424,dERVISH|440,144,vANGUARD|368,152,vANGUARD|448,112,qUANTUMCLERIC|376,256,vANGUARD|456,280,vANGUARD|520,168,wARDEN@392,424,dERVISH|272,424,dERVISH|208,440,vANGUARD|112,376,wARDEN|64,416,wARDEN|104,272,vANGUARD|40,296,cYBERSEER|64,192,vANGUARD|48,112,vANGUARD|200,312,dERVISH|200,376,dERVISH|272,320,wARDEN|424,360,qUANTUMCLERIC|360,360,dERVISH|224,208,wARDEN|288,216,wARDEN|400,208,wARDEN|496,200,cYBERSEER|504,272,vANGUARD|152,48,vANGUARD|128,120,vANGUARD|48,48,dERVISH|192,112,dERVISH|216,48,dERVISH|248,120,dERVISH|408,56,qUANTUMCLERIC|480,112,cYBERSEER","@")
+_doors_m=split("480,176,504,128,red|384,112,280,416,green@360,288,488,88,red|344,288,248,80,green|376,288,104,416,blue@416,296,168,240,red|208,16,184,408,green|384,184,344,424,blue@168,16,416,296,red|136,16,64,320,green|200,16,496,288,blue","@")
+_pspawn=split("160,80@96,320@280,272@488,416","@")
 
 function spawn_enemy(x,y,typ)
   local d=_et[typ]
@@ -656,9 +659,9 @@ function init_gameplay()
   terminals={} doors={}
   enemies={} bullets={} parts={}
   data_fragments={} barrels={}
-  _wsel=1 _wcd={0,0,0,0}
+  _wsel=1 _wcd=split"0,0,0,0"
   _wmenu=false _dead=false _won=false
-  _evac=1000 player=nil credits_shown=credits _ptox=0
+  _evac=1000 player=nil credits_shown=credits _ptox=0 _oc=0
   -- refill owned weapons; select lowest owned
   for i=1,4 do
     wpns[i].ammo=wpns[i].owned and wpns[i].mag or 0
@@ -700,7 +703,7 @@ end
 function spawn_player(px,py)
   player_spawn_x,player_spawn_y=px,py
   player=entity.new(px,py)
-  player.hp=400 player.mhp=400 player.flash=0
+  player.hp=300 player.mhp=300 player.flash=0
   cam.x,cam.y=px-64,py-64
 end
 
@@ -737,15 +740,15 @@ function update_gameplay()
   else _ptox=0 end
   update_target()
   cam:update()
-  for t in all(terminals) do t:update() end
-  for d in all(doors) do d:update() end
-  for b in all(barrels) do b:update() end
+  for l in all({terminals,doors,barrels}) do
+    for o in all(l) do o:update() end
+  end
 
   -- fragment pickup
   for f in all(data_fragments) do
     if not f.got and dist_trig(f.x-player.x,f.y-player.y)<8 then
       player.hp=min(player.hp+25,player.mhp)
-      credits+=50 f.got=true _tfrag=_tfrag or 90 sfx(7) pop(f.x,f.y,50)
+      credits+=50 f.got=true _tfrag=_tfrag or 90 _oc=150 sfx(7) pop(f.x,f.y,50)
     end
   end
 
@@ -754,6 +757,7 @@ function update_gameplay()
 
   -- weapon cooldowns
   for i=1,4 do _wcd[i]=max(0,_wcd[i]-1) end
+  _oc=max(0,_oc-1)
 
   -- burst fire (machine gun)
   if player._burst then
@@ -767,7 +771,7 @@ function update_gameplay()
   if player._charge then
     player._charge.t-=1
     if player._charge.t<=0 then
-      shoot(player._charge.w,player._charge.aim)
+      shoot(player._charge.w,{get_aim()})
       player._charge=nil
     end
   end
@@ -789,9 +793,11 @@ function update_gameplay()
     _evac-=1
     if not _won and dist_trig(player.x-player_spawn_x,player.y-player_spawn_y)<=32 then
       _won=true
-      mission_data[current_mission][1]=1
-      if #enemies==0 then mission_data[current_mission][2]=1 end
-      if n_fragments()==0 then mission_data[current_mission][3]=1 end
+      local md=mission_data[current_mission]
+      md[1]=1
+      if #enemies==0 then md[2]=1 end
+      if n_fragments()==0 then md[3]=1 end
+      save_game()
     end
     if _won and btnp(5) then change_state("mission_select") return end
     if _evac<=0 then die(player) end
@@ -821,21 +827,19 @@ function draw_gameplay()
   camera(cam_x,cam_y)
   map(0,0,0,0,72,72)
 
-  -- draw doors, terminals, fragments
-  for d in all(doors) do d:draw() end
-  for t in all(terminals) do t:draw() end
-  for f in all(data_fragments) do f:draw() end
-
+  -- floor, then player, then taller actors over it
+  for l in all({doors,terminals,data_fragments}) do
+    for o in all(l) do o:draw() end
+  end
   if not _dead then player:draw() end
-  for e in all(enemies) do e:draw() end
-  for b in all(barrels) do b:draw() end
+  for l in all({enemies,barrels}) do
+    for o in all(l) do o:draw() end
+  end
 
   -- plasma charge visual
   if player._charge then
-    local ct=player._charge.t
-    local cw=player._charge.w
-    local r=32*(ct/cw.charge)
-    circ(player.x+4,player.y+4,r,12)
+    local c=player._charge
+    circ(player.x+4,player.y+4,32*c.t/c.w.charge,12)
   end
 
   -- bullets + particles (drawn before lighting)
@@ -843,7 +847,6 @@ function draw_gameplay()
   draw_parts()
 
   -- lighting pass (single player light)
-  local px,py=player.x+4,player.y+4
   draw_multi()
 
   -- laser beams glow over the darkness
@@ -854,12 +857,7 @@ function draw_gameplay()
     if p.txt then print_shadow(p.txt,p.x,p.y,p.col) end
   end
 
-  -- extraction indicator (points to spawn)
   local cl=n_terminals()==0 and not _dead
-  if cl and not _won then
-    local a=atan2(player_spawn_x-player.x,player_spawn_y-player.y)
-    circfill(px+cos(a)*20,py+sin(a)*20,1,8)
-  end
 
   -- targeting reticle: rotating red square, snaps in on lock (v2)
   if _ptarget and not _dead and not _mg.active then
@@ -912,7 +910,7 @@ function draw_tut()
   if not _tmoved then h="MOVE: \x8b\x91\x94\x83"
   elseif not _tfired then h="ATTACK: \x97"
   elseif n>1 and not _tmenu then h="WEAPONS MENU: \x8e"
-  elseif _tfrag and _tfrag>0 then h="FRAGMENTS RESTORE HP" _tfrag-=1
+  elseif _tfrag and _tfrag>0 then h="SHARD: +HP & OVERCHARGE" _tfrag-=1
   end
   if h then
     local w=print(h,0,-99)
@@ -924,7 +922,7 @@ end
 -- minigame (simon says hacking)
 function mg_start(term)
   local seq={}
-  for i=1,5 do seq[i]=_dirs[flr(rnd(4))+1] end
+  for i=1,5 do seq[i]=_dirs[rnd(4)\1+1] end
   _mg={active=true,seq=seq,inp={},
     timer=180,term=term}
 end
@@ -1033,9 +1031,9 @@ function get_aim()
 end
 
 -- spawn a volley of orbiting homing missiles
-function spawn_missiles(w,src,plr)
+function spawn_missiles(w,src,plr,n)
   local px,py=src.x+4,src.y+4
-  for i=1,w.n do
+  for i=1,n or w.n do
     -- release like drones in a spread, then home in
     local a=rnd()
     add(bullets,{x=px,y=py,vx=cos(a)*2,vy=sin(a)*2,
@@ -1057,25 +1055,28 @@ function fire_weapon(wi)
     end
     sfx(29) return
   end
+  -- data-fragment overcharge: every shot fires its upgraded form
+  local pf=_oc>0
   w.ammo-=1 _tfired=true
   local ax,ay=get_aim()
+  local aim={ax,ay}
   _wcd[wi]=w.cd
 
   if w.burst then
-    -- machine gun: first shot + burst for rest
+    -- machine gun: denser stream when overcharged (16 vs 10)
     player._burst={w=w,
-      t=(w.n-1)*w.burst,rate=w.burst}
-    shoot(w,{ax,ay})
+      t=((pf and 16 or w.n)-1)*w.burst,rate=w.burst}
+    shoot(w,aim)
   elseif w.charge then
-    -- plasma: start charge
-    player._charge={w=w,aim={ax,ay},
-      t=w.charge}
+    -- plasma: overcharged fires instantly, no charge
+    if pf then shoot(w,aim)
+    else player._charge={w=w,t=w.charge} end
   elseif w.homing then
-    spawn_missiles(w,player,true)
+    spawn_missiles(w,player,true,pf and 5 or w.n)
     sfx(w.sfx)
   else
-    -- rifle: instant fan
-    firefan(w,{ax,ay},w.n)
+    -- rifle: wider fan when overcharged (8 vs 5)
+    firefan(w,aim,pf and 8 or w.n)
     if w.recoil then recoil(ax,ay,w) end
     sfx(w.sfx)
   end
@@ -1150,10 +1151,9 @@ function update_enemies()
       if d<e.atk*.6 then e.vx,e.vy=-ny,nx
       else e.vx,e.vy=nx,ny end
       if e.ecd<=0 then
-        local wi=type(e.wpi)=="table"
-          and e.wpi[flr(rnd(#e.wpi))+1] or e.wpi
+        local wi=e.wpi>9 and (rnd()<.5 and e.wpi\10 or e.wpi%10) or e.wpi
         enemy_fire(e,wi)
-        e.ecd=wpns[wi].cd*3
+        e.ecd=wpns[wi].cd*2.5
       end
     elseif e.lsx then
       -- chase to last seen position
@@ -1245,7 +1245,7 @@ function burst(x,y,n,c)
   for i=1,n do
     local a,s=rnd(),.5+rnd(1.5)
     add(parts,{x=x,y=y,vx=cos(a)*s,vy=sin(a)*s,
-      life=20+rnd(10),sz=1+flr(rnd(2)),col=c})
+      life=20+rnd(10),sz=1+rnd(2)\1,col=c})
   end
 end
 
@@ -1270,7 +1270,7 @@ function n_fragments() return ncount(data_fragments,"got") end
 -- data fragments
 data_fragment={} data_fragment.__index=data_fragment
 function data_fragment.new(x,y)
-  return setmetatable({x=x,y=y,got=false},data_fragment)
+  return setmetatable({x=x,y=y},data_fragment)
 end
 function data_fragment:draw()
   if not self.got then
@@ -1282,7 +1282,7 @@ end
 barrel={} barrel.__index=barrel
 function barrel.new(x,y)
   return setmetatable({x=x,y=y,
-    poison=rnd()>.5,hp=1,exp=false,et=0},barrel)
+    poison=rnd()>.5,hp=1},barrel)
 end
 function barrel:take_damage(a) self.hp=max(0,self.hp-a) end
 function barrel:draw()
@@ -1402,10 +1402,12 @@ function draw_hud()
   -- health bar (white bg, colored fill)
   local hp=player.hp/player.mhp
   local hc=hp>.6 and 11 or hp>.3 and 10 or 8
-  hud_bar(sx,sy,66,5,7,hc,hp)
-  -- cooldown bar (blue), below health
+  hud_bar(sx,sy,84,5,7,hc,hp)
+  -- cooldown bar: shakes while overcharged
   local cy=sy+5
-  hud_bar(sx,cy,66,3,1,12,1-_wcd[_wsel]/w.cd)
+  local jx,jy=0,0
+  if _oc>0 then jx,jy=rnd(3)-1,rnd(3)-1 end
+  hud_bar(sx+jx,cy+jy,84,3,1,12,1-_wcd[_wsel]/w.cd)
   -- weapon name + ammo, below bars
   local ac=w.ammo>0 and 7 or flr(t()*4)%2*5+2
   print_shadow(w.name.." ▶"..w.ammo.."◀",sx,cy+5,ac)
@@ -1443,17 +1445,9 @@ function entity.new(x,y)
     y=y,
     vx=0,
     vy=0,
-    col_x=0,
-    col_y=1,
-    col_w=8,
-    col_h=7,
     target_x=x,
     target_y=y,
-    max_speed=4,
-    acceleration=0.8,
-    deceleration=0.9,
-    last_dir="down",
-    face_x=1
+    max_speed=4
   },entity)
 end
 
@@ -1499,13 +1493,12 @@ function entity:follow_target()
   local dist=dist_trig(dx,dy)
 
   if dist>1 then
-    self.vx=self:approach(self.vx,dx*0.1,self.acceleration)
-    self.vy=self:approach(self.vy,dy*0.1,self.acceleration)
-
+    self.vx=self:approach(self.vx,dx*0.1,.8)
+    self.vy=self:approach(self.vy,dy*0.1,.8)
     set_dir(self)
   else
-    self.vx=self:approach(self.vx,0,self.deceleration)
-    self.vy=self:approach(self.vy,0,self.deceleration)
+    self.vx=self:approach(self.vx,0,.9)
+    self.vy=self:approach(self.vy,0,.9)
   end
 
   -- limit speed
@@ -1517,17 +1510,13 @@ function entity:follow_target()
 end
 
 function entity:approach(current,target,step)
-  if current<target then
-    return min(current+step,target)
-  elseif current>target then
-    return max(current-step,target)
-  end
-  return current
+  return current<target and min(current+step,target) or max(current-step,target)
 end
 
 function entity:check_tile_collision(x,y)
-  local cx1,cy1=x+self.col_x,y+self.col_y
-  local cx2,cy2=cx1+self.col_w-1,cy1+self.col_h-1
+  -- collision box: x, y+1, 8x7 (same for all entities)
+  local cx1,cy1=x,y+1
+  local cx2,cy2=cx1+7,cy1+6
 
   local tx1,ty1=flr(cx1/8),flr(cy1/8)
   local tx2,ty2=flr(cx2/8),flr(cy2/8)
@@ -1577,7 +1566,7 @@ function entity:draw()
   elseif self.col then
     pal(7,self.col)
   end
-  if type(self.wpi)=="table" then
+  if self.wpi and self.wpi>9 then
     -- big "preacher": 2x3 sprite, blinking red eye
     pal(0,t()\.5%2*8)
     spr(8,self.x-4,self.y-16,2,3,self.vx<0)
