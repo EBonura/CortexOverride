@@ -58,8 +58,7 @@ function _init()
   if dget(63)>=1 then
     credits=dget(0)
     for i=1,4 do
-      local f=dget(i)
-      mission_data[i]={f%2,f\2%2,f\4%2}
+      mission_data[i]={dget(i),0,0}
       wpns[i].owned=dget(5+i)>0
     end
   end
@@ -277,7 +276,7 @@ end
 
 function rss()
   memcpy(0x0000,0x4300,0x1000)
-  memcpy(0x1000,0x5300,0x0C00)
+  memcpy(0x1000,0x5300,0x0B00)
 end
 
 -- textpanel: menu boxes with reveal + select anim
@@ -410,10 +409,14 @@ function update_intro()
     _itp.active=true
     _itp.txt=_ipages[1]
   end
-  -- save prompt (shown after the lore if a save exists)
+  -- save prompt: pick with \x8b\x91, then confirm with \x97.
+  -- nothing happens until a side is chosen (no accidental skip)
   if _sp then
-    if btnp(5) then change_state("mission_select")
-    elseif btnp(4) then dset(63,0) run() end
+    if btnp(0) then _ss=0 sfx(19) elseif btnp(1) then _ss=1 sfx(19) end
+    if _ss and btnp(5) then
+      if _ss<1 then change_state("mission_select")
+      else dset(63,0) run() end
+    end
   -- x or -> pages through lore (locked until reveal)
   elseif (btnp(5) or btnp(1)) and _itp.active then
     sfx(19)
@@ -422,9 +425,9 @@ function update_intro()
       _itp.txt=_ipages[_ip]
       _itp.cc=0
     elseif dget(63)>=1 then
-      _sp=true
-      _itp.txt="save data found\n\n\x97 continue\n\x8e erase"
-      _itp.cc=0
+      _sp=true _ss=false
+      _itp.txt="save data found"
+      _itp.tc=11
     else
       change_state("mission_select")
     end
@@ -439,7 +442,10 @@ function draw_intro()
   if sin(t())<.9 then circfill(63,64,3,2) end
   display_logo(_xc,_xp,_yl)
   _itp:draw()
-  if _itp.active and not _sp then print("NEXT\x91",98,93,11) end
+  if _sp then
+    ?"continue",14,90,_ss==0 and 11 or 5
+    ?"erase",90,90,_ss==1 and 11 or 5
+  elseif _itp.active then print("NEXT\x91",98,93,11) end
   camera()
 end
 
@@ -611,8 +617,7 @@ function wstat(w) return w.owned and "sold" or "$"..w.cost end
 function save_game()
   dset(0,credits)
   for i=1,4 do
-    local m=mission_data[i]
-    dset(i,m[1]+m[2]*2+m[3]*4)
+    dset(i,mission_data[i][1])
     dset(5+i,wpns[i].owned and 1 or 0)
   end
   dset(63,1)
@@ -651,9 +656,9 @@ function init_gameplay()
   music(0)
   init_stars()
 
-  -- backup full sprite sheet + map data
+  -- backup sprite sheet (stop at 0x5dff: 0x5e00+ is cartdata)
   memcpy(0x4300,0x0000,0x1000)
-  memcpy(0x5300,0x1000,0x0C00)
+  memcpy(0x5300,0x1000,0x0B00)
 
   -- reset state
   terminals={} doors={}
@@ -721,7 +726,7 @@ function update_gameplay()
   end
   -- weapon menu (hold O): pauses the game
   if btn(4) then
-    if not _wmenu then wmenu_open() end
+    if not _wmenu then wmenu_open() sfx(19) end
     _wmenu=true
     if btnp(2) then _wsel=(_wsel-2)%4+1 sfx(19) end
     if btnp(3) then _wsel=_wsel%4+1 sfx(19) end
@@ -1383,9 +1388,9 @@ function wmenu_update()
     p:update()
   end
   _winfo.txt=
-    "DATA SHARDS LEFT: "..n_fragments().."\n"..
-    "HOSTILE UNITS:    "..#enemies.."\n"..
-    "TERMINALS LEFT:   "..n_terminals()
+    "DATA SHARDS LEFT: "..n_fragments()..
+    "\nHOSTILE UNITS:    "..#enemies..
+    "\nTERMINALS LEFT:   "..n_terminals()
 end
 
 function draw_weapon_menu()
@@ -1561,10 +1566,11 @@ function entity:apply_physics()
 end
 
 function entity:draw()
-  if self.flash and self.flash>0 then
-    for i=0,15 do pal(i,7) end
+  if self.flash>0 then
+    memset(0x5f00,7,16)
   elseif self.col then
     pal(7,self.col)
+    pal(12,8) -- enemy eyes: cyan -> red (player has no col)
   end
   if self.wpi and self.wpi>9 then
     -- big "preacher": 2x3 sprite, blinking red eye
