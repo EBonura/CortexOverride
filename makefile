@@ -4,6 +4,7 @@
 # or override per-invocation: make run PICO8=/path/to/pico8
 -include local.mk
 PICO8 ?= pico8
+SHRINKO ?= shrinko8
 CART ?= v0.3.p8
 EXPORT ?= export
 
@@ -24,7 +25,8 @@ count:
 # build the itch.io HTML5 export -> export/index.html + export/index.js
 export:
 	mkdir -p $(EXPORT)
-	$(PICO8) $(CART) -export $(EXPORT)/index.html
+	$(SHRINKO) $(CART) /tmp/co_min.p8 -m --no-minify-rename
+	$(PICO8) /tmp/co_min.p8 -export $(EXPORT)/index.html
 
 # export + commit + push. GitHub Actions then pushes export/ to itch.io
 # (bonnie-studios/cortex-override:html5) via butler. One-time setup:
