@@ -2,7 +2,7 @@ pico-8 cartridge // http://www.pico-8.com
 version 43
 __lua__
 
--- cortex override v0.3.2
+-- cortex override v0.3
 -- single player light, banded falloff
 
 -- state management
@@ -14,8 +14,7 @@ credits_shown=800
 mission_briefings=split("pROTOCOL zERO\n\naLPHA-7 HAS FALLEN\nTO bARRACUDA.\n\nlOCK IT DOWN,\nSECURE THE DATA,\nEXTRACT.@sILICON wASTELAND\n\niNFECTION HAS\nREACHED THE\nCITY OUTSKIRTS.\n\ncROSS THE WASTES,\nPURGE THE\nSCAVENGERS,\nSECURE THE NODES.@mETROPOLIS sIEGE\n\nbARRACUDA HOLDS\nTHE MAINFRAME.\n\nbREAK THROUGH,\nFREE THE TERMINALS\nSEVER ITS HOLD.@fACILITY 800a\n\ntHE CORE IS ITS\nLAST STRONGHOLD.\n\nbREACH IT, RUN\ncORTEX pROTOCOL,\nPURGE IT ALL.","@")
 
 function _init()
-  palt(0,false)
-  palt(14,true)
+  palt(2)
 
   -- blob region @0x1000: [5 x 2-byte lens][4 x 72x72 map][logo]
   local o=0x100a
@@ -41,8 +40,6 @@ function _init()
   for i=0,255 do
     _mdt[i]=bor(shl(md[i\16+1],4),md[i%16+1])
   end
-
-  cam=gamecam.new()
 
   -- build state table from naming convention
   states={}
@@ -83,7 +80,7 @@ end
 function _draw()
   _cur_st.draw()
   if _tr then
-    local s=max(1,flr(16*_tr/8))
+    local s=max(1,_tr*2)
     for x=0,127,s do
       for y=0,127,s do
         rectfill(x,y,x+s-1,y+s-1,pget(x,y))
@@ -111,7 +108,7 @@ function dist_trig(dx,dy)
 end
 
 function check_tile_flag(x,y,f)
-  return fget(mget(flr(x/8),flr(y/8)),f or 0)
+  return fget(mget(x/8,y/8),f or 0)
 end
 
 -- color name -> pico color + light rgb
@@ -126,7 +123,6 @@ laser_door={}
 laser_door.__index=laser_door
 
 function laser_door.new(x,y,col)
-  local cm=color_map[col]
   local beams={}
   -- each beam (offsets 11,4|9,8|7,12) skips the door's solid body,
   -- then runs to the first wall below its own column, so the 3 fan
@@ -139,9 +135,8 @@ function laser_door.new(x,y,col)
   end
   return setmetatable({
     x=x,y=y,
-    is_open=false,
     color=col,
-    beam_col=cm[1],
+    beam_col=color_map[col][1],
     beams=beams
   },laser_door)
 end
@@ -166,9 +161,8 @@ function laser_door:draw_beams()
   if self.opening and flr(t()*8)%2!=0 then return end
   -- stagger bottom ends opposite to the tops for
   -- a fanned perspective (v2)
-  for i=1,#self.beams do
-    local b=self.beams[i]
-    line(b.x,b.y1,b.x,b.y2+(#self.beams-i+1)*2,self.beam_col)
+  for i,b in ipairs(self.beams) do
+    line(b.x,b.y1,b.x,b.y2+(4-i)*2,self.beam_col)
   end
 end
 
@@ -180,8 +174,7 @@ function terminal.new(x,y,door)
   return setmetatable({
     x=x,y=y,
     door=door,
-    color=door and door.color or nil,
-    done=false,
+    color=door and door.color,
     pulse=0
   },terminal)
 end
@@ -194,9 +187,7 @@ function terminal:draw()
   if self.done or (self.door and self.door.is_open) then
     pal(7,5)
   elseif self.color then
-    local cm=color_map[self.color]
-    local ci=self.pulse<12 and cm[1] or cm[2]
-    pal(7,ci)
+    pal(7,color_map[self.color][self.pulse\12+1])
   end
   spr(23,self.x,self.y)
   spr(39,self.x,self.y+8)
@@ -230,7 +221,7 @@ function draw_multi()
 
   memcpy(0x0000,0x6000,0x2000)
   camera()
-  palt(0,false) palt(14,false)
+  palt(0)
 
   -- ambient base: whole scene at darkest shade,
   -- so geometry stays visible outside the light
@@ -246,7 +237,7 @@ function draw_multi()
   setpal(_dk1)
   sspr_disc(sx,sy,(r2+r3)/2,2)
   sspr_disc(sx,sy,r2,1)
-  pal() palt(0,false) palt(14,false)
+  pal() palt(0)
   sspr_disc(sx,sy,(r1+r2)/2,2)
   sspr_disc(sx,sy,r1,1)
 
@@ -286,7 +277,7 @@ textpanel.__index=textpanel
 function textpanel.new(x,y,h,w,txt,reveal)
   return setmetatable({
     x=x,y=y,h=h,w=w,
-    txt=txt or "",sel=false,
+    txt=txt or "",
     active=true,reveal=reveal,
     cc=0,exp=0,loff=0,shk=0
   },textpanel)
@@ -328,7 +319,7 @@ function display_logo(xc,xp,y)
 end
 
 function reset_pal(_cls)
-  pal() palt(0) palt(14,true)
+  pal() palt(2)
   if _cls then cls() end
 end
 
@@ -338,8 +329,8 @@ function menubg(ox,oy)
   dks()
 end
 
-function print_centered(t,x,y,c)
-  ?t,x-#t*2,y,c
+function print_centered(t,y,c)
+  ?t,64-#t*2,y,c
 end
 
 function print_shadow(t,x,y,c)
@@ -457,13 +448,13 @@ end
 function init_mission_select()
   music(0)
   cam.x,cam.y=0,0
-  camera(0,0)
+  camera()
   _minfo=textpanel.new(50,35,74,76,"",true)
   _arm=textpanel.new(4,30,9,38,"ARMORY",true)
   _msel=1
   _mpanels={}
   for i=1,4 do
-    add(_mpanels,textpanel.new(4,52+(i-1)*14,9,38,
+    add(_mpanels,textpanel.new(4,38+i*14,9,38,
       "MISSION "..i,true))
   end
   _mshow_brief=false
@@ -522,20 +513,20 @@ function draw_mission_select()
   elseif _lk then d,c="COMPLETE M1 OR M2",8
   elseif not armed() then d,c="NO WEAPON-VISIT ARMORY",8 end
   rectfill(18,114,110,123,0)
-  print_centered(d,64,117,c)
+  print_centered(d,117,c)
 end
 
 -- loadout select (buy ammo with credits)
 function init_loadout_select()
   music(0)
   cam.x,cam.y=0,0
-  camera(0,0)
+  camera()
   init_stars()
   _lsel=1
   -- 4 weapons + back-to-missions button
   _lpanels={}
   for i=1,5 do
-    add(_lpanels,textpanel.new(14,24+(i-1)*14,10,100,"",true))
+    add(_lpanels,textpanel.new(14,10+i*14,10,100,"",true))
   end
 end
 
@@ -543,9 +534,8 @@ function update_loadout_select()
   move_stars()
   if btnp(2) then _lsel=(_lsel-2)%5+1 sfx(19) end
   if btnp(3) then _lsel=_lsel%5+1 sfx(19) end
-  if btnp(4) then change_state("mission_select") return end
+  if btnp(4) or btnp(5) and _lsel==5 then change_state("mission_select") return end
   if btnp(5) then
-    if _lsel==5 then change_state("mission_select") return end
     local w=wpns[_lsel]
     if not w.owned and credits>=w.cost then
       w.owned=true credits-=w.cost sfx(19) save_game()
@@ -571,9 +561,9 @@ end
 function draw_loadout_select()
   menubg()
   draw_stars()
-  print_centered("ARMORY",64,8,11)
+  print_centered("ARMORY",8,11)
   for p in all(_lpanels) do p:draw() end
-  print_centered("CREDITS: "..credits,64,100,11)
+  print_centered("CREDITS: "..credits,100,11)
   local act="\x97 CONFIRM"
   if _lsel<=4 then
     act=wpns[_lsel].owned and "EQUIPPED" or "\x97 BUY"
@@ -590,26 +580,16 @@ _mg={active=false}
 _dirs=split"\x8b,\x91,\x94,\x83"
 
 -- weapons (data-driven)
-wpns={
-  {name="RIFLE BURST",cd=15,sfx=27,
-    n=5,spd=4,fan=0.005,life=30,
-    dmg=3,recoil=5.5,sz=1,col=8,
-    mag=120,cost=700},
-  {name="MACHINE GUN",cd=30,sfx=14,
-    n=10,spd=6,spread=0.03,life=20,
-    dmg=3,recoil=0.15,sz=1,col=8,
-    burst=2,mag=80,cost=700},
-  {name="MISSILES",cd=45,sfx=6,
-    n=3,spd=0,life=60,
-    dmg=20,sz=1,col=8,
-    homing=true,aoe=16,aoe_dmg=4,
-    mag=36,cost=1680},
-  {name="PLASMA CANNON",cd=60,sfx=10,
-    n=1,spd=5,life=120,
-    dmg=75,recoil=5.5,sz=4,col=12,
-    charge=20,aoe=16,aoe_dmg=10,
-    mag=18,cost=3500},
-}
+-- name,cd,sfx,n,spd,fan,spread,life,dmg,recoil,sz,col,burst,homing,charge,aoe,aoe_dmg,mag,cost
+-- (empty field = nil)
+wpns={}
+for s in all(split("RIFLE BURST,15,27,5,4,.005,,30,3,5.5,1,8,,,,,,120,700|MACHINE GUN,30,14,10,6,,.03,20,3,.15,1,8,2,,,,,80,700|MISSILES,45,6,3,0,,,60,20,,1,8,,1,,16,4,36,1680|PLASMA CANNON,60,10,1,5,,,120,75,5.5,4,12,,,20,16,10,18,3500","|")) do
+  local w,v={},split(s)
+  for i,k in ipairs(split"name,cd,sfx,n,spd,fan,spread,life,dmg,recoil,sz,col,burst,homing,charge,aoe,aoe_dmg,mag,cost") do
+    if v[i]!="" then w[k]=v[i] end
+  end
+  add(wpns,w)
+end
 function wstat(w) return w.owned and "sold" or "$"..w.cost end
 
 -- autosave (cartdata: persists in itch.io localStorage)
@@ -670,15 +650,12 @@ function init_gameplay()
   _wmenu=false _dead=false _won=false
   _evac=1000 player=nil credits_shown=credits _ptox=0 _oc=0
   -- refill owned weapons; select lowest owned
-  for i=1,4 do
-    wpns[i].ammo=wpns[i].owned and wpns[i].mag or 0
-  end
+  for w in all(wpns) do w.ammo=w.owned and w.mag or 0 end
   for i=4,1,-1 do if wpns[i].owned then _wsel=i end end
 
   -- enemies for this mission
   for s in all(split(_espawn[current_mission],"|",false)) do
-    local d=split(s)
-    spawn_enemy(d[1]+0,d[2]+0,d[3])
+    spawn_enemy(unpack(split(s)))
   end
 
   -- scan map region: barrels(6) fragments(5)
@@ -699,8 +676,7 @@ function init_gameplay()
 
   -- door+terminal pairs for this mission
   for s in all(split(_doors_m[current_mission],"|",false)) do
-    local d=split(s)
-    create_door_terminal_pair(d[1],d[2],d[3],d[4],d[5])
+    create_door_terminal_pair(unpack(split(s)))
   end
 
   -- player start (from _pspawn marker)
@@ -829,8 +805,7 @@ end
 function draw_gameplay()
   cls()
   cam_x,cam_y=cam.x,cam.y
-  palt(0,false)
-  palt(14,true)
+  palt(2)
   camera(cam_x,cam_y)
   map(0,0,0,0,72,72)
 
@@ -896,12 +871,12 @@ function draw_gameplay()
   if cl then
     rectfill(28,82,100,104,0)
     if _won then
-      print_centered("extraction ready",64,88,11)
-      print_centered("\x97 to evacuate",64,96,7)
+      print_centered("extraction ready",88,11)
+      print_centered("\x97 to evacuate",96,7)
     else
-      print_centered("system purged",64,84,11)
-      print_centered("return to spawn",64,91,7)
-      print_centered("evac: "..flr(_evac/30),64,98,8)
+      print_centered("system purged",84,11)
+      print_centered("return to spawn",91,7)
+      print_centered("evac: ".._evac\30,98,8)
     end
   end
 
@@ -937,27 +912,19 @@ end
 function mg_update()
   _mg.timer-=1
   if _mg.timer<=0 then
-    mg_end(false)
+    mg_end()
     return
   end
   for i=0,3 do
     if btnp(i) then
       add(_mg.inp,_dirs[i+1])
-      _mg.fr=2 _mg.fc=_dirs[i+1]==_mg.seq[#_mg.inp] and 11 or 8
-      if #_mg.inp==#_mg.seq then mg_check() end
+      local ok=_dirs[i+1]==_mg.seq[#_mg.inp]
+      _mg.fr=2 _mg.fc=ok and 11 or 8
+      _mg.bad=_mg.bad or not ok
+      if #_mg.inp==#_mg.seq then mg_end(not _mg.bad) end
       return
     end
   end
-end
-
-function mg_check()
-  for i=1,#_mg.seq do
-    if _mg.seq[i]!=_mg.inp[i] then
-      mg_end(false)
-      return
-    end
-  end
-  mg_end(true)
 end
 
 function mg_end(win)
@@ -1031,9 +998,9 @@ function get_aim()
   local spd=dist_trig(vx,vy)
   if spd>0 then return vx/spd,vy/spd end
   local d=player.last_dir
-  if d=="horizontal" then
+  if d==0 then
     return player.face_x,0
-  elseif d=="up" then return 0,-1
+  elseif d==32 then return 0,-1
   else return 0,1 end
 end
 
@@ -1042,11 +1009,7 @@ function spawn_missiles(w,src,plr,n)
   local px,py=src.x+4,src.y+4
   for i=1,n or w.n do
     -- release like drones in a spread, then home in
-    local a=rnd()
-    add(bullets,{x=px,y=py,vx=cos(a)*2,vy=sin(a)*2,
-      life=w.life,sz=w.sz,col=w.col,
-      dmg=w.dmg,aoe=w.aoe,aoe_dmg=w.aoe_dmg,
-      homing=true,plr=plr})
+    mkb(w,px,py,rnd(),2,plr)
   end
 end
 
@@ -1109,12 +1072,11 @@ function fire_single(w,aim,ang_off,src)
   local a=atan2(ax,ay)+(ang_off or 0)
     +(w.spread and (rnd()-0.5)*w.spread or 0)
   src=src or player
-  local px,py=src.x+4,src.y+4
-  add(bullets,{x=px+cos(a)*5,y=py+sin(a)*5,
-    vx=cos(a)*w.spd,vy=sin(a)*w.spd,
-    life=w.life,sz=w.sz,col=w.col,
-    dmg=w.dmg,aoe=w.aoe,aoe_dmg=w.aoe_dmg,
-    plr=src==player})
+  mkb(w,src.x+4+cos(a)*5,src.y+4+sin(a)*5,a,w.spd,src==player)
+end
+-- stats (life,sz,col,dmg,aoe,homing..) read through to the weapon
+function mkb(w,x,y,a,s,plr)
+  add(bullets,setmetatable({x=x,y=y,vx=cos(a)*s,vy=sin(a)*s,plr=plr},{__index=w}))
 end
 
 -- enemy AI
@@ -1124,7 +1086,7 @@ function los(a,b)
   local s=max(abs(dx),abs(dy))
   if s<1 then return true end
   for i=4,s,4 do
-    if check_tile_flag(x+dx*i/s,y+dy*i/s) then return false end
+    if check_tile_flag(x+dx*i/s,y+dy*i/s) then return end
   end
   return true
 end
@@ -1152,7 +1114,7 @@ function update_enemies()
     e.alt=max(0,e.alt-1)
     local see=d<=e.atk and los(e,player)
     if see then
-      e.lsx,e.lsy,e.alt,e.ai=player.x,player.y,180,"atk"
+      e.lsx,e.lsy,e.alt,e.ai=player.x,player.y,180,20
       -- approach when far, circle-strafe when in range
       local nx,ny=dx/d,dy/d
       if d<e.atk*.6 then e.vx,e.vy=-ny,nx
@@ -1164,13 +1126,13 @@ function update_enemies()
       end
     elseif e.lsx then
       -- chase to last seen position
-      e.ai="chase"
+      e.ai=36
       local tx,ty=e.lsx-e.x,e.lsy-e.y
       local td=dist_trig(tx,ty)
       if td>2 then e.vx,e.vy=tx/td,ty/td end
     else
       -- idle wander
-      e.ai="idle"
+      e.ai=nil
       e.ait-=1
       if e.ait<=0 then e.ait=30 local a=rnd() e.vx,e.vy=cos(a),sin(a) end
     end
@@ -1187,7 +1149,7 @@ function update_bullets()
   for i=#bullets,1,-1 do
     local b=bullets[i]
     b.life-=1
-    local dead=false
+    local dead
 
     -- homing missiles steer toward their target
     if b.homing then
@@ -1208,7 +1170,7 @@ function update_bullets()
           hurt(e,b) dead=true break
         end
       end
-    elseif b.plr==false then
+    else
       if bhit(b,player) then
         hurt(player,b) dead=true
       end
@@ -1308,7 +1270,7 @@ function barrel:update()
       barrel_dmg(self,player)
       sfx(28)
     end
-    mset(flr(self.x/8),flr(self.y/8),self.poison and 10 or 26)
+    mset(self.x/8,self.y/8,self.poison and 10 or 26)
     if self.et>=15 then del(barrels,self) end
   end
 end
@@ -1373,7 +1335,7 @@ function wmenu_open()
   _tmenu=true
   _wpanels={}
   for i=1,4 do
-    local p=textpanel.new(37,30+(i-1)*16,10,54,wpns[i].name)
+    local p=textpanel.new(37,14+i*16,10,54,wpns[i].name)
     p.wi=i
     add(_wpanels,p)
   end
@@ -1427,7 +1389,7 @@ function draw_hud()
   -- enemy alert bars + name (lower-left, v2 style)
   local ay=123
   for e in all(enemies) do
-    if e.ai=="atk" or e.ai=="chase" then
+    if e.ai then
       local bw=flr(e.mhp*.4)
       hud_bar(2,ay,bw,4,7,8,e.hp/e.mhp)
       print_shadow(e.name,bw+4,ay)
@@ -1438,7 +1400,7 @@ function draw_hud()
   if _mgf and _mgf>0 then
     _mgf-=1
     rectfill(28,97,100,108,0)
-    print_centered(_mgmsg,64,100,_mgc)
+    print_centered(_mgmsg,100,_mgc)
   end
 end
 
@@ -1454,13 +1416,28 @@ function entity.new(x,y)
     vy=0,
     target_x=x,
     target_y=y,
-    max_speed=4
+    max_speed=4,
+    last_dir=16
   },entity)
 end
 
 function entity:update()
   self:control()
-  self:follow_target()
+  local dx,dy=self.target_x-self.x,self.target_y-self.y
+  if dist_trig(dx,dy)>1 then
+    self.vx=approach(self.vx,dx*0.1,.8)
+    self.vy=approach(self.vy,dy*0.1,.8)
+    set_dir(self)
+  else
+    self.vx=approach(self.vx,0,.9)
+    self.vy=approach(self.vy,0,.9)
+  end
+  -- limit speed
+  local speed=dist_trig(self.vx,self.vy)
+  if speed>self.max_speed then
+    self.vx=(self.vx/speed)*self.max_speed
+    self.vy=(self.vy/speed)*self.max_speed
+  end
   self:apply_physics()
 end
 
@@ -1488,35 +1465,14 @@ end
 
 function set_dir(o)
   if abs(o.vx)>abs(o.vy) then
-    o.last_dir="horizontal"
+    o.last_dir=0
     o.face_x=o.vx>0 and 1 or -1
   else
-    o.last_dir=o.vy<0 and "up" or "down"
+    o.last_dir=o.vy<0 and 32 or 16
   end
 end
 
-function entity:follow_target()
-  local dx,dy=self.target_x-self.x,self.target_y-self.y
-  local dist=dist_trig(dx,dy)
-
-  if dist>1 then
-    self.vx=self:approach(self.vx,dx*0.1,.8)
-    self.vy=self:approach(self.vy,dy*0.1,.8)
-    set_dir(self)
-  else
-    self.vx=self:approach(self.vx,0,.9)
-    self.vy=self:approach(self.vy,0,.9)
-  end
-
-  -- limit speed
-  local speed=dist_trig(self.vx,self.vy)
-  if speed>self.max_speed then
-    self.vx=(self.vx/speed)*self.max_speed
-    self.vy=(self.vy/speed)*self.max_speed
-  end
-end
-
-function entity:approach(current,target,step)
+function approach(current,target,step)
   return current<target and min(current+step,target) or max(current-step,target)
 end
 
@@ -1525,11 +1481,8 @@ function entity:check_tile_collision(x,y)
   local cx1,cy1=x,y+1
   local cx2,cy2=cx1+7,cy1+6
 
-  local tx1,ty1=flr(cx1/8),flr(cy1/8)
-  local tx2,ty2=flr(cx2/8),flr(cy2/8)
-
-  for tx=tx1,tx2 do
-    for ty=ty1,ty2 do
+  for tx=cx1\8,cx2\8 do
+    for ty=cy1\8,cy2\8 do
       if fget(mget(tx,ty),0) then
         return true
       end
@@ -1546,7 +1499,6 @@ function entity:check_tile_collision(x,y)
       end
     end
   end
-  return false
 end
 
 function entity:apply_physics()
@@ -1582,28 +1534,18 @@ function entity:draw()
     spr(49,self.x,self.y+1) -- shadow
     local spd=dist_trig(self.vx,self.vy)
     local moving=spd>0.2
-    local s=(self.last_dir=="up" and 32 or self.last_dir=="horizontal" and 0 or 16)+(moving and 2 or 0)
+    local s=self.last_dir+(moving and 2 or 0)
     s+=flr(t()*(moving and 10+min(spd/self.max_speed,1)*10 or 3))%2
     spr(s,self.x,self.y,1,1,self.vx<0)
   end
   reset_pal()
   -- alert/attack icon above enemy (v2 style)
-  local ind=self.ai=="chase" and 36 or self.ai=="atk" and 20
-  if ind then spr(ind,self.x+4,self.y-8) end
+  if self.ai then spr(self.ai,self.x+4,self.y-8) end
 end
 
 -- camera
-gamecam={}
-gamecam.__index=gamecam
-
-function gamecam.new()
-  return setmetatable({
-    x=0,
-    y=0
-  },gamecam)
-end
-
-function gamecam:update()
+cam={x=0,y=0}
+function cam:update()
   self.x+=(player.x-self.x-64)*0.2
   self.y+=(player.y-self.y-64)*0.2
   self.x=mid(0,self.x,448)
