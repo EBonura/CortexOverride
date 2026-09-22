@@ -18,9 +18,9 @@ run:
 editor:
 	@(sleep 1 && open "http://localhost:8765/maptool/editor.html") & python3 maptool/serve.py
 
-# token budget check (shrinko8 rules)
+# token/char/compressed budget check (shrinko8 matches pico-8's own count)
 count:
-	python3 ../aletha/tools/scripts/count_tokens.py $(CART)
+	$(SHRINKO) $(CART) --count
 
 # build the itch.io HTML5 export -> export/index.html + export/index.js
 export:
