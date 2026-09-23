@@ -5,7 +5,7 @@
 -include local.mk
 PICO8 ?= pico8
 SHRINKO ?= shrinko8
-CART ?= v0.3.p8
+CART ?= v0.4.p8
 EXPORT ?= export
 
 .PHONY: run editor count export deploy
@@ -14,13 +14,13 @@ run:
 	$(PICO8) -run $(CART)
 
 # launch the map editor in your browser:  make editor
-# serves locally so the editor can auto-load AND save v0.3.p8 (ctrl-c to stop)
+# serves locally so the editor can auto-load AND save v0.4.p8 (ctrl-c to stop)
 editor:
 	@(sleep 1 && open "http://localhost:8765/maptool/editor.html") & python3 maptool/serve.py
 
-# token budget check (shrinko8 rules)
+# token/char/compressed budget check (shrinko8 matches pico-8's own count)
 count:
-	python3 ../aletha/tools/scripts/count_tokens.py $(CART)
+	$(SHRINKO) $(CART) --count
 
 # build the itch.io HTML5 export -> export/index.html + export/index.js
 export:

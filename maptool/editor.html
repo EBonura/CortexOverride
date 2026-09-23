@@ -286,14 +286,14 @@ document.getElementById('expbtn').onclick=()=>{
   out=replaceSection(out,'gfx',gfxOut.join('\n'));
   out=replaceSection(out,'map',mapOut.join('\n'));
   fetch('/save',{method:'POST',body:out}).then(r=>{if(!r.ok)throw 0;
-    status('saved v0.3.p8 ✓ ('+region.length+'/8192), now `make run`')
+    status('saved v0.4.p8 ✓ ('+region.length+'/8192), now `make run`')
   }).catch(()=>{ // fallback to download if not served by make editor
-    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([out],{type:'text/plain'}));a.download='v0.3.p8';a.click();
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([out],{type:'text/plain'}));a.download='v0.4.p8';a.click();
     status('downloaded (run via `make editor` to save directly)')});
 };
 function replaceSection(text,name,body){return text.replace(new RegExp('(__'+name+'__\\n)[\\s\\S]*?(?=\\n__\\w+__|$)'),'$1'+body)}
 document.getElementById('lyTiles').onchange=document.getElementById('lyEnts').onchange=draw;
 draw();
 // auto-load the cart when served via `make editor`
-fetch('../v0.3.p8').then(r=>{if(!r.ok)throw 0;return r.text()}).then(t=>loadCart(t)).catch(()=>status('drop a .p8 here (or run `make editor` to auto-load)'));
+fetch('../v0.4.p8').then(r=>{if(!r.ok)throw 0;return r.text()}).then(t=>loadCart(t)).catch(()=>status('drop a .p8 here (or run `make editor` to auto-load)'));
 </script></body></html>

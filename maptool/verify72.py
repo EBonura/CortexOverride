@@ -5,7 +5,7 @@
 import re, os
 from lz3 import decompress
 here=os.path.dirname(__file__)
-src=open(os.path.join(here,"../v0.3.p8")).read()
+src=open(os.path.join(here,"../v0.4.p8")).read()
 W=H=72
 def sec(n):
     o=[];f=False

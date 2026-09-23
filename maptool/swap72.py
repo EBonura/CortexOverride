@@ -4,7 +4,7 @@
 # edited by hand. Keeps __gfx__ rows 0-63 (tileset) and all code.
 import os
 here=os.path.dirname(__file__)
-cart=os.path.join(here,"../v0.3.p8")
+cart=os.path.join(here,"../v0.4.p8")
 lines=open(cart).read().split("\n")
 maphex=open(os.path.join(here,"m72_map.hex")).read().split("\n")
 gfxbot=open(os.path.join(here,"m72_gfx.hex")).read().split("\n")
