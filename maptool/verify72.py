@@ -27,10 +27,10 @@ o=0x100a;L=[(mem[0x1000+2*i]<<8)|mem[0x1001+2*i] for i in range(5)]
 bl=[]
 for n in L:bl.append(bytes(mem[o:o+n]));o+=n
 print("blob lens:",L,"region used:",o-0x1000,"/8192")
-esp=re.findall(r'"([^"]*)"',re.search(r"_espawn=\{(.*?)\n\}",src,re.S).group(1))
-dor=re.findall(r'"([^"]*)"',re.search(r"_doors_m=\{(.*?)\n\}",src,re.S).group(1))
-psp=re.findall(r'"([^"]*)"',re.search(r"_pspawn=\{(.*?)\}",src,re.S).group(1))
-ok=len(psp)==4
+# per-mission lists are stored as name=split("m1@m2@m3@m4","@")
+def missions(name): return re.search(name+r'=split\("([^"]*)","@"\)',src).group(1).split("@")
+esp,dor,psp=missions("_espawn"),missions("_doors_m"),missions("_pspawn")
+ok=len(psp)==len(esp)==len(dor)==4
 for mi in range(4):
     flat=decompress(bl[mi])
     if len(flat)!=W*H: ok=False
