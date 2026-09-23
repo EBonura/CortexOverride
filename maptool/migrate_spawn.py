@@ -5,7 +5,7 @@
 import os
 from lz3 import compress, decompress
 here=os.path.dirname(__file__)
-cart=os.path.join(here,"../v0.3.p8")
+cart=os.path.join(here,"../v0.4.p8")
 src=open(cart).read()
 FLOOR=122
 def sec(n):
