@@ -35,11 +35,9 @@ function _init()
     split"0,0,0,0,0,0,1,1,0,0,1,0,1,1,14,1"
   -- menu darkening palette (v2 intro look:
   -- black bg, white->maroon, blue stays)
-  local md=split"0,1,0,0,0,0,0,2,0,0,0,0,0,0,0,0"
-  _mdt={}
-  for i=0,255 do
-    _mdt[i]=bor(shl(md[i\16+1],4),md[i%16+1])
-  end
+  _md=split"0,1,0,0,0,0,0,2,0,0,0,0,0,0,0,0"
+  -- prewarm light half-widths over the breathing range (~2 frames, once)
+  for r=43,61,.25 do cw(r) end
 
   -- build state table from naming convention
   states={}
@@ -219,55 +217,47 @@ function draw_multi()
   local s=fo/4
   local r1,r2,r3,rad=ir+s,ir+s*2,ir+s*3,ir+fo
 
-  memcpy(0x0000,0x6000,0x2000)
+  -- band edges inner->outer as half-width tables; even rows use
+  -- the half-steps (effect 1: dithered edge between bands).
+  -- band b covers |x-sx| in (w[b],w[b+1]]
+  local od,ev={cw(r1),cw(r2),cw(r3),cw(999)},{cw((r1+r2)/2),cw((r2+r3)/2),cw((r3+rad)/2),cw(999)}
   camera()
   palt(0)
-
-  -- ambient base: whole scene at darkest shade,
-  -- so geometry stays visible outside the light
+  -- sspr reads the screen itself: every pixel outside the bright
+  -- core is remapped exactly once, in place (no sheet copy/restore)
+  poke(0x5f54,0x60)
   -- (effect 3: _dk3 carries a cool cast)
-  setpal(_dk3)
-  sspr(0,0,128,128,0,0)
-
-  -- brighten inward, each band preceded by a
-  -- dithered half-step (effect 1) to fuzz the ring
-  setpal(_dk2)
-  sspr_disc(sx,sy,(r3+rad)/2,2)
-  sspr_disc(sx,sy,r3,1)
-  setpal(_dk1)
-  sspr_disc(sx,sy,(r2+r3)/2,2)
-  sspr_disc(sx,sy,r2,1)
-  pal() palt(0)
-  sspr_disc(sx,sy,(r1+r2)/2,2)
-  sspr_disc(sx,sy,r1,1)
-
+  for b,p in ipairs{_dk1,_dk2,_dk3} do
+    setpal(p)
+    for y=0,127 do
+      local t,d=y%2<1 and ev or od,abs(sy-y)
+      local wi,wo=t[b][d],t[b+1][d]
+      -- clamp to the screen: an off-screen span that is also wider
+      -- than 128 makes sspr draw nothing
+      local a,c=max(sx-wo,0),sx-wi-1
+      if c>=a then sspr(a,y,c-a+1,1,a,y) end
+      a,c=sx+max(wi,0)+1,min(sx+wo,127)
+      if c>=a then sspr(a,y,c-a+1,1,a,y) end
+    end
+  end
+  poke(0x5f54,0)
   pal()
-  rss()
   palt(14,true)
   camera(cam_x,cam_y)
 end
 
--- st=1 solid, st=2 dithered (even scanlines only,
--- so the shade interleaves with the band beneath)
-function sspr_disc(cx,cy,rad,st)
-  local R2=rad*rad
-  local y0=max(0,flr(cy-rad))
-  if st==2 and y0%2==1 then y0+=1 end
-  for y=y0,min(127,cy+rad),st do
-    local dy=cy-y
-    local d2=dy*dy
-    if d2<R2 then
-      local cdx=sqrt(R2-d2)*_xs
-      local x1=max(0,cx-cdx)
-      local x2=min(127,cx+cdx)
-      sspr(x1,y,x2-x1+1,1,x1,y)
-    end
+-- half-widths of a disc of radius r for each |dy| (-1 = row misses),
+-- memoised at 1/4px radius steps so the breathing light stops paying sqrt
+_cw={}
+function cw(r)
+  local k=r*4\1
+  if not _cw[k] then
+    local t={}
+    r=k/4
+    for d=0,255 do t[d]=d<r and min(sqrt(r*r-d*d)*_xs\1,128) or -1 end
+    _cw[k]=t
   end
-end
-
-function rss()
-  memcpy(0x0000,0x4300,0x1000)
-  memcpy(0x1c00,0x5300,0x400)
+  return _cw[k]
 end
 
 -- textpanel: menu boxes with reveal + select anim
@@ -325,8 +315,10 @@ end
 
 function menubg(ox,oy)
   reset_pal(true)
+  -- darken while drawing (was a per-byte pass over the screen)
+  setpal(_md)
   map(4+(ox or 0),37+(oy or 0),0,0,16,16)
-  dks()
+  reset_pal()
 end
 
 function print_centered(t,y,c)
@@ -344,11 +336,6 @@ function hud_bar(x,y,w,h,bg,fl,p)
   rect(x,y,x+w-1,y+h-1,0)
 end
 
-function dks()
-  for a=0x6000,0x7fff do
-    poke(a,_mdt[@a])
-  end
-end
 
 -- intro
 -- shared parallax starfield (intro + armory)
@@ -636,16 +623,10 @@ function init_gameplay()
   music(0)
   init_stars()
 
-  -- backup gameplay sprites (0-127) + the logo (224-255), so menus
-  -- restore clean after the lighting clobbers the sheet. 0x5300+0x400
-  -- stays below cartdata at 0x5e00
-  memcpy(0x4300,0x0000,0x1000)
-  memcpy(0x5300,0x1c00,0x400)
-
   -- reset state
   terminals={} doors={}
   enemies={} bullets={} parts={}
-  data_fragments={} barrels={}
+  data_fragments={} barrels={} _bar={}
   _wsel=1 _wcd=split"0,0,0,0"
   _wmenu=false _dead=false _won=false
   _evac=1000 player=nil credits_shown=credits _ptox=0 _oc=0
@@ -665,7 +646,8 @@ function init_gameplay()
       local tile=mget(tx,ty)
       local px,py=tx*8,ty*8
       if fget(tile,6) then
-        add(barrels,barrel.new(px,py))
+        local b=barrel.new(px,py)
+        add(barrels,b) _bar[tx+ty*72]=b
       elseif fget(tile,5) then
         add(data_fragments,data_fragment.new(px,py))
       elseif fget(tile,4) then
@@ -721,6 +703,7 @@ function update_gameplay()
     _ptox+=1
     if _ptox%6<1 then damage(player,1) end
   else _ptox=0 end
+  _nt=n_terminals() -- once per frame (barrels + camera read it)
   update_target()
   cam:update()
   for l in all({terminals,doors,barrels}) do
@@ -1177,9 +1160,13 @@ function update_bullets()
     end
     -- barrel collision
     if not dead then
-      for bar in all(barrels) do
-        if not bar.exp and bhit(b,bar) then
-          bar:take_damage(b.dmg) bullet_hit(b) dead=true break
+      -- only barrels on tiles within bhit reach (_bar: tile -> barrel)
+      for tx=(b.x-8)\8,(b.x+1)\8 do
+        for ty=(b.y-8)\8,(b.y+1)\8 do
+          local bar=_bar[tx+ty*72]
+          if not dead and bar and not bar.exp and bhit(b,bar) then
+            bar:take_damage(b.dmg) bullet_hit(b) dead=true
+          end
         end
       end
     end
@@ -1259,7 +1246,7 @@ function barrel:draw()
 end
 function barrel:update()
   if self.hp<=0 and not self.exp then self.exp=true self.et=0 end
-  if n_terminals()==0
+  if _nt==0
     and dist_trig(player.x-self.x,player.y-self.y)<50
     and rnd()<.01 then self.hp=0 end
   if self.exp then
@@ -1550,7 +1537,7 @@ function cam:update()
   self.y+=(player.y-self.y-64)*0.2
   self.x=mid(0,self.x,448)
   self.y=mid(0,self.y,448)
-  if n_terminals()==0 then
+  if _nt==0 then
     self.x+=rnd(4)-2 self.y+=rnd(4)-2
   end
   camera(self.x,self.y)
