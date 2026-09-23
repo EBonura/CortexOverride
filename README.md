@@ -87,7 +87,7 @@ Set a non-standard PICO-8 path in a gitignored `local.mk` (`PICO8 = /path/to/pic
 
 ### Repository layout
 - `v0.4.p8`: the game (active development)
-- `maptool/`: standalone map editor (`editor.html`) and the LZ map pipeline (`lz3.py`, `gen72.py`, `swap72.py`, `verify72.py`, `serve.py`)
+- `maptool/`: standalone map editor (`editor.html`) and the LZ map pipeline (`lz3.py`, `verify72.py`, `serve.py`)
 - `versions/`: earlier builds, kept as the project's lineage
 - `tests/`: lighting and shadow experiment carts
 - `export/`: prebuilt HTML5 build pushed to itch.io
