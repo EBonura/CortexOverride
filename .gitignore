@@ -12,7 +12,5 @@ notes
 
 # maptool: keep the editor (despite *.html), drop regenerable build intermediates
 !maptool/editor.html
-maptool/m72_*.hex
-maptool/m72_lua.txt
 __pycache__/
 *.pyc
